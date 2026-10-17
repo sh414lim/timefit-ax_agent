@@ -3,6 +3,8 @@ name: Flutter bootstrap validation
 on:
   pull_request:
     paths:
+      - .github/CODEOWNERS
+      - .github/pull_request_template.md
       - .github/workflows/flutter-bootstrap-validation.yml
       - scripts/ci/**
       - pubspec.yaml
