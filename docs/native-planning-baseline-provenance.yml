@@ -1,0 +1,47 @@
+schemaVersion: 1
+recordType: native_planning_baseline_import
+status: local_only_pending_review
+
+target:
+  repository: sh414lim/timefit-ax_agent
+  visibilityRequired: private
+  branch: docs/import-native-planning-baselines
+  baseCommit: 4ad8e8b2c6085a11d898ad75b159a7566b6aa71e
+
+source:
+  repository: sh414lim/time-fit
+  observedBranch: codex/fix-submanager-employee-controls
+  observedHead: bacd2dac973761f3ffe5b619e014c21c1e44ab18
+  trackingState: untracked
+  note: >-
+    The source documents were untracked working-tree files, so observedHead does
+    not contain their bytes. Their SHA-256 digests below are the provenance
+    anchors for this verbatim private import.
+
+repositoryNameMapping:
+  historicalPlanningName: timefit-mobile
+  actualApplicationRepository: sh414lim/timefit-ax_agent
+  meaning: >-
+    References to timefit-mobile in the imported baselines identify the actual
+    private Flutter application repository sh414lim/timefit-ax_agent. The
+    baseline text is intentionally unchanged.
+
+documents:
+  - path: docs/145-timefit-native-app-repository-migration-plan-2026-10-16.md
+    sha256: b22ee01cccc142f62d686e6f4612e744d2124ccfeefa4be089ffbc375a3da394
+    importMode: byte_identical
+  - path: docs/146-timefit-native-chat-architecture-2026-10-16.md
+    sha256: 3b18dedf27e0329ecf96daf8e61dfd9b304a94256307dff5673529ee3a68950d
+    importMode: byte_identical
+  - path: docs/147-timefit-native-chat-execution-ticket-catalog-2026-10-16.md
+    sha256: 27e763aaff0e53b2b3443b8e9b1a7552e831d4001861db6e1b4c54d64397bf92
+    importMode: byte_identical
+
+constraints:
+  contentChanged: false
+  releaseApprovalGranted: false
+  migrationApprovalGranted: false
+  storeTargetSelectionGranted: false
+  productionConfigurationChanged: false
+  publicDistributionAllowed: false
+  trelloUpdated: false
