@@ -54,3 +54,24 @@ android {
 flutter {
     source = "../.."
 }
+
+val expectedFlutterTargetByFlavor = mapOf(
+    "Dev" to "lib/main.dart",
+    "Staging" to "lib/main_staging.dart",
+)
+
+val requestedFlutterFlavor = expectedFlutterTargetByFlavor.keys.firstOrNull { flavor ->
+    gradle.startParameter.taskNames.any { taskName ->
+        taskName.contains(flavor, ignoreCase = true)
+    }
+}
+
+if (requestedFlutterFlavor != null) {
+    val actualTarget = project.findProperty("target")?.toString() ?: "lib/main.dart"
+    val expectedTarget = expectedFlutterTargetByFlavor.getValue(requestedFlutterFlavor)
+    if (actualTarget != expectedTarget) {
+        throw org.gradle.api.GradleException(
+            "${requestedFlutterFlavor.lowercase()} requires $expectedTarget; got $actualTarget.",
+        )
+    }
+}
