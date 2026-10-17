@@ -1,0 +1,30 @@
+# macOS and editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local-only TimeFit reference
+.timefit-reference.local
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.mobileprovision
+*.jks
+*.keystore
+*service-account*.json
+*credentials*.json
+
+# Logs and generated output
+*.log
+coverage/
+build/
+dist/
+.dart_tool/
+.next/
+node_modules/
