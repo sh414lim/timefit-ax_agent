@@ -44,6 +44,15 @@ flutter build ios --debug --no-codesign --flavor staging -t lib/main_staging.dar
 
 production identifier나 signing credential을 로컬 파일에 입력하지 않습니다. Apple·Android production 설정은 REL-001/003 승인 후 별도 변경으로 적용합니다.
 
+## CI 도구 체인
+
+- iOS smoke job은 GitHub-hosted `macos-15` runner와 `/Applications/Xcode_16.4.app`의 Xcode 16.4 (`16F6`)를 사용합니다.
+- `macos-14`는 2026-11-02 지원 종료 예정이며, 종료 전 brownout 동안 작업이 강제 실패하므로 지원 runner로 이동했습니다.
+- `actions/checkout`은 Node 24 기반 `v5.1.0`의 검증된 커밋 `fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09`로 고정합니다.
+- CI는 Flutter 3.38.5를 소스 SHA로 검증한 뒤 Android와 iOS의 `dev`·`staging` debug build를 실행합니다. iOS build는 서명 없이 수행합니다.
+
+참고: [macOS 14 runner image retirement](https://github.blog/changelog/2026-10-01-github-actions-macos-14-runner-image-retirement/), [macOS 15 runner image software](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md), [Node 20 retirement](https://github.blog/changelog/2026-09-23-node-20-is-no-longer-available-in-github-actions/)
+
 ## 로컬 참고 설정
 
 개발자별 기존 TimeFit 체크아웃 경로는 `.timefit-reference.local`에만 기록합니다. 이 파일은 Git에서 제외되며 공유 문서나 스크립트에 절대 경로를 하드코딩하지 않습니다.
