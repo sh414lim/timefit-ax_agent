@@ -1,0 +1,140 @@
+name: Flutter bootstrap validation
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/flutter-bootstrap-validation.yml
+      - scripts/ci/**
+      - pubspec.yaml
+      - pubspec.lock
+      - analysis_options.yaml
+      - lib/**
+      - test/**
+      - integration_test/**
+      - android/**
+      - ios/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-bootstrap-${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.38.5
+  FLUTTER_SOURCE_SHA: f6ff1529fd6d8af5f706051d9251ac9231c83407
+
+jobs:
+  boundaries:
+    name: Bootstrap boundaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify non-production boundaries
+        run: bash scripts/ci/verify_bootstrap_boundaries.sh
+
+  quality-and-android-smoke:
+    name: Format, analyze, test, Android smoke
+    needs: boundaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Flutter from the official repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --single-branch --branch "$FLUTTER_VERSION" \
+            https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          actual_sha="$(git -C "$RUNNER_TEMP/flutter" rev-parse HEAD)"
+          [[ "$actual_sha" == "$FLUTTER_SOURCE_SHA" ]]
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Record toolchain
+        run: |
+          flutter config --no-analytics
+          flutter --version
+          java -version
+          java -version 2>&1 | grep -Fq 'version "17.'
+
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          targets=(lib test)
+          if [[ -d integration_test ]]; then
+            targets+=(integration_test)
+          fi
+          dart format --output=none --set-exit-if-changed "${targets[@]}"
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Run unit and widget tests
+        run: flutter test --reporter expanded
+
+      - name: Build Android dev debug smoke
+        run: flutter build apk --debug --no-pub --flavor dev --target lib/main.dart
+
+      - name: Build Android staging debug smoke
+        run: >-
+          flutter build apk --debug --no-pub --flavor staging
+          --target lib/main_staging.dart
+
+  ios-smoke:
+    name: iOS no-codesign smoke
+    needs: boundaries
+    runs-on: macos-14
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.1.app/Contents/Developer
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Flutter from the official repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --single-branch --branch "$FLUTTER_VERSION" \
+            https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          actual_sha="$(git -C "$RUNNER_TEMP/flutter" rev-parse HEAD)"
+          [[ "$actual_sha" == "$FLUTTER_SOURCE_SHA" ]]
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Record toolchain
+        run: |
+          flutter config --no-analytics
+          flutter --version
+          xcodebuild -version
+
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build iOS dev debug smoke without signing
+        run: >-
+          flutter build ios --debug --no-codesign --no-pub --flavor dev
+          --target lib/main.dart
+
+      - name: Build iOS staging debug smoke without signing
+        run: >-
+          flutter build ios --debug --no-codesign --no-pub --flavor staging
+          --target lib/main_staging.dart
