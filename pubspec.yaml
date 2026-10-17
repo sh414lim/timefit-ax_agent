@@ -1,0 +1,19 @@
+name: timefit_native
+description: TimeFit native iOS and Android application bootstrap.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.10.4 <3.11.0"
+  flutter: 3.38.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
