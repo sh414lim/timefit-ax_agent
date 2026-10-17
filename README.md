@@ -1,13 +1,13 @@
 # timefit-ax_agent
 
-TimeFit의 AI/AX 에이전트 실험과 운영 도구를 별도 수명주기로 관리하기 위한 독립 프로젝트입니다.
+TimeFit Flutter 네이티브 iOS/Android 앱의 실제 소스 저장소입니다.
 
 ## 참고 대상
 
 - 기존 TimeFit 저장소: <https://github.com/sh414lim/time-fit>
 - 기존 저장소는 읽기 전용 참고 대상으로 취급합니다.
 - 이 저장소에는 기존 TimeFit 원본 코드를 복사하거나, submodule·빌드 의존성으로 연결하지 않습니다.
-- 이 프로젝트는 계획된 Flutter `timefit-mobile` 프로젝트와 별개이며 같은 프로젝트로 간주하지 않습니다.
+- 기존 계획 문서의 `timefit-mobile`은 이 저장소를 가리키며 별도 저장소를 뜻하지 않습니다.
 
 ## 분리 원칙
 

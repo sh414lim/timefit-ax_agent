@@ -2,9 +2,9 @@
 
 ## 범위
 
-- 이 저장소는 `timefit-ax_agent` 전용 독립 프로젝트다.
+- 이 저장소는 TimeFit Flutter 네이티브 iOS/Android 앱의 실제 소스 저장소다.
 - 기존 TimeFit 저장소 <https://github.com/sh414lim/time-fit>는 읽기 전용 참고 대상으로만 사용한다.
-- 계획된 Flutter `timefit-mobile` 저장소와 이 프로젝트의 범위, 코드, 배포를 혼합하지 않는다.
+- 기존 계획 문서의 `timefit-mobile`은 이 저장소를 가리킨다. 별도 `timefit-mobile` 저장소를 만들거나 두 저장소를 병행한다고 가정하지 않는다.
 
 ## 저장소 경계
 
