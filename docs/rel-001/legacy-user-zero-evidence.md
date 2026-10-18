@@ -138,15 +138,17 @@ testOnlyNoMigrationDraft:
 
 ## 설계 기준선 변경 반영
 
-상태: `DRAFT_APPLIED_REVIEW_PENDING`
+상태: `MERGED_BASELINE_EXECUTION_PLAN_REVIEW_PENDING`
 
-PR #8에서는 아래 변경을 `PROPOSED_NOT_APPLIED`로 기록했다. 2026-10-18 draft 기준선 개정은 145/146/147 본문에 이를 반영했으며, merge·Trello sync·release 승인은 아직 수행하지 않았다. 원본 import SHA-256과 draft SHA-256은 `docs/native-planning-baseline-provenance.yml`에 함께 보존한다.
+PR #8에서는 아래 변경을 `PROPOSED_NOT_APPLIED`로 기록했다. PR #9가 2026-10-18 remote `main`의 `c0c74de0ef51a6e568785234a3701ab55db97973`에 병합됐고 145/146/147을 참조하는 Trello 설계 링크도 같은 revision으로 동기화됐다. 이는 설계 기준선 반영이며 실행 계획 승인·기술 `GO`·release 승인은 아니다. 원본 import SHA-256과 개정 SHA-256은 `docs/native-planning-baseline-provenance.yml`에 함께 보존한다.
 
 1. zero-only `NOT_APPLICABLE_ZERO_VERIFIED` 경로는 그대로 유지하되, 별도로 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로를 허용한다.
 2. 이 경로는 legacy 데이터를 TimeFit으로 이전하지 않고 원본을 보존·격리하며, fresh login과 신규 push 동의·등록을 사용한다. 삭제·service shutdown·구독 해지는 포함하지 않는다.
 3. consent 원본 미검증, no-transfer inventory·보존·지원·복구 계획, store/platform 기술 매핑은 release evidence로 남긴다.
 4. 정확한 store target, Android/iOS signing·entitlement·상향 version/build, 실제 기존 build 위 update smoke와 clean-install smoke는 계속 release Gate로 유지한다.
 5. REL-001은 위 release evidence가 완료될 때까지 열린 상태로 둔다. 다만 146의 개발·staging 병렬 개발 원칙에 따라 비운영 기능 개발 준비를 production signing·store 제출 증거와 혼합하지 않는다. 147의 전역 Blocked 문구는 유지하며, 이 draft나 merge만으로 구현을 자동 착수하지 않는다.
+
+지원·보존·복구와 기술 검토 항목은 [`no-transfer-support-preservation-recovery-plan.md`](no-transfer-support-preservation-recovery-plan.md)에 분리했다. 해당 문서는 `DRAFT_REVIEW_PENDING`이며 사용자 제품 결정을 기술 승인이나 타인 승인으로 확대하지 않는다.
 
 ## REL-001 완료 전에 남은 증거
 
@@ -156,7 +158,7 @@ PR #8에서는 아래 변경을 `PROPOSED_NOT_APPLIED`로 기록했다. 2026-10-
 - 동일 `as_of`의 Android/iOS store, backend installation·session·push와 구독/IAP 재조회
 - provider 원본 store/backend export 또는 동등한 서명된 evidence; 현재 local transcription package의 checksum과 한계를 유지
 - backend `337`행과 auth linkage 집계의 schema 의미·store/platform 매핑을 no-transfer·preservation 감사에 필요한 범위로 비식별 evidence화
-- `USER_ATTESTED` consent의 원본 미검증 상태를 명시한 `REQUIRED` no-migration 실행 계획 검토·승인
+- [`no-transfer-support-preservation-recovery-plan.md`](no-transfer-support-preservation-recovery-plan.md)의 실제 책임자 지정, consent 원본 미검증 표기, 지원·보존·복구·IAP 항목 검토와 승인
 - Owner, Release Manager, Backup Approver, Backend Evidence Owner, Product/Policy·Security 승인자와 승인 시각
 
 위 항목이 완료되기 전에는 사용자 데이터 삭제, production identity 입력, store upload, release promotion 또는 REL-003 Go 판정을 실행하지 않는다.

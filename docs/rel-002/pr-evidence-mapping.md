@@ -2,7 +2,7 @@
 
 - 티켓: [REL-002 — 저장소 분리 ADR과 timefit-mobile 부트스트랩](https://trello.com/c/jl0z2Tvd)
 - 기준 원문: [145 — REL-002](../145-timefit-native-app-repository-migration-plan-2026-10-16.md), [ADR-REL-002](../adr/ADR-REL-002-repository-boundaries.md)
-- 확인 기준: remote `main` `0ca9428323ff77d4c06ad1bc32fa8fdb48d7a0a4`, 2026-10-18 재확인
+- 확인 기준: remote `main` `c0c74de0ef51a6e568785234a3701ab55db97973`, 2026-10-18 재확인
 - 판정 원칙: PR merge는 산출물 evidence일 뿐 티켓 완료·승인·배포를 뜻하지 않는다.
 
 ## 1. PR 산출물 매핑
@@ -26,20 +26,20 @@
 | 저장소 경계 ADR | PR #2, `ADR-REL-002` | `PARTIAL` | ADR `APPROVED` 전환과 기술 책임자 승인 기록 |
 | Flutter iOS/Android 최소 구조·test | PR #3 | `SATISFIED_FOR_BOOTSTRAP` | 제품 기능 완료나 production 준비로 확대 해석 금지 |
 | dev/staging/production 구조 | PR #3; production entrypoint 없음, fail-closed | `SATISFIED_FOR_BOOTSTRAP` | production identity는 REL-001/003 승인 후 별도 적용 |
-| CODEOWNERS·PR template | PR #4 | `PARTIAL` | Mobile/Backend/Release 실제 GitHub owner 또는 팀 지정 |
+| CODEOWNERS·PR template | PR #4; [역할 등록·수동 검토 절차 draft](governance-review-procedure.md) | `PARTIAL` | Mobile/Backend/Release 실제 GitHub owner 또는 팀 지정과 절차 채택 evidence |
 | clean checkout format/analyze/test/build smoke | CI [#39002757916](https://github.com/sh414lim/timefit-ax_agent/actions/runs/39002757916), [#39003684751](https://github.com/sh414lim/timefit-ax_agent/actions/runs/39003684751), [#39007358409](https://github.com/sh414lim/timefit-ax_agent/actions/runs/39007358409) 모두 성공 | `SATISFIED_FOR_CURRENT_BOOTSTRAP` | 후속 dependency/플랫폼 변경 때 같은 검증 유지 |
 | production secret 없는 PR 검사 | workflow `permissions: contents: read`, secret/write permission 및 release/upload trigger 검사 | `SATISFIED_FOR_WORKFLOW_CONTENT` | GitHub secret scanning 설정 자체의 활성화 evidence와 구분 |
 | dependency/boundary allowlist | `scripts/ci/verify_bootstrap_boundaries.sh`가 production identity, signing, provider file, PWA/deploy 경로를 차단 | `PARTIAL` | 향후 실제 dependency allowlist·contract consumer test 확장 |
-| branch protection·required review | private repository의 branch protection/ruleset API가 GitHub plan 제한으로 HTTP `403` | `BLOCKED_BY_HOSTING_PLAN` | plan 변경 또는 승인된 수동 governance 대안과 독립 증거 |
+| branch protection·required review | private repository의 branch protection/ruleset API가 GitHub plan 제한으로 HTTP `403`; [수동 검토 절차](governance-review-procedure.md)는 `PROPOSED_NOT_CONFIGURED` | `BLOCKED_BY_HOSTING_PLAN` | plan 변경 또는 Repository Owner가 절차를 채택하고 실제 PR의 최신 SHA·독립 review·merge 확인 evidence 확보 |
 | secret scanning 설정 | repository API `security_and_analysis: null`; 별도 활성화 증거 없음 | `NOT_VERIFIED` | GitHub 설정 증거 또는 승인된 대체 scan evidence |
 | environment 권한 분리 | GitHub environments `0` | `NOT_CONFIGURED` | release 단계 전 environment/approver 분리; bootstrap production은 계속 차단 |
 | versioned contract publish/consume와 양쪽 CI | schema·consumer test 연결 없음 | `NOT_STARTED` | REL-004/005와 별도 `time_fit` 승인 변경 필요 |
 | 기존 native source 보존 tag/archive | source/build 일부 관측만 있고 immutable archive/tag evidence 없음 | `PARTIAL` | 소유권·checksum·보존 위치 승인 |
-| ADR 기술 승인 | 승인 댓글·서명 없음 | `NOT_APPROVED` | 기술 책임자 승인과 시각 |
+| ADR 기술 승인 | 승인 댓글·서명 없음; 승인 기록 형식만 draft로 정의 | `NOT_APPROVED` | 검증된 Architecture Owner와 Release reviewer의 최신 SHA 승인·시각·review URL |
 
 ## 3. 현재 수행 가능한 보완과 보류 경계
 
-현재 저장소 안에서 안전하게 수행 가능한 보완은 이 evidence mapping 유지, ADR 검토, PR template·boundary 검사 회귀 확인과 owner 후보를 추측하지 않는 빈 역할표 유지다. 다음 작업은 권한·별도 결정 없이 수행하지 않는다.
+현재 저장소 안에서 안전하게 수행 가능한 보완은 이 evidence mapping 유지, ADR 검토, PR template·boundary 검사 회귀 확인, [역할 등록·수동 검토 절차](governance-review-procedure.md)의 검토와 owner 후보를 추측하지 않는 빈 역할표 유지다. 수동 절차는 유료 plan 제한을 숨기지 않으며 채택·적용 evidence 전에는 required review가 설정됐다고 표현하지 않는다. 다음 작업은 권한·별도 결정 없이 수행하지 않는다.
 
 - GitHub 요금제 변경, branch protection/ruleset 생성 또는 required reviewer 강제
 - 확인되지 않은 GitHub 사용자·팀을 CODEOWNERS에 추가

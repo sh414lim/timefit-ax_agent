@@ -55,3 +55,10 @@ Not-applicable reasons:
 
 - [ ] Review is requested only from confirmed GitHub users or teams in `CODEOWNERS`.
 - [ ] Branch protection, required review, secret scanning, environment permissions, and other repository settings are requested separately; this PR does not claim those settings were applied.
+- [ ] Codex role sessions, automation actors, CI results, and the change author are not recorded as human or independent approvers.
+- [ ] If automatic branch protection or required review is unavailable, the proposed procedure in `docs/rel-002/governance-review-procedure.md` is linked below and its latest-SHA review evidence is complete; otherwise this PR remains draft or blocked.
+
+- Reviewed commit SHA:
+- Verified reviewer handle/team and role:
+- Review URL and UTC timestamp:
+- Manual merge confirmation evidence or not-applicable reason:

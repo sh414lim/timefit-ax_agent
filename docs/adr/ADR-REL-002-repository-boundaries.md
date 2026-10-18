@@ -59,6 +59,8 @@ backend 변경이 필요하면 `time_fit`에서 additive-first로 수행하고 �
 
 실제 GitHub CODEOWNERS handle은 담당자가 확정된 뒤 별도 변경으로 추가한다. 임의의 사용자명을 추측하지 않는다.
 
+역할의 실제 사람·팀·GitHub account 연결, ADR 승인 기록과 plan 제한 중 수동 검토 제안은 [`docs/rel-002/governance-review-procedure.md`](../rel-002/governance-review-procedure.md)에 둔다. 해당 절차는 `PROPOSED_NOT_CONFIGURED`이며 Codex 역할 세션, 자동화 실행자 또는 PR 작성자를 인간 책임자·독립 승인자로 간주하지 않는다.
+
 ## 5. 환경과 identity 정책
 
 ### dev/staging
@@ -169,6 +171,8 @@ REL-002 전체 완료에는 이 ADR 외에 다음 증거가 추가로 필요하�
 - production secret 없이 PR 검사가 실행된 결과
 - 기술 책임자의 ADR 승인 기록
 
+GitHub plan 제한으로 branch protection·required review를 자동 강제할 수 없는 동안 사용할 수동 대안은 [`governance-review-procedure.md`](../rel-002/governance-review-procedure.md)에 제안한다. Repository Owner가 절차를 채택하고 실제 PR에서 최신 SHA, 역할이 확인된 독립 review와 merge 확인 evidence를 남기기 전에는 승인된 대안으로 간주하지 않는다. 자동 설정이 필요한 기준은 plan 지원 설정 evidence가 생길 때까지 별도 blocker로 유지한다.
+
 PR #1~#8 산출물의 수용 기준별 충족·부분 충족·미충족 매핑은 [`docs/rel-002/pr-evidence-mapping.md`](../rel-002/pr-evidence-mapping.md)에 기록한다. 해당 매핑은 merge 수를 티켓 완료로 환산하지 않으며, 현재 남은 branch protection, secret scanning, 실제 owner 지정과 ADR 승인 blocker를 그대로 유지한다.
 
 위 증거가 없으므로 이 문서만으로 REL-002를 완료 처리하지 않는다. REL-001과 REL-002가 모두 완료되기 전에는 CHAT-000을 시작하지 않는다.
@@ -185,4 +189,4 @@ git diff --check
 
 이 ADR을 승인하면 저장소 분리 원칙을 유지한 채 Flutter bootstrap PR을 준비할 수 있다. Apple Developer 권한 확보는 iOS production identity·signing·upload Gate에만 필요하며 secret 없는 dev/staging bootstrap과 로컬 테스트 설계를 막지 않는다.
 
-production target과 release mode의 최종 승인은 REL-001/003 evidence와 별도 Product/Policy Gate에서 수행한다.
+production target과 release mode의 최종 승인은 REL-001/003 evidence와 별도 Product/Policy Gate에서 수행한다. 이 ADR의 검토·승인도 실제 Architecture Owner와 Release reviewer가 최신 commit에 대해 기록해야 하며 사용자 제품 결정이나 Codex 역할 세션으로 대체하지 않는다.

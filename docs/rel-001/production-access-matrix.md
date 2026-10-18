@@ -4,6 +4,7 @@
 - 설계 원문: [145 — 네이티브 앱 저장소·출시 계획](../145-timefit-native-app-repository-migration-plan-2026-10-16.md)의 REL-001 작업 1~13, 산출물과 수용 기준
 - 후속 Gate: [146 — 네이티브 채팅 아키텍처](../146-timefit-native-chat-architecture-2026-10-16.md)의 2.4~2.5와 [147 — 실행 티켓 카탈로그](../147-timefit-native-chat-execution-ticket-catalog-2026-10-16.md)의 REL 완료 Gate
 - 목적: 확인된 콘솔·빌드 evidence와 아직 필요한 접근을 분리해 기록
+- 실행 계획: [no-transfer 지원·보존·복구 draft](no-transfer-support-preservation-recovery-plan.md)
 - 운영 변경: 없음
 
 ```yaml
@@ -22,7 +23,7 @@ githubReviewAccess: PENDING_INVITATION_NOT_EFFECTIVE
 storeTargetSelectionApproval: PENDING
 technicalContinuityApproval: PENDING
 productPolicyApproval: USER_ATTESTED_NO_DATA_MIGRATION_OTHER_POLICY_REVIEW_PENDING
-legacyUserMigrationApproval: USER_ATTESTED_PRODUCT_DECISION_EXECUTION_PLAN_REVIEW_PENDING
+legacyUserMigrationApproval: USER_ATTESTED_PRODUCT_DECISION_EXECUTION_PLAN_DRAFT_REVIEW_PENDING
 releaseApproval: PENDING
 ```
 
@@ -81,10 +82,14 @@ Android, iOS store와 backend evidence의 관찰 시각·데이터 기준일·�
 | Backend Evidence Owner | 동일 기준 시각의 installation·session·push·사용자 연결 집계 | `PENDING` |
 | Product/Policy Approver | 기존 사용자 데이터 미이전 제품 결정, 브랜드·metadata·개인정보·지원·계약 영향 승인 | `USER_ATTESTED_NO_DATA_MIGRATION_OTHER_POLICY_REVIEW_PENDING` |
 | Security Approver | signing lineage, entitlement, provider mapping 검토 | `PENDING` |
+| Support Owner | no-transfer 사용자 안내·문의 분류·escalation 운영 | `PENDING` |
+| Backup Support Owner | Support Owner 부재 시 복구 연락과 문의 이관 | `PENDING` |
 
 QA source identifier는 evidence 출처이지 위 승인 역할을 자동으로 맡았다는 뜻이 아니다. 최소 두 명의 승인된 담당자가 제출 또는 복구 경로를 가져야 한다.
 
 GitHub 협업 초대 역시 문서 검토 경로일 뿐 Owner, Release Manager, Backup Approver 또는 스토어·백엔드 접근 권한의 증거가 아니다. 이번 감사 준비에서는 초대를 수락하거나 저장소 권한을 변경하지 않았다.
+
+[`no-transfer-support-preservation-recovery-plan.md`](no-transfer-support-preservation-recovery-plan.md)는 위 역할별 검토 대상과 중단 조건을 구조화한 draft다. 이 링크 추가는 미지정 역할을 채우거나 기술·release 승인을 부여하지 않는다.
 
 병합된 설계 원문의 `REUSE_DEVGYM_RECORD`는 출시 모드 요구사항이다. 관찰된 두 iOS record 중 정확한 target 선택, 사용자 0명, 서명·제품·정책 연속성이 확인됐다는 증거로 재해석하지 않는다. 현재 nonzero 관찰값과 서로 다른 기준 시각 때문에 `NOT_APPLICABLE_ZERO_VERIFIED` 경로는 충족되지 않았다. 2026-10-18 draft 기준선의 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로도 no-transfer 실행 계획, consent 미검증 표기, IAP·기술·정책 독립 Gate와 승인자가 완료되기 전에는 release Gate를 통과하지 않는다.
 
