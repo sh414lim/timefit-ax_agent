@@ -37,20 +37,28 @@ bash scripts/ci/verify_bootstrap_boundaries.sh
 ```text
 intentional undefined identifier: EXPECTED FAILURE (`undefined_identifier`)
 dependency version changed without lockfile: EXPECTED FAILURE (`Unable to satisfy pubspec.yaml using pubspec.lock`)
-generated source without committed generated output: EXPECTED FAILURE (`Generated files are stale or missing`)
+generated output ignored by `*.g.dart`: EXPECTED FAILURE (`Generated files are stale or missing`)
+inline `pull_request.paths` filter: EXPECTED FAILURE (`must not contain paths`)
+inline `pull_request.paths-ignore` filter: EXPECTED FAILURE (`must not contain paths`)
+additional `push` trigger bypass: EXPECTED FAILURE (`exactly one pull_request trigger`)
 fixture harness result: PASS
 ```
 
 ## CI evidence
 
 - Draft PR: <https://github.com/sh414lim/timefit-ax_agent/pull/16>
-- Successful non-required workflow: <https://github.com/sh414lim/timefit-ax_agent/actions/runs/39121035762>
-- Intentional failure fixture job: <https://github.com/sh414lim/timefit-ax_agent/actions/runs/39121035762/job/117656533443>
+- Successful blocker-fix workflow: <https://github.com/sh414lim/timefit-ax_agent/actions/runs/39123481192>
+- Bootstrap boundaries: PASS (5s)
+- Format, analyze, coverage, Android smoke: PASS (7m7s)
+- Intentional gate failure fixtures: PASS (1m31s)
+- iOS no-codesign smoke: PASS (7m12s)
 - Required-check setting: out of scope for this change and not claimed
 
 ## Scope and limitations
 
 - No `pubspec.yaml` or `pubspec.lock` change.
+- Generated-output verification snapshots and hashes the actual files under `lib`, `test`, and `integration_test`, independently of Git ignore rules.
+- Pull request trigger validation parses YAML structure and rejects filters or additional triggers, including inline mappings.
 - No production identity, signing credential, secret, service, deployment, store upload, branch protection, or required-check setting change.
 - Build runner reports that the pinned analyzer language version trails Dart 3.10. The exact package set is owned by CHAT-003 and was not changed in CHAT-005; generation and fatal analysis still pass.
 - CI uses the pinned official Flutter source in GitHub-hosted runners. The separate FVM wrapper execution evidence remains a CHAT-003 follow-up and is not claimed here.
