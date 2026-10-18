@@ -202,3 +202,66 @@ revisions:
     storeTargetSelectionGranted: false
     productionConfigurationChanged: false
     trelloUpdated: false
+
+  - revisionId: native-planning-crypto-compatibility-erratum-2026-10-18
+    status: DRAFT_REVIEW_PENDING
+    basedOnCommit: 4e60a60f6d33f79c8b2bb3bd663c24a6ea3d01ea
+    supersedesRevisionId: native-planning-signing-deferred-to-release-gate-2026-10-18
+    basis:
+      - https://raw.githubusercontent.com/supabase/supabase-flutter/supabase_flutter-v2.18.0/packages/supabase_flutter/pubspec.yaml
+      - https://raw.githubusercontent.com/supabase/supabase-flutter/supabase_common-v0.1.2/packages/supabase_common/pubspec.yaml
+      - https://raw.githubusercontent.com/dart-lang/core/crypto-v3.0.7/pkgs/crypto/pubspec.yaml
+      - 'PR #12 head 0fbc4acdc2de82f9caef4c51bd1a95b1b11f0d88 dependency solver evidence'
+    scope: >-
+      Correct only the exact crypto dependency pin from 3.0.6 to 3.0.7 so it
+      satisfies supabase_flutter 2.18.0 through supabase_common 0.1.2. Preserve
+      the Flutter and Dart pins, all other dependency pins, product scope,
+      security boundaries, signing deferral and production gates. This is not a
+      release approval, technical GO or production configuration change.
+    correctionType: PATCH_DEPENDENCY_COMPATIBILITY_ERRATUM
+    dependencyCorrection:
+      package: crypto
+      previousExactVersion: 3.0.6
+      correctedExactVersion: 3.0.7
+      requiringPackage: supabase_common
+      requiringPackageVersion: 0.1.2
+      requiringConstraint: ^3.0.7
+      transitiveFromPackage: supabase_flutter
+      transitiveFromPackageVersion: 2.18.0
+    compatibilityEvidence:
+      cryptoMinimumDartSdk: ^3.4.0
+      plannedDartVersion: 3.10.4
+      dependencyOverrideAdded: false
+      resolverEnvironment:
+        flutter: 3.38.5
+        dart: 3.10.4
+      resolverValidation:
+        flutterPubGet: PASS
+        flutterPubGetEnforceLockfile: PASS
+        resolvedVersions:
+          supabase_flutter: 2.18.0
+          supabase_common: 0.1.2
+          crypto: 3.0.7
+    originalImportReference:
+      mergedRevision: 237268ef73efddafb12a902b9da99bad870066c2
+      digestsPreservedUnder: originalImport.documents
+    previousRevisionReference:
+      revisionId: native-planning-signing-deferred-to-release-gate-2026-10-18
+      digestsPreservedUnder: revisions[2].currentRevisionDocuments
+    currentRevisionDocuments:
+      - path: docs/145-timefit-native-app-repository-migration-plan-2026-10-16.md
+        currentRevisionSha256: ca1f2dd367ffba79513836966b09643ab6167c909fba29d145a0198b8197b8b8
+        contentChangedFromOriginalImport: true
+      - path: docs/146-timefit-native-chat-architecture-2026-10-16.md
+        currentRevisionSha256: 3a209555e28fc5729575e531929bc6beeb1671f39a4998218e6da8e33c1ca946
+        contentChangedFromOriginalImport: true
+      - path: docs/147-timefit-native-chat-execution-ticket-catalog-2026-10-16.md
+        currentRevisionSha256: a9be363d9740fa906ab5f59fd1322e96004f390aa3d5ace85f87168299da6074
+        contentChangedFromOriginalImport: true
+    executionPlanApproval: PENDING
+    releaseApprovalGranted: false
+    technicalGoGranted: false
+    signingCompleted: false
+    storeTargetSelectionGranted: false
+    productionConfigurationChanged: false
+    trelloUpdated: false
