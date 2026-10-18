@@ -37,7 +37,7 @@ releaseApproval: PENDING
 | `REL001-IOS-ASC-QA-01a147a4-9770` | App Store Connect read-only QA 역할 결과 `cloud 01a147a4-9770` | `2026-10-17T03:23:36Z` | 90일 analytics 최신 `2026-10-15`; TestFlight는 관찰 시점 현재값 | 두 앱 record, version/build, TestFlight 설치·session, actual build Team, 계약·IAP 화면 |
 | `REL001-BACKEND-AGGREGATES-20261017T083809492Z` | Supabase `bro-gym` project ref `nzxgcfwranspxynzyglb` aggregate-only SQL | `2026-10-17T08:38:09.492Z` | 쿼리 실행 시점 현재값 | 10초 timeout, read-only transaction, `ROLLBACK`; `public.users`·`auth.users`·auth linkage·최근 sign-in·admin login·FCM/device token·push queue·일반 membership subscription 집계와 store 전용 IAP 명명 object 탐색; raw 개인 행·token 미조회 |
 | `REL001-PRODUCT-MIGRATION-DECISION-20261017T094549Z` | 사용자 직접 보고 | `2026-10-17T09:45:49Z` | 현재 제품 방침 진술 | bro-gym 미사용, 기존 사용자 전원 동의, 기존 사용자 데이터 미이전으로 진행; `USER_ATTESTED`이며 제3자 consent 원본의 독립 검증, 데이터 삭제, 서비스 종료 또는 구독 해지 승인이 아님 |
-| `REL001-GITHUB-COLLAB-20261017T083211Z` | GitHub API read-only 재조회 | `2026-10-17T08:32:11Z` | 초대 생성 `2026-10-17T08:19:32Z` | `tpghks521` write 초대 `338202054`는 pending·미만료이고 실제 permission은 `none` |
+| `REL001-GITHUB-COLLAB-20261017T083211Z` | GitHub API read-only 재조회 | `2026-10-17T08:32:11Z` | 초대 생성 `2026-10-17T08:19:32Z` | 당시 private 저장소에서 `tpghks521` write 초대 `338202054`는 pending·미만료이고 effective permission은 `none`; public 전환 전 historical 관측 |
 
 Android, iOS store와 backend evidence의 관찰 시각·데이터 기준일·조회 범위가 다르므로 하나의 `as_of`로 합치지 않는다. backend 조회 시 service에 `restricted/unhealthy` banner가 있었지만 제한된 읽기 집계 쿼리는 성공했다. 이 성공은 서비스 건전성, 전체 schema 포괄 또는 store record와의 사용자 매핑을 증명하지 않는다. backend SQL·비식별 전사본·실행 기록은 아래 checksum으로 확인했지만 provider 원본 export와 서버 audit evidence는 확보되지 않았다. 스토어 콘솔 원본 export도 아직 이 문서에 연결되지 않았다.
 
@@ -70,7 +70,7 @@ Android, iOS store와 backend evidence의 관찰 시각·데이터 기준일·�
 | Backend subscription·IAP namespace | 일반 membership subscription 집계 `0`; store 전용 IAP 명명 table/column 탐색 결과 `0` | schema 명명 탐색이 아닌 Android/iOS 판매자·영수증 source의 active/restorable entitlement와 미정산 거래 대조 | Backend Evidence Owner + Product/Policy Approver | `ZERO_NAMESPACE_MATCHES_OBSERVED_IAP_NOT_PROVEN` |
 | OAuth·Universal/App Links | 운영 mapping 미확정 | callback, URL scheme, Associated Domains, AASA와 도메인 소유권 | Security Approver | `PENDING` |
 | Artifact repository | iOS actual build Team 관찰, source/build Bundle ID 일치 후보 | 마지막 Android·iOS 운영 artifact provenance, checksum과 서명·entitlement 전체 비교 | Release Manager + Security Approver | `PARTIAL_VERIFIED` |
-| Public repository collaborator review | 저장소는 public으로 전환됐지만 `tpghks521`의 write 초대 `338202054`는 아직 pending이며 실제 permission은 `none` | public read와 write 권한을 구분하고, 초대 수락 후 effective permission 재확인 또는 Owner의 초대 정책 결정 | Repository Owner + Invited Reviewer | `PUBLIC_READ_PENDING_WRITE_INVITATION_EFFECTIVE_NONE` |
+| Public repository collaborator review | `tpghks521`의 현재 public 접근은 `read: true`, `pull: true`, `push: false`; write 초대 `338202054`는 pending | public read와 collaborator write 권한을 구분하고, 초대 수락 후 `push` 재확인 또는 Owner의 초대 정책 결정 | Repository Owner + Invited Reviewer | `PUBLIC_READ_PULL_TRUE_PUSH_FALSE_PENDING_WRITE_INVITATION` |
 
 ## 역할과 승인 경계
 

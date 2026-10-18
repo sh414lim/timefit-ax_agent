@@ -38,7 +38,7 @@ PR #1~#8 행은 당시 상태를 보존한 historical mapping이다. 현재 상�
 | secret scanning | GitHub hosted secret scanning은 disabled; `main@c0c74de` history와 tree의 공식 gitleaks 일회성 감사 finding `0` | `LOCAL_AUDIT_PASSED_HOSTED_DISABLED` | hosted 기능 활성 또는 승인된 반복 scan 정책·required evidence; 이후 head 재검사 |
 | environment 권한 분리 | GitHub environments `0` | `NOT_CONFIGURED` | release 단계 전 environment/approver 분리; bootstrap production은 계속 차단 |
 | Actions 기본 권한 | workflow 기본 `read`, Actions의 PR review 승인 비활성 | `READ_ONLY_DEFAULT_PR_APPROVAL_DISABLED` | required check·review 강제와는 별도; 승인된 정책과 설정 evidence 필요 |
-| 협업자 초대 | `tpghks521` 초대 `338202054`는 pending `write`, 실효 권한 `none` | `PENDING_INVITATION_EFFECTIVE_NONE` | 수락 후 실제 권한 재확인 또는 Owner의 초대 처리 결정 |
+| 협업자 초대 | 현재 public 접근은 `read: true`, `pull: true`, `push: false`; `tpghks521` 초대 `338202054`는 pending `write` | `PUBLIC_READ_PULL_TRUE_PUSH_FALSE_PENDING_WRITE_INVITATION` | 수락 후 `push` 재확인 또는 Owner의 초대 처리 결정 |
 | versioned contract publish/consume와 양쪽 CI | schema·consumer test 연결 없음 | `NOT_STARTED` | REL-004/005와 별도 `time_fit` 승인 변경 필요 |
 | 기존 native source 보존 tag/archive | source/build 일부 관측만 있고 immutable archive/tag evidence 없음 | `PARTIAL` | 소유권·checksum·보존 위치 승인 |
 | ADR 기술 승인 | 승인 댓글·서명 없음; 승인 기록 형식만 draft로 정의 | `NOT_APPROVED` | 검증된 Architecture Owner와 Release reviewer의 최신 SHA 승인·시각·review URL |
@@ -85,7 +85,7 @@ hostedControlsAtMainC0c74dePrivateAudit:
   environments: 0
   actionsDefaultWorkflowPermission: READ
   actionsCanApprovePullRequestReviews: false
-collaborator:
+collaboratorAtMainC0c74dePrivateAudit:
   login: tpghks521
   invitationId: 338202054
   invitationState: PENDING_WRITE
@@ -120,6 +120,7 @@ finding `0`은 hosted secret scanning 활성, branch protection, ruleset, requir
 - 공개 전 검사: 전체 reachable history `26` commits와 `main`·PR #10 head `31646021c19effa7b11eb7e39362057c28f7d9a9` tree의 official gitleaks finding `0`
 - 현재 판정: `PUBLIC_VISIBILITY_VERIFIED`
 - 전환 후 설정 상태: hosted secret scanning `DISABLED`, `main` unprotected, ruleset `0`, environment `0`
+- 현재 collaborator 관측: `tpghks521` public `read: true`, `pull: true`, `push: false`; write 초대 `338202054` pending
 - 승인에 포함되지 않는 작업: history rewrite, 기존 내용 무차별 삭제, collaborator/credential 변경, GitHub 요금제 변경, branch protection/ruleset·hosted secret scanning 활성화
 
 public 전환은 독립 저장소 경계를 바꾸지 않으며 hosted secret scanning이나 required review를 자동으로 구성했다는 뜻도 아니다. 보호 설정은 위 실제 상태에서 계속 미완료로 둔다.
