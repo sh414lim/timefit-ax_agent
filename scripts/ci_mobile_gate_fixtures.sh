@@ -66,6 +66,7 @@ expect_failure \
     bash "$lock_fixture/scripts/ci/verify_locked_dependencies.sh"
 
 generated_fixture="$(new_fixture generated)"
+printf '%s\n' '*.g.dart' >> "$generated_fixture/.gitignore"
 printf '%s\n' \
   "import 'package:json_annotation/json_annotation.dart';" \
   '' \
@@ -83,9 +84,36 @@ printf '%s\n' \
   '  Map<String, dynamic> toJson() => _$Chat005GeneratedFixtureToJson(this);' \
   '}' > "$generated_fixture/lib/chat005_generated_fixture.dart"
 expect_failure \
-  'generated diff gate rejects an uncommitted generated file' \
+  'generated diff gate rejects a generated file ignored by Git' \
   'Generated files are stale or missing' \
   env CI_MOBILE_USE_SYSTEM_FLUTTER=1 \
     bash "$generated_fixture/scripts/ci/check_generated_diff.sh"
+
+paths_fixture="$(new_fixture trigger-paths)"
+printf '%s\n' 'on: {pull_request: {paths: ["lib/**"]}}' > \
+  "$paths_fixture/.github/workflows/mobile-ci.yml"
+expect_failure \
+  'workflow trigger validator rejects inline paths filtering' \
+  'must not contain paths' \
+  ruby "$paths_fixture/scripts/ci/verify_workflow_triggers.rb" \
+    "$paths_fixture/.github/workflows/mobile-ci.yml"
+
+paths_ignore_fixture="$(new_fixture trigger-paths-ignore)"
+printf '%s\n' 'on: {pull_request: {paths-ignore: ["docs/**"]}}' > \
+  "$paths_ignore_fixture/.github/workflows/mobile-ci.yml"
+expect_failure \
+  'workflow trigger validator rejects inline paths-ignore filtering' \
+  'must not contain paths' \
+  ruby "$paths_ignore_fixture/scripts/ci/verify_workflow_triggers.rb" \
+    "$paths_ignore_fixture/.github/workflows/mobile-ci.yml"
+
+bypass_fixture="$(new_fixture trigger-bypass)"
+printf '%s\n' 'on: {pull_request: null, push: null}' > \
+  "$bypass_fixture/.github/workflows/mobile-ci.yml"
+expect_failure \
+  'workflow trigger validator rejects a non-PR bypass trigger' \
+  'exactly one pull_request trigger' \
+  ruby "$bypass_fixture/scripts/ci/verify_workflow_triggers.rb" \
+    "$bypass_fixture/.github/workflows/mobile-ci.yml"
 
 printf '%s\n' 'Intentional CI gate failure fixtures passed without changing the source checkout.'

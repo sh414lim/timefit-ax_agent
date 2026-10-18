@@ -37,6 +37,7 @@ require_file scripts/ci_mobile.sh
 require_file scripts/ci_mobile_gate_fixtures.sh
 require_file scripts/ci/check_generated_diff.sh
 require_file scripts/ci/verify_locked_dependencies.sh
+require_file scripts/ci/verify_workflow_triggers.rb
 
 require_literal \
   lib/src/app_environment.dart \
@@ -97,8 +98,12 @@ if git grep -q -I -E \
   fail 'Workflow contains deployment, store upload, or release build behavior.'
 fi
 
+if ! ruby scripts/ci/verify_workflow_triggers.rb; then
+  fail 'Mobile CI trigger structure is not an unfiltered pull_request trigger.'
+fi
+
 if git grep -q -I -E \
-  'continue-on-error|^[[:space:]]+(paths|paths-ignore):' \
+  'continue-on-error' \
   -- .github/workflows/mobile-ci.yml; then
   fail 'Mobile CI must gate every pull request path without continue-on-error.'
 fi
