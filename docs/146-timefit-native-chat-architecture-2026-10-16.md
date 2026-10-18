@@ -2,7 +2,7 @@
 
 - 문서 상태: 구현 기준안 v1.2
 - 기준일: 2026-10-16
-- 기준선 개정: 2026-10-18 — REL-001 관측과 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로 반영(검토 중)
+- 기준선 개정: 2026-10-18 — REL-001 관측, `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`, production signing 출시 전 유예 결정 반영(검토 중)
 - 대상 클라이언트: Flutter 기반 iOS·Android 네이티브 앱
 - Flutter 앱 저장소: `timefit-mobile`
 - 모바일 웹·공유 백엔드 저장소: `time_fit`
@@ -91,6 +91,8 @@
 4. 서명 비밀·키·프로비전닝 비밀은 Git에 커밋하지 않고 승인된 CI secret 저장소에만 둔다. 식별자, 스토어 레코드, 소유권, 서명 fingerprint, 버전 기준의 비밀이 아닌 매핑은 `timefit-mobile/docs/release/store-identity-matrix.md`에 기록한다.
 5. 기술 연속성 증거가 하나라도 누락되면 신규 앱 레코드로 자동 전환하지 않고 production 릴리스를 차단한다. 릴리스 모드 변경은 제품 책임자의 새 결정과 문서 개정 없이 수행하지 않는다.
 
+사용자의 2026-10-18 결정에 따라 signing 확인·설정·연속성 판정과 실제 signed update 검증은 `SIGNING_DEFERRED_TO_RELEASE_GATE`로 관리한다. 이는 위 불변조건을 완료·면제하거나 production 제출을 승인하지 않는다. 다만 dev/staging 공개 설정, no-codesign compile, 앱 계층·계약·테스트 구현은 production signing evidence와 분리해 진행할 수 있다. IAP/결제, legacy population·데이터 처리, 실제 provider 권한과 제품·정책 Gate는 그대로 독립 blocker다.
+
 ### 2.5 기존 사용자 population 증거와 처리 경로
 
 REL-001에서 Android 설치 사용자 `5`, 최근 28일 활성 기기 `1`, iOS TestFlight 비영 지표, backend `public.users` `337`행과 `auth.users` `40`계정을 관측했다. source별 기준 시각·범위가 달라 이 숫자를 같은 사람 수, 활성 사용자 수 또는 삭제 대상으로 환산하지 않지만, zero-user를 증명하지도 않는다. 따라서 현재 `legacyUserMigrationDecision`은 `REQUIRED`다. 다음 항목은 release 직전에도 **동일한 `as_of`** 와 조회 범위로 추출·대조한다.
@@ -119,7 +121,7 @@ REL-001에서 Android 설치 사용자 `5`, 최근 28일 활성 기기 `1`, iOS 
 `REUSE_DEVGYM_RECORD`는 앱 기능 아키텍처가 아니라 배포 제어면의 설정이다. RPC·PostgreSQL·Private Realtime Broadcast·Drift·Outbox·Storage 계약은 스토어 레코드, 이전 DevGym 코드, 이전 DevGym 데이터에 의존하지 않는다. 이를 보장하기 위해:
 
 - 스토어 identity·signing·metadata 티켓과 채팅 기능·DB·동기화 티켓을 링크만 하고 구현 작업으로 혼합하지 않는다.
-- production identity 확인 전에도 development·staging에서 기능 아키텍처 구현과 계약 테스트를 병렬로 진행할 수 있다.
+- production identity와 signing 확인 전에도 development·staging에서 기능 아키텍처 구현, no-codesign build와 계약 테스트를 병렬로 진행할 수 있다.
 - production 아카이브·빌드·제출은 스토어 정체성 게이트가 완료될 때까지 차단한다.
 - 스토어 정체성 설정은 백엔드 계약, 데이터 모델, Realtime topic, 메시지 멱등성 규칙을 변경하는 근거가 될 수 없다.
 
@@ -1152,12 +1154,11 @@ message DB commit
 
 ## 23. 구현 완료 게이트
 
-### Gate A — 기반
+### Gate A — 비서명 개발 기반
 
-- 릴리스 모드는 `REUSE_DEVGYM_RECORD`로 고정하고 `REL-001`에서 Android `데브짐-매니저`·iOS `데브짐` production identity의 실제 증거를 보관한다.
-- REL-001의 동일 `as_of` evidence가 모두 0이면 `NOT_APPLICABLE_ZERO_VERIFIED`로 legacy local/session/push/settings/IAP migration을 `N/A` 승인한다. nonzero인 현재 경로는 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 실행 계획이 승인된 경우에만 legacy reader/import 없이 fresh login·새 namespace·신규 push 동의로 진행한다.
-- 양 플랫폼 실제 기존 store build→Flutter RC 무삭제 update smoke는 migration 판정과 무관하게 필수이며 `N/A`로 대체하지 않는다.
-- `timefit-mobile`이 iOS·Android에서 환경별 Supabase Auth에 연결된다.
+- 릴리스 모드는 `REUSE_DEVGYM_RECORD`로 고정하되 production identity·signing 값은 주입하지 않고 fail-closed 상태를 유지한다.
+- 현재 nonzero 관측과 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 결정을 보존하고, legacy reader/import 없이 fresh login·새 namespace·신규 push 동의를 사용하는 설계 경계를 침범하지 않는다. consent·IAP·데이터 처리의 미완료 상태는 별도 표시한다.
+- `timefit-mobile`이 secret 없는 dev/staging 설정과 no-codesign 방식으로 iOS·Android에서 환경별 Supabase Auth 경계를 검증한다. 실제 provider 연결은 별도 승인 전까지 수행하지 않는다.
 - Drift migration, Riverpod DI, router, crash-safe bootstrap이 통과한다.
 - Flutter 저장소는 PWA·모바일 웹 코드를 포함하거나 의존하지 않는다.
 - 기존 모바일 웹은 `time_fit`의 현재 개발·배포 파이프라인으로 계속 동작한다.
@@ -1182,10 +1183,12 @@ message DB commit
 
 ### Gate E — 운영 배포
 
+- `SIGNING_DEFERRED_TO_RELEASE_GATE`를 해제하기 전에 `REL-001`에서 Android `데브짐-매니저`·iOS `데브짐` production identity와 signing lineage의 실제 증거를 보관하고 REL-003 기술·제품/정책 Gate를 승인한다.
+- REL-001의 동일 `as_of` evidence가 모두 0이면 `NOT_APPLICABLE_ZERO_VERIFIED`로 승인하고, nonzero인 현재 경로는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 실행 계획과 별도 IAP/결제 evidence를 갖춘다.
 - native push token lifecycle과 outbox worker가 검증된다.
 - SLO dashboard, 오류 분류, rollout·rollback runbook이 준비된다.
 - TestFlight·Play internal 실기기 시나리오가 모두 통과한다.
-- 각 플랫폼의 기존 DevGym 빌드 → TimeFit Flutter 빌드 업데이트 smoke와 clean-install smoke가 모두 통과한다.
+- 각 플랫폼의 기존 DevGym 빌드 → signed TimeFit Flutter 빌드 업데이트 smoke와 clean-install smoke가 모두 통과한다. 이 항목은 migration 판정과 무관하며 `N/A` 또는 no-codesign 결과로 대체하지 않는다.
 - 실제 `데브짐-매니저`·`데브짐` 레코드의 internal/TestFlight에서 빌드 processing과 설치가 확인된다.
 - production backend를 먼저 배포한 상태에서 기존 모바일 웹 회귀가 없고 웹 재배포 없이 동작한다.
 - 웹·iOS·Android·공유 백엔드의 독립 rollout 중지와 복구 절차를 각각 검증한다.

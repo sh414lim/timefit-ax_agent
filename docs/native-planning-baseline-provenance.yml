@@ -135,3 +135,63 @@ revisions:
     storeTargetSelectionGranted: false
     productionConfigurationChanged: false
     trelloUpdated: false
+
+  - revisionId: native-planning-signing-deferred-to-release-gate-2026-10-18
+    status: DRAFT_REVIEW_PENDING
+    basedOnCommit: a5e8cf4869cbc4abeefb1910cc16ce1d661da886
+    supersedesRevisionId: native-planning-public-repository-visibility-2026-10-18
+    basis:
+      - 'user decision: 앱 서명에 대한거는 앱 출시 때 하는걸로 미루고 나머지 사항 진행'
+      - docs/adr/ADR-REL-002-repository-boundaries.md
+      - docs/rel-001/legacy-user-zero-evidence.md
+      - docs/rel-001/production-access-matrix.md
+    scope: >-
+      Defer signing inspection, configuration, continuity verification and the
+      actual signed update smoke to the pre-release gate. Separate that gate
+      from non-production dev/staging work that uses no production identity,
+      signing credential or provider production configuration. This is not a
+      completion, waiver, technical GO or deployment approval. IAP/payment,
+      population and data handling, actual console/provider access,
+      product/policy approval and repository governance remain independent.
+    signingDecision: SIGNING_DEFERRED_TO_RELEASE_GATE
+    developmentStartScope:
+      - dev_staging_no_codesign_builds
+      - static_analysis_and_unit_widget_architecture_tests
+      - mobile_ci_code_and_workflow_validation
+      - app_layer_and_design_token_skeleton
+    signingDeferredItems:
+      - signing_lineage_and_upload_owner_verification
+      - signed_artifact_promotion
+      - testflight_and_store_track_processing
+      - existing_store_build_to_signed_flutter_update_smoke
+    independentReleaseGateUnchanged:
+      - production_identity_manifest_approval
+      - store_record_application_bundle_version_and_ownership_evidence
+    blockersNotChanged:
+      - iap_payment_and_entitlement_evidence
+      - legacy_population_and_data_handling_approval
+      - actual_console_and_provider_access
+      - product_legal_and_store_policy_approval
+      - branch_protection_independent_review_and_owner_assignment
+    originalImportReference:
+      mergedRevision: 237268ef73efddafb12a902b9da99bad870066c2
+      digestsPreservedUnder: originalImport.documents
+    previousRevisionReference:
+      revisionId: native-planning-public-repository-visibility-2026-10-18
+      digestsPreservedUnder: revisions[1].currentRevisionDocuments
+    currentRevisionDocuments:
+      - path: docs/145-timefit-native-app-repository-migration-plan-2026-10-16.md
+        currentRevisionSha256: c33b2e90f1984e7acb2a4d6cea38f13e76c11caf4b60b17e747e61f4b0371755
+        contentChangedFromOriginalImport: true
+      - path: docs/146-timefit-native-chat-architecture-2026-10-16.md
+        currentRevisionSha256: b8bb116434fe149e4214e57d2eca0eaee0e90ec4041d8d6b64dc72d5fc2f89be
+        contentChangedFromOriginalImport: true
+      - path: docs/147-timefit-native-chat-execution-ticket-catalog-2026-10-16.md
+        currentRevisionSha256: e03c7e66491a6e1acc5ff9f3ae9e2afb069c73a2cdcd2069cf8f4a2e6bdb6e9c
+        contentChangedFromOriginalImport: true
+    executionPlanApproval: PENDING
+    releaseApprovalGranted: false
+    signingCompleted: false
+    storeTargetSelectionGranted: false
+    productionConfigurationChanged: false
+    trelloUpdated: false

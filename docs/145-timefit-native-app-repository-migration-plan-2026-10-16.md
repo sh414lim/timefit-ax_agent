@@ -3,12 +3,15 @@
 - 문서 번호: `145`
 - 작성일: 2026-10-16
 - 상태: 실행 기준선(Baseline)
-- 기준선 개정: 2026-10-18 — REL-001 비식별 관측과 사용자 확정 결정에 따라 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로 추가, `timefit-ax_agent` public visibility 전환 확인
+- 기준선 개정: 2026-10-18 — REL-001 비식별 관측과 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로, public visibility, production signing 출시 전 유예 결정 반영(검토 중)
 - 대상: 제품, Flutter, 백엔드, QA, Release Engineering, 보안, 고객지원
 - 결정 범위: Flutter iOS/Android 앱의 별도 저장소·모바일 웹과의 병렬 운영·공유 백엔드 계약·기존 DevGym 스토어 레코드 업데이트 출시
 
 > **최종 결정**
 > Flutter iOS/Android 앱은 기존 웹·백엔드와 분리된 public **`sh414lim/timefit-ax_agent`** 저장소(계획 문서 별칭 `timefit-mobile`)에서 개발한다. 사용자는 추적된 내부 문서와 기존 Git 이력이 인터넷에 공개될 수 있음을 확인하고 public 전환을 승인했으며, Release 세션은 2026-10-18T04:27:38Z에 실제 visibility와 익명 read를 확인했다. 현재 **`time_fit`** 저장소는 계속 개발·배포되는 모바일 웹앱과 Supabase 데이터베이스, RLS, RPC, Edge Functions, Realtime, Storage, 알림 발송을 포함한 **공유 백엔드의 유일한 원본(canonical source)** 으로 유지한다. 모바일 웹과 Flutter 앱은 서로를 대체하지 않고 같은 제품·계정·데이터를 사용하는 독립 클라이언트로 병렬 운영한다. Flutter 앱의 PWA 구현은 본 계획 범위 밖이지만 기존 모바일 웹/PWA 트랙의 개발·배포를 중단하거나 종료하지 않는다. 네이티브 출시는 Android **`데브짐-매니저`**, iOS **`데브짐`** 의 **기존 배포 레코드를 업데이트하는 경로로 확정**한다. 별도 Git 저장소 사용 여부와 스토어 업데이트 가능 여부는 독립적이며, 기존 application ID/Bundle ID·서명 계보·스토어 레코드·상향 version/build를 보존하면 `timefit-ax_agent`에서 만든 바이너리도 같은 레코드에 제출할 수 있다. REL-001에서 Android 설치 사용자 `5`, 최근 28일 활성 기기 `1`, iOS TestFlight 비영(非零) 지표, backend `public.users` `337`행과 `auth.users` `40`계정을 서로 다른 기준 시각으로 관측했으므로 사용자 0명으로 간주하지 않는다. `legacyUserMigrationDecision=REQUIRED`를 유지하되, 사용자가 기존 사용자 전원 동의와 기존 사용자 데이터 미이전을 확정한 결정은 `legacyUserDataTransferDecision=USER_ATTESTED_DO_NOT_MIGRATE`로 별도 기록한다. 이는 consent 원본 검증, 데이터 삭제, 서비스 종료, 구독 해지 또는 출시 승인이 아니다. AI/AX 기능은 본 계획에서 제외한다.
+
+> **Production signing 유예 결정 — 2026-10-18**
+> 사용자는 앱 서명 확인·설정·서명 연속성 및 실제 signed update 검증을 앱 출시 준비 시점으로 유예하고, 그 밖의 작업을 진행하기로 결정했다. 이 상태는 `SIGNING_DEFERRED_TO_RELEASE_GATE`이며 완료·면제·기술 `GO`·배포 승인이 아니다. production identity/signing 주입, signed artifact promotion, TestFlight·스토어 업로드와 기존 설치본 위 signed update smoke는 REL-003·REL-011·REL-013·REL-017의 출시 전 필수 Gate로 남긴다. secret 없는 dev/staging·no-codesign 빌드, 앱 구조·테스트·계약 구현은 별도 개발 착수 Gate로 분리할 수 있지만, IAP/결제, 사용자·데이터 처리, 실제 콘솔 권한, 제품·정책 승인과 저장소 거버넌스 조건은 이 결정으로 제거하지 않는다.
 
 ---
 
@@ -137,7 +140,7 @@ REL-001은 iOS와 Android를 각각 감사하되 릴리스 경로를 다시 선�
 
 - 기존 ID·서명·entitlement·version 연속성을 훼손하면 release blocker다.
 - 제품·법무·개인정보·스토어 정책과 metadata 전환 승인도 반드시 필요하다. 제품이 다르다는 사실을 숨기거나 단순 UI 개편으로 축소 설명하지 않는다.
-- legacy 처리 경로는 둘뿐이다. 동일 `as_of` 증거가 모두 0이면 `NOT_APPLICABLE_ZERO_VERIFIED`; 하나라도 비영이거나 조회 불능이면 `REQUIRED`다. `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`가 승인되면 legacy 데이터·session·local DB·push token·IAP를 TimeFit으로 가져오지 않고 원본을 보존하며 fresh login, 새 local namespace, 신규 push 동의·등록을 사용한다. 두 경로 모두 스토어 업데이트 설치·서명·version 검증을 생략하지 않는다.
+- legacy 처리 경로는 둘뿐이다. 동일 `as_of` 증거가 모두 0이면 `NOT_APPLICABLE_ZERO_VERIFIED`; 하나라도 비영이거나 조회 불능이면 `REQUIRED`다. `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`가 승인되면 legacy 데이터·session·local DB·push token·IAP를 TimeFit으로 가져오지 않고 원본을 보존하며 fresh login, 새 local namespace, 신규 push 동의·등록을 사용한다. 두 경로 모두 출시 전 스토어 업데이트 설치·서명·version 검증을 생략하지 않지만, 이 출시 Gate는 production identity를 사용하지 않는 비서명 개발 작업의 착수를 막지 않는다.
 - 허용된 store target/ID를 manifest와 CI allowlist에 기록하고 신규 record·새 production ID 생성을 차단한다.
 - 모바일 웹은 계속 운영되며 Flutter 출시의 롤백·종료 대상이 아니다.
 
@@ -279,6 +282,16 @@ shared:
 
 실제 키, 인증서 private material, provisioning profile 원문, keystore, 비밀번호, API key, APNs key, Firebase service account, refresh/access token은 Git·티켓·문서·로그에 넣지 않는다. 공개 인증서의 SHA-256도 접근 제한된 release evidence에만 기록하고, 이 계획서에는 값 자체를 남기지 않는다.
 
+### 4.7 개발 착수 Gate와 production signing 출시 Gate 분리
+
+`SIGNING_DEFERRED_TO_RELEASE_GATE`는 signing 관련 작업의 시점만 바꾼다.
+
+- **개발 착수 가능 범위:** production identity·signing credential·provider production 설정을 사용하지 않는 dev/staging 코드, no-codesign 빌드, 정적 분석·unit/widget/architecture test, 공개 fixture와 계약 검증.
+- **signing 유예 범위:** certificate/profile/upload key 생성·연결·교체, signing lineage 판정, signed artifact promotion, TestFlight·스토어 업로드, 기존 store build 위 signed update smoke.
+- **계속 진행할 비서명 정체성 작업:** store record·application ID·Bundle ID·version/build·소유권의 read-only inventory와 비밀이 아닌 manifest 필드 검토. 이를 production project에 주입하거나 승인된 최종 manifest로 표시하지 않는다.
+- **별도 미완료 조건:** IAP/결제·entitlement evidence, legacy population과 실제 데이터 처리 승인, 실제 콘솔·provider 권한, 제품·법무·스토어 정책, branch protection·독립 review와 owner 지정은 signing 유예로 충족되거나 면제되지 않는다.
+- 비서명 구현 PR의 준비·검토는 진행할 수 있지만, 관련 REL 티켓을 완료로 이동하거나 release status를 `GO`로 바꾸는 근거로 사용하지 않는다.
+
 ---
 
 ## 5. 저장소 경계와 소유권
@@ -366,6 +379,8 @@ tablet_app/                      # 기존 저장소 안의 독립 태블릿 클�
 | R2 — 기존 record 배포 기반·검증 | 기존 record 전용 서명 CI, 스토어 자료, clean-install과 upgrade E2E, 관측성을 완성 | REL-011~REL-014 | 기존 record 테스트 트랙 업로드 성공, 모바일 웹 회귀 0건, release blocker 0건 |
 | R3 — 네이티브 단계 출시·안정화 | 네이티브 코호트를 확대하고 웹과 독립적으로 장애 대응한 뒤 임시 호환 계층만 정리 | REL-015~REL-018 | 네이티브 100% 배포·관찰 완료, 웹 정상 운영, 임시 경로 정리 승인·감사 자료 보존 |
 
+R0의 **비서명 개발 착수 판정**과 R0 티켓의 **완료·릴리스 판정**은 동일하지 않다. 4.7의 개발 착수 Gate를 만족하면 dev/staging 범위의 PR을 준비할 수 있지만, R0 종료 게이트와 REL-001/003/004 완료에는 유예된 signing·signed update evidence를 포함한 원래 수용 기준이 그대로 적용된다.
+
 ### 7.1 단계 의존 관계
 
 ```text
@@ -401,6 +416,8 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 **목표**
 
 현재 모바일 웹 배포와 분리해 Android `데브짐-매니저`, iOS `데브짐` 레코드의 제품 귀속·서명 연속성을 확인하고, 기존 사용자·설치·구독/IAP가 0이라는 주장을 콘솔과 백엔드 증거로 검증한다. release mode는 두 플랫폼 모두 `REUSE_DEVGYM_RECORD`로 고정하고 REL-003에서 제출 가능 여부만 승인한다.
+
+서명 연속성 확인은 `SIGNING_DEFERRED_TO_RELEASE_GATE`로 남아 REL-001 완료와 출시 전 판단에는 필요하지만, production identity를 사용하지 않는 비서명 dev/staging 구현 착수의 선행조건으로 사용하지 않는다.
 
 **적용 저장소/시스템**
 
@@ -633,7 +650,7 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 3. 정상·만료 세션, 네트워크 손실, 중복 submit, 권한 거부, Realtime reconnect fixture를 만든다.
 4. 웹의 성공률·오류율·p95 latency와 공유 backend 지표를 기준선으로 저장한다.
 5. Flutter가 추가할 bootstrap/API/event 호출과 기존 웹 호출의 충돌 가능성을 비교한다.
-6. 두 플랫폼의 마지막 DevGym 스토어 설치본과 앱 삭제 없는 update fixture를 만든다. 서명·version·설치 성공 검증은 사용자 0명 여부와 무관하게 필수다.
+6. 두 플랫폼의 마지막 DevGym 스토어 설치본과 앱 삭제 없는 update fixture 설계를 준비한다. 실제 signed candidate를 사용한 서명·version·설치 성공 검증은 사용자 0명 여부와 무관한 출시 전 필수 Gate이며 `SIGNING_DEFERRED_TO_RELEASE_GATE` 상태에서 실행 완료로 표시하지 않는다.
 7. `legacyUserMigrationDecision: NOT_APPLICABLE_ZERO_VERIFIED`이면 local/session/push/IAP 데이터 fixture만 N/A로 표시하고 근거 링크를 남긴다. `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`이면 원본 보존, legacy reader/import 부재, fresh login, 새 local namespace, 신규 push 동의·등록, 결제 상태 미승계 기대값을 fixture로 만든다. `PENDING` 또는 다른 `REQUIRED` 상태는 승인된 처리 계획 없이는 통과시키지 않는다.
 8. Flutter clean-install 기준선도 별도로 정의해 신규 설치와 기존 record update 설치를 모두 검증한다.
 
