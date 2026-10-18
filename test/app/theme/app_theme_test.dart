@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/bootstrap.dart';
@@ -5,6 +7,18 @@ import 'package:timefit_native/app/theme/app_theme.dart';
 import 'package:timefit_native/app/theme/tokens.dart';
 
 void main() {
+  final GoldenFileComparator defaultGoldenFileComparator = goldenFileComparator;
+
+  setUpAll(() {
+    goldenFileComparator = _CrossPlatformGoldenComparator(
+      Uri.parse('test/app/theme/app_theme_test.dart'),
+    );
+  });
+
+  tearDownAll(() {
+    goldenFileComparator = defaultGoldenFileComparator;
+  });
+
   test('shared layout tokens keep the approved scale', () {
     expect(
       <double>[
@@ -98,4 +112,31 @@ void main() {
 
     expect(find.byType(BootstrapFailureScreen), findsOneWidget);
   });
+}
+
+/// Allows only the small rasterization variance produced by Flutter's Linux
+/// and macOS test renderers while still rejecting layout and color regressions.
+class _CrossPlatformGoldenComparator extends LocalFileComparator {
+  _CrossPlatformGoldenComparator(super.testFile);
+
+  static const double _maximumPixelDifference = 0.015;
+
+  @override
+  Future<bool> compare(Uint8List imageBytes, Uri golden) async {
+    final ComparisonResult result = await GoldenFileComparator.compareLists(
+      imageBytes,
+      await getGoldenBytes(golden),
+    );
+    final bool passed =
+        result.passed || result.diffPercent <= _maximumPixelDifference;
+
+    if (passed) {
+      result.dispose();
+      return true;
+    }
+
+    final String error = await generateFailureOutput(result, golden, basedir);
+    result.dispose();
+    throw FlutterError(error);
+  }
 }
