@@ -70,7 +70,7 @@ Android, iOS store와 backend evidence의 관찰 시각·데이터 기준일·�
 | Backend subscription·IAP namespace | 일반 membership subscription 집계 `0`; store 전용 IAP 명명 table/column 탐색 결과 `0` | schema 명명 탐색이 아닌 Android/iOS 판매자·영수증 source의 active/restorable entitlement와 미정산 거래 대조 | Backend Evidence Owner + Product/Policy Approver | `ZERO_NAMESPACE_MATCHES_OBSERVED_IAP_NOT_PROVEN` |
 | OAuth·Universal/App Links | 운영 mapping 미확정 | callback, URL scheme, Associated Domains, AASA와 도메인 소유권 | Security Approver | `PENDING` |
 | Artifact repository | iOS actual build Team 관찰, source/build Bundle ID 일치 후보 | 마지막 Android·iOS 운영 artifact provenance, checksum과 서명·entitlement 전체 비교 | Release Manager + Security Approver | `PARTIAL_VERIFIED` |
-| Private audit repository review | `tpghks521`에 write 초대 `338202054`가 생성됐으나 아직 pending이며 실제 permission은 `none` | 초대 대상자의 수락 후 effective permission 재확인; 필요 없으면 Owner가 초대 정책 결정 | Repository Owner + Invited Reviewer | `PENDING_INVITATION_ACCEPTANCE_EFFECTIVE_NONE` |
+| Public repository collaborator review | 저장소는 public으로 전환됐지만 `tpghks521`의 write 초대 `338202054`는 아직 pending이며 실제 permission은 `none` | public read와 write 권한을 구분하고, 초대 수락 후 effective permission 재확인 또는 Owner의 초대 정책 결정 | Repository Owner + Invited Reviewer | `PUBLIC_READ_PENDING_WRITE_INVITATION_EFFECTIVE_NONE` |
 
 ## 역할과 승인 경계
 
