@@ -41,24 +41,27 @@ generated output ignored by `*.g.dart`: EXPECTED FAILURE (`Generated files are s
 inline `pull_request.paths` filter: EXPECTED FAILURE (`must not contain paths`)
 inline `pull_request.paths-ignore` filter: EXPECTED FAILURE (`must not contain paths`)
 additional `push` trigger bypass: EXPECTED FAILURE (`exactly one pull_request trigger`)
+quoted and plain top-level `on` keys together: EXPECTED FAILURE (`one unambiguous top-level on key`)
+duplicate plain top-level `on` keys: EXPECTED FAILURE (`one unambiguous top-level on key`)
 fixture harness result: PASS
 ```
 
 ## CI evidence
 
 - Draft PR: <https://github.com/sh414lim/timefit-ax_agent/pull/16>
-- Successful blocker-fix workflow: <https://github.com/sh414lim/timefit-ax_agent/actions/runs/39123481192>
+- Successful blocker-fix workflow: <https://github.com/sh414lim/timefit-ax_agent/actions/runs/39176969298>
 - Bootstrap boundaries: PASS (5s)
-- Format, analyze, coverage, Android smoke: PASS (7m7s)
-- Intentional gate failure fixtures: PASS (1m31s)
-- iOS no-codesign smoke: PASS (7m12s)
+- Format, analyze, coverage, Android smoke: PASS (6m19s)
+- Intentional gate failure fixtures: PASS (2m10s)
+- iOS no-codesign smoke: PASS (9m9s)
 - Required-check setting: out of scope for this change and not claimed
 
 ## Scope and limitations
 
 - No `pubspec.yaml` or `pubspec.lock` change.
 - Generated-output verification snapshots and hashes the actual files under `lib`, `test`, and `integration_test`, independently of Git ignore rules.
-- Pull request trigger validation parses YAML structure and rejects filters or additional triggers, including inline mappings.
+- Pull request trigger validation inspects the YAML AST before semantic loading, rejecting duplicate or mixed top-level `on` keys as well as filters and additional triggers.
+- Disposable fixture copies exclude regenerated build caches, dependency state, coverage, and CocoaPods outputs.
 - No production identity, signing credential, secret, service, deployment, store upload, branch protection, or required-check setting change.
 - Build runner reports that the pinned analyzer language version trails Dart 3.10. The exact package set is owned by CHAT-003 and was not changed in CHAT-005; generation and fatal analysis still pass.
 - CI uses the pinned official Flutter source in GitHub-hosted runners. The separate FVM wrapper execution evidence remains a CHAT-003 follow-up and is not claimed here.
