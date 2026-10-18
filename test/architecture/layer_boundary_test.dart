@@ -46,20 +46,36 @@ void main() {
     for (final File file in presentationFiles) {
       final String source = file.readAsStringSync();
       expect(
-        source,
-        isNot(contains('package:supabase_flutter/')),
-        reason: '${file.path} imports the Supabase SDK directly',
-      );
-      expect(
-        source,
-        isNot(contains('package:drift/')),
-        reason: '${file.path} imports Drift directly',
-      );
-      expect(
-        source,
-        isNot(contains('/database/')),
-        reason: '${file.path} imports a database implementation directly',
+        forbiddenPresentationImports(source),
+        isEmpty,
+        reason: '${file.path} imports an implementation directly',
       );
     }
   });
+
+  test('Supabase lower-level SDK import is rejected by the boundary rule', () {
+    final String source = File(
+      'test/architecture/fixtures/supabase_subsdk_import.dart.fixture',
+    ).readAsStringSync();
+
+    expect(forbiddenPresentationImports(source), contains('package:supabase/'));
+  });
+}
+
+Set<String> forbiddenPresentationImports(String source) {
+  final Set<String> violations = <String>{};
+  if (RegExp(r"package:supabase(?:_flutter)?/").hasMatch(source)) {
+    violations.add(
+      source.contains('package:supabase_flutter/')
+          ? 'package:supabase_flutter/'
+          : 'package:supabase/',
+    );
+  }
+  if (source.contains('package:drift/')) {
+    violations.add('package:drift/');
+  }
+  if (source.contains('/database/')) {
+    violations.add('/database/');
+  }
+  return violations;
 }

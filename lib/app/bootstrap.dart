@@ -4,32 +4,50 @@ import '../src/app_environment.dart';
 import 'app.dart';
 import 'theme/tokens.dart';
 
-void runTimeFitApp(AppEnvironment environment) {
+typedef TimeFitAppRunner = void Function(Widget app);
+
+void runTimeFitApp(
+  AppEnvironment environment, {
+  TimeFitAppRunner appRunner = runApp,
+}) {
+  void retry() => runTimeFitApp(environment, appRunner: appRunner);
+
   ErrorWidget.builder = (FlutterErrorDetails details) {
-    return const BootstrapFailureScreen();
+    return BootstrapFailureScreen(onRetry: retry);
   };
-  runApp(TimeFitErrorBoundary(child: TimeFitApp(environment: environment)));
+  appRunner(
+    TimeFitErrorBoundary(
+      onRetry: retry,
+      child: TimeFitApp(environment: environment),
+    ),
+  );
 }
 
 class TimeFitErrorBoundary extends StatelessWidget {
-  const TimeFitErrorBoundary({required this.child, this.failure, super.key});
+  const TimeFitErrorBoundary({
+    required this.child,
+    required this.onRetry,
+    this.failure,
+    super.key,
+  });
 
   final Widget child;
+  final VoidCallback onRetry;
   final Object? failure;
 
   @override
   Widget build(BuildContext context) {
     if (failure != null) {
-      return const BootstrapFailureScreen();
+      return BootstrapFailureScreen(onRetry: onRetry);
     }
     return child;
   }
 }
 
 class BootstrapFailureScreen extends StatelessWidget {
-  const BootstrapFailureScreen({this.onRetry, super.key});
+  const BootstrapFailureScreen({required this.onRetry, super.key});
 
-  final VoidCallback? onRetry;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {

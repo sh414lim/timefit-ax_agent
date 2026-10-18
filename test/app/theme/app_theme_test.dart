@@ -1,22 +1,21 @@
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/bootstrap.dart';
 import 'package:timefit_native/app/theme/app_theme.dart';
 import 'package:timefit_native/app/theme/tokens.dart';
+import 'package:timefit_native/src/app_environment.dart';
 
 void main() {
-  final GoldenFileComparator defaultGoldenFileComparator = goldenFileComparator;
-
-  setUpAll(() {
-    goldenFileComparator = _CrossPlatformGoldenComparator(
-      Uri.parse('test/app/theme/app_theme_test.dart'),
-    );
-  });
-
-  tearDownAll(() {
-    goldenFileComparator = defaultGoldenFileComparator;
+  setUpAll(() async {
+    final Uint8List fontBytes = File(
+      'test/fixtures/fonts/nanum_gothic/NanumGothic-Regular.ttf',
+    ).readAsBytesSync();
+    final FontLoader fontLoader = FontLoader(_goldenFontFamily)
+      ..addFont(Future<ByteData>.value(ByteData.sublistView(fontBytes)));
+    await fontLoader.load();
   });
 
   test('shared layout tokens keep the approved scale', () {
@@ -51,7 +50,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          theme: theme,
+          theme: _withGoldenFont(theme),
           home: BootstrapFailureScreen(onRetry: () {}),
         ),
       );
@@ -72,7 +71,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        theme: AppTheme.light(),
+        theme: _withGoldenFont(AppTheme.light()),
         home: Builder(
           builder: (BuildContext context) {
             return MediaQuery(
@@ -100,43 +99,62 @@ void main() {
   testWidgets('error boundary renders the recovery screen', (
     WidgetTester tester,
   ) async {
+    var retryCount = 0;
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light(),
         home: TimeFitErrorBoundary(
           failure: StateError('redacted_bootstrap_failure'),
+          onRetry: () => retryCount += 1,
           child: const SizedBox.shrink(),
         ),
       ),
     );
 
     expect(find.byType(BootstrapFailureScreen), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.text('다시 시도'));
+    expect(retryCount, 1);
+  });
+
+  testWidgets('framework error retry restarts the app bootstrap', (
+    WidgetTester tester,
+  ) async {
+    final List<Widget> appRuns = <Widget>[];
+    final ErrorWidgetBuilder originalErrorBuilder = ErrorWidget.builder;
+    try {
+      runTimeFitApp(AppEnvironment.dev, appRunner: appRuns.add);
+      expect(appRuns, hasLength(1));
+
+      final Widget recovery = ErrorWidget.builder(
+        FlutterErrorDetails(exception: StateError('redacted_render_failure')),
+      );
+      await tester.pumpWidget(
+        MaterialApp(theme: AppTheme.light(), home: recovery),
+      );
+
+      expect(
+        tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNotNull,
+      );
+      await tester.tap(find.text('다시 시도'));
+      expect(appRuns, hasLength(2));
+    } finally {
+      ErrorWidget.builder = originalErrorBuilder;
+    }
   });
 }
 
-/// Allows only the small rasterization variance produced by Flutter's Linux
-/// and macOS test renderers while still rejecting layout and color regressions.
-class _CrossPlatformGoldenComparator extends LocalFileComparator {
-  _CrossPlatformGoldenComparator(super.testFile);
+const String _goldenFontFamily = 'NanumGothicGolden';
 
-  static const double _maximumPixelDifference = 0.015;
-
-  @override
-  Future<bool> compare(Uint8List imageBytes, Uri golden) async {
-    final ComparisonResult result = await GoldenFileComparator.compareLists(
-      imageBytes,
-      await getGoldenBytes(golden),
-    );
-    final bool passed =
-        result.passed || result.diffPercent <= _maximumPixelDifference;
-
-    if (passed) {
-      result.dispose();
-      return true;
-    }
-
-    final String error = await generateFailureOutput(result, golden, basedir);
-    result.dispose();
-    throw FlutterError(error);
-  }
+ThemeData _withGoldenFont(ThemeData theme) {
+  return theme.copyWith(
+    textTheme: theme.textTheme.apply(fontFamily: _goldenFontFamily),
+    primaryTextTheme: theme.primaryTextTheme.apply(
+      fontFamily: _goldenFontFamily,
+    ),
+  );
 }

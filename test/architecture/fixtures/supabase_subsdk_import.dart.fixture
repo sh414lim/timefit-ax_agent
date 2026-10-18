@@ -1,0 +1,4 @@
+import 'package:supabase/supabase.dart';
+
+// This intentionally invalid presentation fixture proves that the architecture
+// test rejects direct imports of Supabase's lower-level SDK.
