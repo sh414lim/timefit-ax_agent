@@ -47,6 +47,8 @@ fvm flutter build apk --debug --no-pub --flavor dev --target lib/main.dart
 fvm flutter build apk --debug --no-pub --flavor staging --target lib/main_staging.dart
 
 # iOS 서명 없는 build smoke
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
 fvm flutter build ios --debug --no-codesign --no-pub --flavor dev --target lib/main.dart
 fvm flutter build ios --debug --no-codesign --no-pub --flavor staging --target lib/main_staging.dart
 ```

@@ -27,5 +27,6 @@ build/
 dist/
 .dart_tool/
 .fvm/
+.flutter-plugins-dependencies
 .next/
 node_modules/
