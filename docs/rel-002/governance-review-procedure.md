@@ -105,7 +105,7 @@ mergeConfirmation:
 - 역할 변경은 별도 PR로 수행하고 이전 owner, 새 owner, 적용 시각과 복구 연락처를 기록한다.
 - `time_fit` Backend Code Owner는 이 저장소 CODEOWNERS만으로 지정할 수 없으며 해당 저장소의 확인이 필요하다.
 
-## 6. plan 제한과 남은 자동화 Gap
+## 6. historical plan 제한과 현재 자동화 Gap
 
 | 항목 | 현재 상태 | 수동 대안 | 완료로 인정하려면 필요한 evidence |
 | --- | --- | --- | --- |

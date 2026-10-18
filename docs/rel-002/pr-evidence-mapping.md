@@ -77,7 +77,8 @@ supplementalChecks:
   credentialAssignments: 0
   entropyCandidatesReviewed: 9
   entropyDisposition: PUBLIC_PATH_OR_IDENTIFIER_OR_EVIDENCE_ID
-hostedControls:
+hostedControlsAtMainC0c74dePrivateAudit:
+  repositoryVisibility: PRIVATE
   secretScanning: DISABLED
   branchProtection: BLOCKED_BY_HOSTING_PLAN_HTTP_403
   rulesets: BLOCKED_BY_HOSTING_PLAN_HTTP_403
@@ -96,11 +97,11 @@ history 검사는 official gitleaks의 Git history 모드에 모든 reachable re
 
 entropy 후보 9건은 값 자체를 이 문서에 복사하지 않고 공개 경로·공개 식별자·evidence ID 범주임을 검토했다. 이 판정은 `main@c0c74de`에 대한 시점성 감사이며 PR #10 이후 commit이나 미래 branch를 자동 포함하지 않는다.
 
-finding `0`은 hosted secret scanning 활성, branch protection, ruleset, required check, required review 또는 scan 정책 채택을 의미하지 않는다. GitHub hosted secret scanning은 disabled이고 보호 기능은 plan 제한, environment는 0개다. 반복 시점·대상·실패 처리와 merge 차단을 정의한 정책은 [`governance-review-procedure.md`](governance-review-procedure.md)에서 계속 `PROPOSED_NOT_CONFIGURED`로 둔다.
+finding `0`은 hosted secret scanning 활성, branch protection, ruleset, required check, required review 또는 scan 정책 채택을 의미하지 않는다. private `main@c0c74de` 감사 당시 보호 API의 plan 제한 HTTP `403`은 historical evidence다. 현재 public 저장소에서도 hosted secret scanning은 disabled이고 `main`은 unprotected, ruleset과 environment는 각각 0개다. 반복 시점·대상·실패 처리와 merge 차단을 정의한 정책은 [`governance-review-procedure.md`](governance-review-procedure.md)에서 계속 `PROPOSED_NOT_CONFIGURED`로 둔다.
 
 ## 4. 현재 수행 가능한 보완과 보류 경계
 
-현재 저장소 안에서 안전하게 수행 가능한 보완은 이 evidence mapping 유지, ADR 검토, PR template·boundary 검사 회귀 확인, [역할 등록·수동 검토 절차](governance-review-procedure.md)의 검토와 owner 후보를 추측하지 않는 빈 역할표 유지다. 수동 절차는 유료 plan 제한을 숨기지 않으며 채택·적용 evidence 전에는 required review가 설정됐다고 표현하지 않는다. 다음 작업은 권한·별도 결정 없이 수행하지 않는다.
+현재 저장소 안에서 안전하게 수행 가능한 보완은 이 evidence mapping 유지, ADR 검토, PR template·boundary 검사 회귀 확인, [역할 등록·수동 검토 절차](governance-review-procedure.md)의 검토와 owner 후보를 추측하지 않는 빈 역할표 유지다. 수동 절차는 historical private plan 제한과 현재 public 보호 미구성 상태를 구분하며, 채택·적용 evidence 전에는 required review가 설정됐다고 표현하지 않는다. 다음 작업은 권한·별도 결정 없이 수행하지 않는다.
 
 - GitHub 요금제 변경, branch protection/ruleset 생성 또는 required reviewer 강제
 - 확인되지 않은 GitHub 사용자·팀을 CODEOWNERS에 추가

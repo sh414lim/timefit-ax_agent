@@ -62,7 +62,7 @@ backend 변경이 필요하면 `time_fit`에서 additive-first로 수행하고 �
 
 실제 GitHub CODEOWNERS handle은 담당자가 확정된 뒤 별도 변경으로 추가한다. 임의의 사용자명을 추측하지 않는다.
 
-역할의 실제 사람·팀·GitHub account 연결, ADR 승인 기록과 plan 제한 중 수동 검토 제안은 [`docs/rel-002/governance-review-procedure.md`](../rel-002/governance-review-procedure.md)에 둔다. 해당 절차는 `PROPOSED_NOT_CONFIGURED`이며 Codex 역할 세션, 자동화 실행자 또는 PR 작성자를 인간 책임자·독립 승인자로 간주하지 않는다.
+역할의 실제 사람·팀·GitHub account 연결, ADR 승인 기록과 현재 public 저장소의 미구성 보호 기능을 보완할 수동 검토 제안은 [`docs/rel-002/governance-review-procedure.md`](../rel-002/governance-review-procedure.md)에 둔다. 해당 절차는 `PROPOSED_NOT_CONFIGURED`이며 Codex 역할 세션, 자동화 실행자 또는 PR 작성자를 인간 책임자·독립 승인자로 간주하지 않는다. private 상태에서 관찰한 HTTP `403`은 historical evidence이고, 현재 상태는 public·`main` unprotected·ruleset `0`·hosted secret scanning disabled다.
 
 ## 5. 환경과 identity 정책
 
@@ -174,7 +174,7 @@ REL-002 전체 완료에는 이 ADR 외에 다음 증거가 추가로 필요하�
 - production secret 없이 PR 검사가 실행된 결과
 - 기술 책임자의 ADR 승인 기록
 
-GitHub plan 제한으로 branch protection·required review를 자동 강제할 수 없는 동안 사용할 수동 대안은 [`governance-review-procedure.md`](../rel-002/governance-review-procedure.md)에 제안한다. Repository Owner가 절차를 채택하고 실제 PR에서 최신 SHA, 역할이 확인된 독립 review와 merge 확인 evidence를 남기기 전에는 승인된 대안으로 간주하지 않는다. 자동 설정이 필요한 기준은 plan 지원 설정 evidence가 생길 때까지 별도 blocker로 유지한다.
+현재 public 저장소에서 `main`은 unprotected이고 ruleset은 `0`이며 required review가 구성되지 않았다. 이 미구성 상태에서 사용할 수동 대안은 [`governance-review-procedure.md`](../rel-002/governance-review-procedure.md)에 제안한다. Repository Owner가 절차를 채택하고 실제 PR에서 최신 SHA, 역할이 확인된 독립 review와 merge 확인 evidence를 남기기 전에는 승인된 대안으로 간주하지 않는다. private 상태에서의 plan 제한 HTTP `403`은 historical evidence로만 보존하며, 현재 blocker는 실제 보호 설정 또는 승인된 수동 절차 evidence가 없다는 점이다.
 
 PR #1~#8 산출물의 수용 기준별 충족·부분 충족·미충족 매핑은 [`docs/rel-002/pr-evidence-mapping.md`](../rel-002/pr-evidence-mapping.md)에 기록한다. 해당 매핑은 merge 수를 티켓 완료로 환산하지 않으며, 현재 남은 branch protection, secret scanning, 실제 owner 지정과 ADR 승인 blocker를 그대로 유지한다.
 
