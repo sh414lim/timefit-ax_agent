@@ -41,6 +41,8 @@ crypto direct lock: 3.0.7
 - iOS dev/staging `--no-codesign`: 통과
 - Android dev/staging debug: 실패
 
+초기 CI의 iOS dev build는 clean runner에서 flavor별 CocoaPods xcconfig가 Runner configuration에 연결되지 않아 `PODS_ROOT`가 비어 실패했다. dev/staging별 Debug/Profile/Release Flutter xcconfig를 명시적으로 연결하고, 기존 `ios/Pods`를 치운 상태에서 `pod install`부터 다시 수행한 뒤 iOS dev/staging 비서명 build가 모두 통과하는 것을 확인했다.
+
 Android 실패 원인은 명세 고정 `file_picker 8.0.0+1`이 Flutter 3.38.5에서 제거된 v1 embedding API `PluginRegistry.Registrar`를 참조하기 때문이다. dev와 staging 모두 `:file_picker:compileDebugJavaWithJavac`에서 동일하게 실패했다. package의 Linux/macOS/Windows default implementation metadata 경고는 analyze·test와 iOS build에서 비치명적이었지만, Android source 호환성은 실제 build blocker다.
 
 `flutter_local_notifications 17.2.4`가 요구하는 core library desugaring은 해당 package의 동봉 README/build 설정에 명시된 `desugar_jdk_libs 1.2.2`로 활성화했다. 이 보완 뒤 Android build는 다음 단계인 `file_picker` compile까지 진행했다.
