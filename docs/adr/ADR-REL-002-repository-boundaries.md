@@ -17,6 +17,7 @@
 ### 확인된 사실
 
 - `timefit-ax_agent`는 private 독립 저장소로 생성되어 있다.
+- 사용자는 저장소의 추적 문서와 기존 Git 이력이 인터넷에 공개될 수 있다는 설명을 확인한 뒤 `timefit-ax_agent` 전체를 public으로 전환하는 것을 명시 승인했다(`Sentinel_f6c44705f4108191b830d573f0f5c5bc`). 현재 문서의 상태는 `PUBLIC_VISIBILITY_APPROVED_PENDING_RELEASE_VERIFICATION`이며, 실제 visibility 전환 완료는 Release 세션의 별도 확인 전까지 사실로 기록하지 않는다.
 - `time-fit`은 계속 운영되는 모바일 웹/PWA와 공유 backend의 canonical source다.
 - `tpghks521/dev_manager`는 기존 네이티브 source·artifact 정체성 조사와 update fixture의 읽기 전용 근거다.
 - Android package 후보 `com.leofitTech.devmanager.admin.dev_manager`는 source와 Play Console record가 일치한다.
@@ -33,6 +34,8 @@
 - 모바일, backend와 release owner의 실제 사용자·팀 handle은 지정되지 않았다.
 
 미결정 값을 placeholder라도 production 설정으로 입력하지 않는다.
+
+저장소 공개 승인은 Git 이력 rewrite, 비밀값 공개, collaborator 권한 변경, GitHub 요금제 변경, branch protection/ruleset·hosted secret scanning 활성화를 승인한 것이 아니다. 공개 전환 뒤에도 credential과 production 설정의 비공개 경계는 그대로 유지하며, hosted 보호 기능은 실제 설정 evidence가 있을 때만 활성 상태로 판정한다.
 
 ## 3. 저장소별 책임
 

@@ -81,7 +81,7 @@
 
 ### 2.4 스토어 정체성 아키텍처(릴리스 제어면)
 
-이 문서의 릴리스 모드는 `REUSE_DEVGYM_RECORD`로 확정한다. Flutter 소스는 신규 비공개 `timefit-mobile` 저장소에서 개발하지만, Android는 기존 `데브짐-매니저`, iOS는 기존 `데브짐` 스토어 레코드에 업데이트로 제출한다. Git 저장소 위치나 commit 이력은 스토어 업데이트 식별에 사용되지 않는다.
+이 문서의 릴리스 모드는 `REUSE_DEVGYM_RECORD`로 확정한다. Flutter 소스는 독립 `sh414lim/timefit-ax_agent` 저장소에서 개발하며 사용자는 public visibility 전환을 승인했지만, Android는 기존 `데브짐-매니저`, iOS는 기존 `데브짐` 스토어 레코드에 업데이트로 제출한다. Git 저장소 위치·visibility·commit 이력은 스토어 업데이트 식별에 사용되지 않는다.
 
 릴리스 제어면은 다음 불변조건을 강제한다.
 
