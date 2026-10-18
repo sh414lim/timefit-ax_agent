@@ -2,7 +2,7 @@
 
 - 문서 상태: Trello 등록·Codex 실행 기준안 v1.2
 - 기준일: 2026-10-16
-- 기준선 개정: 2026-10-18 — REL-001 관측과 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로 반영(검토 중)
+- 기준선 개정: 2026-10-18 — REL-001 관측, `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`, production signing 출시 전 유예 결정 반영(검토 중)
 - 상위 아키텍처: `docs/146-timefit-native-chat-architecture-2026-10-16.md`
 - Flutter 앱 저장소: `timefit-mobile`
 - 모바일 웹·공유 백엔드 저장소: `time_fit`
@@ -25,7 +25,19 @@ BLOCKED
 - 필요한 결정권자:
 ```
 
-모든 구현 카드는 감사·저장소 Gate인 `REL-001`, `REL-002`가 완료되기 전까지 `Blocked`다. production native identity, signing, Firebase/APNs 또는 스토어 artifact를 다루는 `CHAT-004`, `CHAT-060`, `CHAT-076`은 `REL-003`에서 확정된 `REUSE_DEVGYM_RECORD` 대상의 기술·제품·정책 이중 `GO`가 승인되기 전까지 추가로 `Blocked`다. REL 카드의 내용과 완료 판정은 배포 전환 문서가 원본이며, 이 문서에서 REL 카드를 새로 정의하지 않는다. CHAT 카드가 착수되려면 REL 결과물에서 다음 값이 확정되어 있어야 한다.
+REL 완료·릴리스 Gate와 비서명 개발 착수 Gate를 분리한다. 사용자의 2026-10-18 결정은 앱 서명 확인·설정·연속성 및 실제 signed update 검증만 `SIGNING_DEFERRED_TO_RELEASE_GATE`로 옮긴다. 이는 REL-001/002/003 완료, signing 면제, 기술 `GO` 또는 배포 승인이 아니다.
+
+production identity·signing credential·Firebase/APNs production 설정·스토어 artifact를 다루지 않는 `timefit-mobile` dev/staging 작업은 아래 **비서명 개발 착수 Gate**를 만족하면 feature branch와 Draft PR에서 진행할 수 있다. 카드의 merge·Done·release 판정은 기존 수용 기준과 실제 owner/reviewer 승인을 계속 요구한다.
+
+- 저장소와 `time_fit` 경계가 문서화되고 production identity가 fail-closed이며 비밀값이 커밋되지 않는다.
+- dev/staging·no-codesign 명령과 테스트만 사용하고 production promotion·provider 설정·store upload를 실행하지 않는다.
+- 현재 nonzero 관측과 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 결정을 보존하며 legacy reader/import를 추가하지 않는다.
+- IAP/결제, 실제 사용자·데이터 처리, provider/console 권한, 제품·정책 및 repository governance 미완료 상태를 별도 blocker로 유지한다.
+- `time_fit` 변경이 필요한 카드는 공유 백엔드 Gate와 교차 저장소 승인 없이는 착수하지 않는다.
+
+이에 따라 현재 저장소 안에서 가장 먼저 열리는 범위는 `CHAT-003`의 bootstrap gap이다. 현재 `.fvmrc`가 없고 `pubspec.yaml`은 2.1의 exact dependency 집합을 충족하지 않으므로, `.fvmrc`, 명세 고정 dependency와 lockfile, README clean-checkout 재현 절차, Android debug·iOS no-codesign smoke를 하나의 CHAT-003 작업으로 검증한다. `CHAT-005`와 `CHAT-006`은 CHAT-003의 수용 증거가 생긴 뒤에만 후속 후보가 된다. `CHAT-001`, `CHAT-002`와 후속 backend 카드는 signing과 무관하더라도 `time_fit` 변경 승인이 별도로 필요하다.
+
+production native identity, signing, Firebase/APNs 또는 스토어 artifact를 다루는 `CHAT-004`, `CHAT-060`, `CHAT-076`, `CHAT-077`은 `REL-003`에서 확정된 `REUSE_DEVGYM_RECORD` 대상의 기술·제품·정책 이중 `GO`와 signing 출시 Gate가 승인되기 전까지 계속 `Blocked`다. REL 카드의 내용과 완료 판정은 배포 전환 문서가 원본이며, 다음 값은 비서명 개발 착수값이 아니라 **출시 전 필수값**이다.
 
 - `REL-003` 플랫폼별 release mode: Android·iOS 모두 `REUSE_DEVGYM_RECORD`; 연속성 복구 전 submission status는 `BLOCKED_PENDING_RECOVERY`
 - Android `데브짐-매니저`의 실제 store record·application ID·app-signing lineage·upload owner·최대 versionCode
@@ -115,7 +127,7 @@ dev_dependencies:
 
 카드는 아래를 모두 만족해야 `Ready`로 이동한다.
 
-- `REL-001`, `REL-002` 완료 링크가 카드에 첨부됨
+- release·production identity·provider 설정·store artifact 대상 카드는 `REL-001`, `REL-002` 완료 링크가 첨부됨. 그 밖의 `timefit-mobile` 비서명 카드가 feature branch에서 시작할 때는 1장의 비서명 개발 착수 Gate evidence와 미완료 REL/governance blocker 링크를 첨부함
 - 선행 `CHAT-*` 카드가 Done이고 commit/PR 링크가 있음
 - 대상 저장소와 기준 branch가 명시됨
 - 카드의 경로가 실제 저장소 구조와 일치함
@@ -287,10 +299,10 @@ flowchart TD
 
 ### CHAT-000 — 아키텍처 계약 동결과 구현 준비 Gate
 
-**상태:** Blocked — REL-001, REL-002 완료 전 착수 금지
+**상태:** 비서명 계약 동결 draft 착수 가능 — REL-001/002 완료·승인 및 Trello 상태 변경은 별도
 **예상:** 1일
 **대상 저장소:** `time_fit`
-**선행:** REL-001, REL-002
+**선행:** 1장의 비서명 개발 착수 Gate; `time_fit` 문서 변경 승인. production identity/signing 부분의 최종 동결은 REL-001, REL-002 완료 후
 
 이 카드에는 3.4 공유 백엔드 Gate가 적용된다. 기존 웹 병렬 운영, additive-first 변경, v1 계약 병행, 웹 회귀, 독립 배포·forward-fix 증거를 모두 남긴다.
 
@@ -317,7 +329,7 @@ flowchart TD
 
 **인수 조건:**
 
-- Given REL 두 Gate가 완료됐을 때, When ADR을 읽으면, Then 개발자가 저장 방식과 저장소를 추가 질문 없이 결정할 수 있다.
+- Given 비서명 개발 착수 Gate와 `time_fit` 문서 변경 승인이 있을 때, When ADR draft를 읽으면, Then 개발자가 비서명 저장 방식과 저장소를 추가 질문 없이 결정할 수 있다. production identity/signing 절은 REL 두 Gate 완료 전 최종 승인하지 않는다.
 - Given 범위 검토 시, When PWA를 검색하면, Then Flutter 비범위와 기존 웹 병렬 운영이 함께 나타나며 AI는 전체 비범위로 나타난다.
 - Given backend ADR 검토 시, When 배포 순서를 읽으면, Then 웹 재배포 없이 additive backend와 Flutter를 독립 출시할 수 있다.
 
@@ -421,12 +433,14 @@ flowchart TD
 
 ### CHAT-003 — `timefit-mobile` 저장소와 고정 Flutter toolchain bootstrap
 
-**상태:** Blocked — REL-001, REL-002 및 CHAT-000 필요
+**상태:** 비서명 bootstrap gap 착수 가능 — merge·Done 및 REL/CHAT 전체 완료는 별도
 **예상:** 2일
 **대상 저장소:** `timefit-mobile`
-**선행:** CHAT-000
+**선행:** 1장의 비서명 개발 착수 Gate와 현재 저장소 경계. CHAT-000의 production identity/signing 최종 동결은 출시 전 별도
 
 **목표:** Flutter 3.38.5/Dart 3.10.4와 고정 dependency로 재현 가능한 새 앱 기반을 만든다.
+
+현재 최소 scaffold·dev/staging smoke가 존재해도 CHAT-003은 완료되지 않았다. `.fvmrc`, 2.1의 exact dependency 집합과 갱신된 lockfile, README clean-checkout 재현 명령·결과가 모두 없으면 후속 카드의 선행조건으로 사용할 수 없다. signing·provider production 설정과 실제 update 검증은 이 카드 범위가 아니다.
 
 **대상 경로:**
 
@@ -519,7 +533,7 @@ flowchart TD
 
 ### CHAT-005 — 모바일 CI 품질 Gate
 
-**상태:** Blocked — REL-001, REL-002 및 CHAT-003 필요
+**상태:** Blocked — CHAT-003의 `.fvmrc`·exact dependency/lockfile·재현 smoke 증거 필요; signing 자체는 선행 아님
 **예상:** 2일
 **대상 저장소:** `timefit-mobile`
 **선행:** CHAT-003
@@ -561,7 +575,7 @@ flowchart TD
 
 ### CHAT-006 — 앱 레이어 skeleton과 공통 디자인 token
 
-**상태:** Blocked — REL-001, REL-002 및 CHAT-003 필요
+**상태:** Blocked — CHAT-003의 `.fvmrc`·exact dependency/lockfile·재현 smoke 증거 필요; signing 자체는 선행 아님
 **예상:** 3일
 **대상 저장소:** `timefit-mobile`
 **선행:** CHAT-003
