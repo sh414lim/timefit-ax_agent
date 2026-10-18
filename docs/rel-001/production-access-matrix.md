@@ -4,6 +4,7 @@
 - 설계 원문: [145 — 네이티브 앱 저장소·출시 계획](../145-timefit-native-app-repository-migration-plan-2026-10-16.md)의 REL-001 작업 1~13, 산출물과 수용 기준
 - 후속 Gate: [146 — 네이티브 채팅 아키텍처](../146-timefit-native-chat-architecture-2026-10-16.md)의 2.4~2.5와 [147 — 실행 티켓 카탈로그](../147-timefit-native-chat-execution-ticket-catalog-2026-10-16.md)의 REL 완료 Gate
 - 목적: 확인된 콘솔·빌드 evidence와 아직 필요한 접근을 분리해 기록
+- 실행 계획: [no-transfer 지원·보존·복구 draft](no-transfer-support-preservation-recovery-plan.md)
 - 운영 변경: 없음
 
 ```yaml
@@ -22,7 +23,7 @@ githubReviewAccess: PENDING_INVITATION_NOT_EFFECTIVE
 storeTargetSelectionApproval: PENDING
 technicalContinuityApproval: PENDING
 productPolicyApproval: USER_ATTESTED_NO_DATA_MIGRATION_OTHER_POLICY_REVIEW_PENDING
-legacyUserMigrationApproval: USER_ATTESTED_PRODUCT_DECISION_EXECUTION_PLAN_REVIEW_PENDING
+legacyUserMigrationApproval: USER_ATTESTED_PRODUCT_DECISION_EXECUTION_PLAN_DRAFT_REVIEW_PENDING
 releaseApproval: PENDING
 ```
 
@@ -36,7 +37,7 @@ releaseApproval: PENDING
 | `REL001-IOS-ASC-QA-01a147a4-9770` | App Store Connect read-only QA 역할 결과 `cloud 01a147a4-9770` | `2026-10-17T03:23:36Z` | 90일 analytics 최신 `2026-10-15`; TestFlight는 관찰 시점 현재값 | 두 앱 record, version/build, TestFlight 설치·session, actual build Team, 계약·IAP 화면 |
 | `REL001-BACKEND-AGGREGATES-20261017T083809492Z` | Supabase `bro-gym` project ref `nzxgcfwranspxynzyglb` aggregate-only SQL | `2026-10-17T08:38:09.492Z` | 쿼리 실행 시점 현재값 | 10초 timeout, read-only transaction, `ROLLBACK`; `public.users`·`auth.users`·auth linkage·최근 sign-in·admin login·FCM/device token·push queue·일반 membership subscription 집계와 store 전용 IAP 명명 object 탐색; raw 개인 행·token 미조회 |
 | `REL001-PRODUCT-MIGRATION-DECISION-20261017T094549Z` | 사용자 직접 보고 | `2026-10-17T09:45:49Z` | 현재 제품 방침 진술 | bro-gym 미사용, 기존 사용자 전원 동의, 기존 사용자 데이터 미이전으로 진행; `USER_ATTESTED`이며 제3자 consent 원본의 독립 검증, 데이터 삭제, 서비스 종료 또는 구독 해지 승인이 아님 |
-| `REL001-GITHUB-COLLAB-20261017T083211Z` | GitHub API read-only 재조회 | `2026-10-17T08:32:11Z` | 초대 생성 `2026-10-17T08:19:32Z` | `tpghks521` write 초대 `338202054`는 pending·미만료이고 실제 permission은 `none` |
+| `REL001-GITHUB-COLLAB-20261017T083211Z` | GitHub API read-only 재조회 | `2026-10-17T08:32:11Z` | 초대 생성 `2026-10-17T08:19:32Z` | 당시 private 저장소에서 `tpghks521` write 초대 `338202054`는 pending·미만료이고 effective permission은 `none`; public 전환 전 historical 관측 |
 
 Android, iOS store와 backend evidence의 관찰 시각·데이터 기준일·조회 범위가 다르므로 하나의 `as_of`로 합치지 않는다. backend 조회 시 service에 `restricted/unhealthy` banner가 있었지만 제한된 읽기 집계 쿼리는 성공했다. 이 성공은 서비스 건전성, 전체 schema 포괄 또는 store record와의 사용자 매핑을 증명하지 않는다. backend SQL·비식별 전사본·실행 기록은 아래 checksum으로 확인했지만 provider 원본 export와 서버 audit evidence는 확보되지 않았다. 스토어 콘솔 원본 export도 아직 이 문서에 연결되지 않았다.
 
@@ -69,7 +70,7 @@ Android, iOS store와 backend evidence의 관찰 시각·데이터 기준일·�
 | Backend subscription·IAP namespace | 일반 membership subscription 집계 `0`; store 전용 IAP 명명 table/column 탐색 결과 `0` | schema 명명 탐색이 아닌 Android/iOS 판매자·영수증 source의 active/restorable entitlement와 미정산 거래 대조 | Backend Evidence Owner + Product/Policy Approver | `ZERO_NAMESPACE_MATCHES_OBSERVED_IAP_NOT_PROVEN` |
 | OAuth·Universal/App Links | 운영 mapping 미확정 | callback, URL scheme, Associated Domains, AASA와 도메인 소유권 | Security Approver | `PENDING` |
 | Artifact repository | iOS actual build Team 관찰, source/build Bundle ID 일치 후보 | 마지막 Android·iOS 운영 artifact provenance, checksum과 서명·entitlement 전체 비교 | Release Manager + Security Approver | `PARTIAL_VERIFIED` |
-| Private audit repository review | `tpghks521`에 write 초대 `338202054`가 생성됐으나 아직 pending이며 실제 permission은 `none` | 초대 대상자의 수락 후 effective permission 재확인; 필요 없으면 Owner가 초대 정책 결정 | Repository Owner + Invited Reviewer | `PENDING_INVITATION_ACCEPTANCE_EFFECTIVE_NONE` |
+| Public repository collaborator review | `tpghks521`의 현재 public 접근은 `read: true`, `pull: true`, `push: false`; write 초대 `338202054`는 pending | public read와 collaborator write 권한을 구분하고, 초대 수락 후 `push` 재확인 또는 Owner의 초대 정책 결정 | Repository Owner + Invited Reviewer | `PUBLIC_READ_PULL_TRUE_PUSH_FALSE_PENDING_WRITE_INVITATION` |
 
 ## 역할과 승인 경계
 
@@ -81,10 +82,14 @@ Android, iOS store와 backend evidence의 관찰 시각·데이터 기준일·�
 | Backend Evidence Owner | 동일 기준 시각의 installation·session·push·사용자 연결 집계 | `PENDING` |
 | Product/Policy Approver | 기존 사용자 데이터 미이전 제품 결정, 브랜드·metadata·개인정보·지원·계약 영향 승인 | `USER_ATTESTED_NO_DATA_MIGRATION_OTHER_POLICY_REVIEW_PENDING` |
 | Security Approver | signing lineage, entitlement, provider mapping 검토 | `PENDING` |
+| Support Owner | no-transfer 사용자 안내·문의 분류·escalation 운영 | `PENDING` |
+| Backup Support Owner | Support Owner 부재 시 복구 연락과 문의 이관 | `PENDING` |
 
 QA source identifier는 evidence 출처이지 위 승인 역할을 자동으로 맡았다는 뜻이 아니다. 최소 두 명의 승인된 담당자가 제출 또는 복구 경로를 가져야 한다.
 
 GitHub 협업 초대 역시 문서 검토 경로일 뿐 Owner, Release Manager, Backup Approver 또는 스토어·백엔드 접근 권한의 증거가 아니다. 이번 감사 준비에서는 초대를 수락하거나 저장소 권한을 변경하지 않았다.
+
+[`no-transfer-support-preservation-recovery-plan.md`](no-transfer-support-preservation-recovery-plan.md)는 위 역할별 검토 대상과 중단 조건을 구조화한 draft다. 이 링크 추가는 미지정 역할을 채우거나 기술·release 승인을 부여하지 않는다.
 
 병합된 설계 원문의 `REUSE_DEVGYM_RECORD`는 출시 모드 요구사항이다. 관찰된 두 iOS record 중 정확한 target 선택, 사용자 0명, 서명·제품·정책 연속성이 확인됐다는 증거로 재해석하지 않는다. 현재 nonzero 관찰값과 서로 다른 기준 시각 때문에 `NOT_APPLICABLE_ZERO_VERIFIED` 경로는 충족되지 않았다. 2026-10-18 draft 기준선의 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로도 no-transfer 실행 계획, consent 미검증 표기, IAP·기술·정책 독립 Gate와 승인자가 완료되기 전에는 release Gate를 통과하지 않는다.
 

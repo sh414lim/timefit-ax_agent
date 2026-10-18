@@ -16,7 +16,8 @@
 
 ### 확인된 사실
 
-- `timefit-ax_agent`는 private 독립 저장소로 생성되어 있다.
+- `timefit-ax_agent`는 private 독립 저장소로 생성됐고, 사용자는 추적 문서와 기존 Git 이력이 인터넷에 공개될 수 있다는 설명을 확인한 뒤 전체 저장소의 public 전환을 명시 승인했다(`Sentinel_f6c44705f4108191b830d573f0f5c5bc`).
+- Release 세션은 2026-10-18T04:27:38Z에 GitHub repository API의 `private: false`, `visibility: public`과 인증 없는 API·Git 읽기 성공을 확인했다. 상태는 `PUBLIC_VISIBILITY_VERIFIED`다.
 - `time-fit`은 계속 운영되는 모바일 웹/PWA와 공유 backend의 canonical source다.
 - `tpghks521/dev_manager`는 기존 네이티브 source·artifact 정체성 조사와 update fixture의 읽기 전용 근거다.
 - Android package 후보 `com.leofitTech.devmanager.admin.dev_manager`는 source와 Play Console record가 일치한다.
@@ -33,6 +34,8 @@
 - 모바일, backend와 release owner의 실제 사용자·팀 handle은 지정되지 않았다.
 
 미결정 값을 placeholder라도 production 설정으로 입력하지 않는다.
+
+저장소 공개 승인은 Git 이력 rewrite, 비밀값 공개, collaborator 권한 변경, GitHub 요금제 변경, branch protection/ruleset·hosted secret scanning 활성화를 승인한 것이 아니다. 공개 전환 뒤에도 credential과 production 설정의 비공개 경계는 그대로 유지하며, hosted 보호 기능은 실제 설정 evidence가 있을 때만 활성 상태로 판정한다.
 
 ## 3. 저장소별 책임
 
@@ -58,6 +61,8 @@ backend 변경이 필요하면 `time_fit`에서 additive-first로 수행하고 �
 | `time_fit`의 schema·RLS·RPC·Edge Functions | Backend Code Owner | 이 저장소에서 직접 수정하지 않음 |
 
 실제 GitHub CODEOWNERS handle은 담당자가 확정된 뒤 별도 변경으로 추가한다. 임의의 사용자명을 추측하지 않는다.
+
+역할의 실제 사람·팀·GitHub account 연결, ADR 승인 기록과 현재 public 저장소의 미구성 보호 기능을 보완할 수동 검토 제안은 [`docs/rel-002/governance-review-procedure.md`](../rel-002/governance-review-procedure.md)에 둔다. 해당 절차는 `PROPOSED_NOT_CONFIGURED`이며 Codex 역할 세션, 자동화 실행자 또는 PR 작성자를 인간 책임자·독립 승인자로 간주하지 않는다. private 상태에서 관찰한 HTTP `403`은 historical evidence이고, 현재 상태는 public·`main` unprotected·ruleset `0`·hosted secret scanning disabled다.
 
 ## 5. 환경과 identity 정책
 
@@ -169,6 +174,8 @@ REL-002 전체 완료에는 이 ADR 외에 다음 증거가 추가로 필요하�
 - production secret 없이 PR 검사가 실행된 결과
 - 기술 책임자의 ADR 승인 기록
 
+현재 public 저장소에서 `main`은 unprotected이고 ruleset은 `0`이며 required review가 구성되지 않았다. 이 미구성 상태에서 사용할 수동 대안은 [`governance-review-procedure.md`](../rel-002/governance-review-procedure.md)에 제안한다. Repository Owner가 절차를 채택하고 실제 PR에서 최신 SHA, 역할이 확인된 독립 review와 merge 확인 evidence를 남기기 전에는 승인된 대안으로 간주하지 않는다. private 상태에서의 plan 제한 HTTP `403`은 historical evidence로만 보존하며, 현재 blocker는 실제 보호 설정 또는 승인된 수동 절차 evidence가 없다는 점이다.
+
 PR #1~#8 산출물의 수용 기준별 충족·부분 충족·미충족 매핑은 [`docs/rel-002/pr-evidence-mapping.md`](../rel-002/pr-evidence-mapping.md)에 기록한다. 해당 매핑은 merge 수를 티켓 완료로 환산하지 않으며, 현재 남은 branch protection, secret scanning, 실제 owner 지정과 ADR 승인 blocker를 그대로 유지한다.
 
 위 증거가 없으므로 이 문서만으로 REL-002를 완료 처리하지 않는다. REL-001과 REL-002가 모두 완료되기 전에는 CHAT-000을 시작하지 않는다.
@@ -185,4 +192,4 @@ git diff --check
 
 이 ADR을 승인하면 저장소 분리 원칙을 유지한 채 Flutter bootstrap PR을 준비할 수 있다. Apple Developer 권한 확보는 iOS production identity·signing·upload Gate에만 필요하며 secret 없는 dev/staging bootstrap과 로컬 테스트 설계를 막지 않는다.
 
-production target과 release mode의 최종 승인은 REL-001/003 evidence와 별도 Product/Policy Gate에서 수행한다.
+production target과 release mode의 최종 승인은 REL-001/003 evidence와 별도 Product/Policy Gate에서 수행한다. 이 ADR의 검토·승인도 실제 Architecture Owner와 Release reviewer가 최신 commit에 대해 기록해야 하며 사용자 제품 결정이나 Codex 역할 세션으로 대체하지 않는다.

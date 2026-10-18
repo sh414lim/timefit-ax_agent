@@ -32,7 +32,7 @@
 
 1. `REL-001`: source baseline을 유지하면서 콘솔·운영 artifact evidence를 수집한다.
 2. `REL-001` identity field 구조가 승인되면 [`REL-002`](https://trello.com/c/jl0z2Tvd)의 저장소 경계 ADR을 `timefit-ax_agent` 기준으로 정리한다.
-3. `REL-002`에서는 private repository, branch protection, CODEOWNERS, secret scanning, dev/staging/production 경계와 CI skeleton을 승인한다.
+3. `REL-002`에서는 독립 repository와 확인된 public visibility, branch protection, CODEOWNERS, secret scanning, dev/staging/production 경계와 CI skeleton을 각각 검증·승인한다. 공개 전환만으로 보호 기능이 설정됐다고 간주하지 않는다.
 4. `REL-001`과 `REL-002`가 모두 완료된 뒤에만 [`CHAT-000`](https://trello.com/c/aTapyA3V)의 아키텍처 계약 동결을 시작한다.
 5. `CHAT-000` 승인 전에는 후속 CHAT 구현 카드와 production 연결을 시작하지 않는다.
 

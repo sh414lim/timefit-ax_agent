@@ -91,3 +91,47 @@ revisions:
     storeTargetSelectionGranted: false
     productionConfigurationChanged: false
     trelloUpdated: false
+
+  - revisionId: native-planning-public-repository-visibility-2026-10-18
+    status: DRAFT_REVIEW_PENDING
+    basedOnCommit: 8cc83fb6d011f18848d12983b53dfb340e13292a
+    supersedesRevisionId: native-planning-user-attested-no-migration-2026-10-18
+    basis:
+      - user-approved full public visibility after disclosure that tracked internal
+        planning documents and existing Git history would be internet-readable
+      - Release session verification at 2026-10-18T04:27:38Z of public visibility,
+        anonymous API read and credential-free Git read
+      - docs/adr/ADR-REL-002-repository-boundaries.md
+      - docs/rel-002/pr-evidence-mapping.md
+    scope: >-
+      Align repository-visibility statements with the verified public repository
+      state while retaining credential, production, backend, store and release
+      boundaries. Public visibility does not configure branch protection,
+      rulesets, hosted secret scanning, environments or independent human review.
+    originalImportReference:
+      mergedRevision: 237268ef73efddafb12a902b9da99bad870066c2
+      digestsPreservedUnder: originalImport.documents
+    previousRevisionReference:
+      revisionId: native-planning-user-attested-no-migration-2026-10-18
+      digestsPreservedUnder: revisions[0].currentRevisionDocuments
+    currentRevisionDocuments:
+      - path: docs/145-timefit-native-app-repository-migration-plan-2026-10-16.md
+        currentRevisionSha256: cc51e53185da05e5103dfd769cca12c48d9942eb8e8b1c93136825bd2af4cb4a
+        contentChangedFromOriginalImport: true
+      - path: docs/146-timefit-native-chat-architecture-2026-10-16.md
+        currentRevisionSha256: 0c21695927dbb6020f98717a618120d064ef6f42d99df99a1307619b6011f75b
+        contentChangedFromOriginalImport: true
+      - path: docs/147-timefit-native-chat-execution-ticket-catalog-2026-10-16.md
+        currentRevisionSha256: 8b1a1e5daef454aa145322eb6ffd17478c989f8dd29fdfe2e62118da27bba173
+        contentChangedFromOriginalImport: true
+    repositoryVisibility: PUBLIC_VERIFIED
+    protectionState:
+      mainBranch: UNPROTECTED
+      rulesetCount: 0
+      hostedSecretScanning: DISABLED
+      environmentCount: 0
+    executionPlanApproval: PENDING
+    releaseApprovalGranted: false
+    storeTargetSelectionGranted: false
+    productionConfigurationChanged: false
+    trelloUpdated: false
