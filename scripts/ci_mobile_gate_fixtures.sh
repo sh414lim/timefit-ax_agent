@@ -22,8 +22,17 @@ trap cleanup EXIT
 new_fixture() {
   local name="$1"
   local target="$temporary_root/$name"
+  local archive="$temporary_root/$name.tar"
   mkdir -p "$target"
-  cp -R "$repository_root/." "$target/"
+  LC_ALL=C tar \
+    --exclude='./build' \
+    --exclude='./.dart_tool' \
+    --exclude='./coverage' \
+    --exclude='./ios/Pods' \
+    --exclude='./macos/Pods' \
+    -C "$repository_root" -cf "$archive" .
+  LC_ALL=C tar -C "$target" -xf "$archive"
+  rm "$archive"
   printf '%s\n' "$target"
 }
 
@@ -115,5 +124,29 @@ expect_failure \
   'exactly one pull_request trigger' \
   ruby "$bypass_fixture/scripts/ci/verify_workflow_triggers.rb" \
     "$bypass_fixture/.github/workflows/mobile-ci.yml"
+
+ambiguous_on_fixture="$(new_fixture trigger-ambiguous-on)"
+printf '%s\n' \
+  '"on":' \
+  '  pull_request:' \
+  'on:' \
+  '  push:' > "$ambiguous_on_fixture/.github/workflows/mobile-ci.yml"
+expect_failure \
+  'workflow trigger validator rejects quoted and plain on keys together' \
+  'one unambiguous top-level on key' \
+  ruby "$ambiguous_on_fixture/scripts/ci/verify_workflow_triggers.rb" \
+    "$ambiguous_on_fixture/.github/workflows/mobile-ci.yml"
+
+duplicate_on_fixture="$(new_fixture trigger-duplicate-on)"
+printf '%s\n' \
+  'on:' \
+  '  pull_request:' \
+  'on:' \
+  '  push:' > "$duplicate_on_fixture/.github/workflows/mobile-ci.yml"
+expect_failure \
+  'workflow trigger validator rejects duplicate plain on keys' \
+  'one unambiguous top-level on key' \
+  ruby "$duplicate_on_fixture/scripts/ci/verify_workflow_triggers.rb" \
+    "$duplicate_on_fixture/.github/workflows/mobile-ci.yml"
 
 printf '%s\n' 'Intentional CI gate failure fixtures passed without changing the source checkout.'
