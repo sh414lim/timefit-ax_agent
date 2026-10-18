@@ -43,9 +43,9 @@ fixture harness result: PASS
 
 ## CI evidence
 
-- Draft PR: pending
-- Successful non-required workflow URL: pending
-- Intentional failure workflow URL: the safe fixture job is part of the PR workflow; pending
+- Draft PR: <https://github.com/sh414lim/timefit-ax_agent/pull/16>
+- Successful non-required workflow: <https://github.com/sh414lim/timefit-ax_agent/actions/runs/39121035762>
+- Intentional failure fixture job: <https://github.com/sh414lim/timefit-ax_agent/actions/runs/39121035762/job/117656533443>
 - Required-check setting: out of scope for this change and not claimed
 
 ## Scope and limitations
