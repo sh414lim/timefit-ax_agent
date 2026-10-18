@@ -32,7 +32,11 @@ require_file lib/src/app_environment.dart
 require_file lib/src/bootstrap_app.dart
 require_file android/app/build.gradle.kts
 require_file ios/Runner.xcodeproj/project.pbxproj
-require_file .github/workflows/flutter-bootstrap-validation.yml
+require_file .github/workflows/mobile-ci.yml
+require_file scripts/ci_mobile.sh
+require_file scripts/ci_mobile_gate_fixtures.sh
+require_file scripts/ci/check_generated_diff.sh
+require_file scripts/ci/verify_locked_dependencies.sh
 
 require_literal \
   lib/src/app_environment.dart \
@@ -93,14 +97,28 @@ if git grep -q -I -E \
   fail 'Workflow contains deployment, store upload, or release build behavior.'
 fi
 
+if git grep -q -I -E \
+  'continue-on-error|^[[:space:]]+(paths|paths-ignore):' \
+  -- .github/workflows/mobile-ci.yml; then
+  fail 'Mobile CI must gate every pull request path without continue-on-error.'
+fi
+
 require_literal \
-  .github/workflows/flutter-bootstrap-validation.yml \
+  .github/workflows/mobile-ci.yml \
   'contents: read' \
   'Workflow permissions must remain contents: read.'
 require_literal \
-  .github/workflows/flutter-bootstrap-validation.yml \
+  .github/workflows/mobile-ci.yml \
   'persist-credentials: false' \
   'Checkout credentials must not persist after source checkout.'
+require_literal \
+  .github/workflows/mobile-ci.yml \
+  "hashFiles('pubspec.lock')" \
+  'Dependency cache keys must include the pubspec.lock hash.'
+require_literal \
+  .github/workflows/mobile-ci.yml \
+  'bash scripts/ci_mobile.sh' \
+  'The mobile CI workflow must run the repository CI script.'
 
 if ((failures > 0)); then
   printf '%s\n' "Bootstrap boundary validation failed with $failures issue(s)."
