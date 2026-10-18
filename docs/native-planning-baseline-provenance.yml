@@ -265,3 +265,91 @@ revisions:
     storeTargetSelectionGranted: false
     productionConfigurationChanged: false
     trelloUpdated: false
+
+  - revisionId: native-planning-file-picker-compatibility-erratum-2026-10-18
+    status: DRAFT_REVIEW_PENDING
+    basedOnCommit: 69d04c75ed65b408dd409723766246371f00c187
+    supersedesRevisionId: native-planning-crypto-compatibility-erratum-2026-10-18
+    basis:
+      - https://raw.githubusercontent.com/miguelpruivo/flutter_file_picker/8.0.4/CHANGELOG.md
+      - https://raw.githubusercontent.com/miguelpruivo/flutter_file_picker/8.0.4/pubspec.yaml
+      - https://raw.githubusercontent.com/miguelpruivo/flutter_file_picker/8.1.0/CHANGELOG.md
+      - https://raw.githubusercontent.com/miguelpruivo/flutter_file_picker/8.1.0/pubspec.yaml
+      - https://raw.githubusercontent.com/simolus3/drift/drift-2.27.0/drift/pubspec.yaml
+      - 'PR #12 head c47183a7cd5439f253f8a00a5f37a0b32df65f9f compatibility evidence'
+    scope: >-
+      Correct only the exact file_picker dependency pin from 8.0.0+1 to 8.1.0.
+      Version 8.0.4 removes Flutter v1 Android embedding references but retains
+      web ^0.5.1, which conflicts with drift 2.27.0 web ^1.0.0. Version 8.1.0
+      is the first evaluated compatible candidate because it requires web
+      ^1.0.0. Preserve all other dependency and toolchain pins, product scope,
+      security boundaries, signing deferral and production gates. This is not
+      a release approval, technical GO or production configuration change.
+    correctionType: PATCH_DEPENDENCY_COMPATIBILITY_ERRATUM
+    dependencyCorrection:
+      package: file_picker
+      previousExactVersion: 8.0.0+1
+      correctedExactVersion: 8.1.0
+      minimumEvaluatedCompatibleVersion: 8.1.0
+      dependencyOverrideAdded: false
+    candidateEvaluation:
+      filePicker804:
+        androidV1EmbeddingReferencesRemoved: true
+        webConstraint: ^0.5.1
+        outcome: REJECTED_WEB_CONSTRAINT_CONFLICT
+      drift2270:
+        webConstraint: ^1.0.0
+      filePicker810:
+        webConstraint: ^1.0.0
+        minimumDartSdk: '>=3.4.0 <4.0.0'
+        minimumFlutterSdk: '>=3.22.0'
+        outcome: ACCEPTED_MINIMUM_COMPATIBLE_CANDIDATE
+    compatibilityEvidence:
+      plannedFlutterVersion: 3.38.5
+      plannedDartVersion: 3.10.4
+      designSessionResolverValidation:
+        sourceHead: c47183a7cd5439f253f8a00a5f37a0b32df65f9f
+        changedInput: file_picker_only
+        flutterPubGet: PASS
+        flutterPubGetEnforceLockfile: PASS
+        resolvedVersions:
+          file_picker: 8.1.0
+          drift: 2.27.0
+          web: 1.1.1
+      delegatedQaValidation:
+        sourceHead: c47183a7cd5439f253f8a00a5f37a0b32df65f9f
+        changedInput: file_picker_only
+        flutterPubGet: PASS
+        androidDevelopmentDebug: PASS
+        androidStagingDebug: PASS
+        flutterAnalyze: PASS
+        testsPassed: 6
+    verificationLimits:
+      qaExecutionLocation: TEMPORARY_PR12_COPY
+      pr12BranchUpdatedByThisRevision: false
+      updatedPr12CiRequired: true
+      iosNoCodesignForFilePicker810: NOT_REPORTED_IN_DELEGATED_QA
+      releaseApprovalGranted: false
+    originalImportReference:
+      mergedRevision: 237268ef73efddafb12a902b9da99bad870066c2
+      digestsPreservedUnder: originalImport.documents
+    previousRevisionReference:
+      revisionId: native-planning-crypto-compatibility-erratum-2026-10-18
+      digestsPreservedUnder: revisions[3].currentRevisionDocuments
+    currentRevisionDocuments:
+      - path: docs/145-timefit-native-app-repository-migration-plan-2026-10-16.md
+        currentRevisionSha256: ca1f2dd367ffba79513836966b09643ab6167c909fba29d145a0198b8197b8b8
+        contentChangedFromOriginalImport: true
+      - path: docs/146-timefit-native-chat-architecture-2026-10-16.md
+        currentRevisionSha256: 3a209555e28fc5729575e531929bc6beeb1671f39a4998218e6da8e33c1ca946
+        contentChangedFromOriginalImport: true
+      - path: docs/147-timefit-native-chat-execution-ticket-catalog-2026-10-16.md
+        currentRevisionSha256: ada2a6ec112a20264c58bb81813d593a5095dc246d63f10bde2ba1640a3f7b86
+        contentChangedFromOriginalImport: true
+    executionPlanApproval: PENDING
+    releaseApprovalGranted: false
+    technicalGoGranted: false
+    signingCompleted: false
+    storeTargetSelectionGranted: false
+    productionConfigurationChanged: false
+    trelloUpdated: false
