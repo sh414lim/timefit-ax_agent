@@ -136,17 +136,17 @@ testOnlyNoMigrationDraft:
 - 실행 계획 승인 전에는 no-transfer 대상 inventory, 고객지원, 개인정보·법무·보존 영향과 복구 계획을 확인한다. 이 검토는 제품 결정을 다시 묻는 절차가 아니다.
 - migration이 승인돼도 store update 연속성, 실제 기존 build 위 update smoke와 clean-install smoke는 생략하지 않는다.
 
-## 설계 기준선 변경 제안
+## 설계 기준선 변경 반영
 
-상태: `PROPOSED_NOT_APPLIED`
+상태: `DRAFT_APPLIED_REVIEW_PENDING`
 
-현재 145/146/147 기준선은 동일 `as_of`에서 store·backend·push·IAP가 모두 0일 때만 데이터 이전 생략을 허용한다. 실제 evidence는 nonzero이고 사용자는 전원 동의와 기존 사용자 데이터 미이전을 확정했으므로, 다음 최소 변경을 별도 설계 변경으로 검토한다.
+PR #8에서는 아래 변경을 `PROPOSED_NOT_APPLIED`로 기록했다. 2026-10-18 draft 기준선 개정은 145/146/147 본문에 이를 반영했으며, merge·Trello sync·release 승인은 아직 수행하지 않았다. 원본 import SHA-256과 draft SHA-256은 `docs/native-planning-baseline-provenance.yml`에 함께 보존한다.
 
 1. zero-only `NOT_APPLICABLE_ZERO_VERIFIED` 경로는 그대로 유지하되, 별도로 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로를 허용한다.
 2. 이 경로는 legacy 데이터를 TimeFit으로 이전하지 않고 원본을 보존·격리하며, fresh login과 신규 push 동의·등록을 사용한다. 삭제·service shutdown·구독 해지는 포함하지 않는다.
 3. consent 원본 미검증, no-transfer inventory·보존·지원·복구 계획, store/platform 기술 매핑은 release evidence로 남긴다.
 4. 정확한 store target, Android/iOS signing·entitlement·상향 version/build, 실제 기존 build 위 update smoke와 clean-install smoke는 계속 release Gate로 유지한다.
-5. REL-001은 위 release evidence가 완료될 때까지 열린 상태로 둔다. 다만 146의 개발·staging 병렬 개발 원칙에 따라 비운영 기능 개발 준비를 production signing·store 제출 증거와 혼합하지 않는다. 147의 전역 Blocked 문구를 바꾸려면 별도 승인된 기준선 개정이 필요하며 이 문서만으로 구현을 자동 착수하지 않는다.
+5. REL-001은 위 release evidence가 완료될 때까지 열린 상태로 둔다. 다만 146의 개발·staging 병렬 개발 원칙에 따라 비운영 기능 개발 준비를 production signing·store 제출 증거와 혼합하지 않는다. 147의 전역 Blocked 문구는 유지하며, 이 draft나 merge만으로 구현을 자동 착수하지 않는다.
 
 ## REL-001 완료 전에 남은 증거
 
