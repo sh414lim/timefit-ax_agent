@@ -112,10 +112,10 @@ mergeConfirmation:
 | branch protection/ruleset | `BLOCKED_BY_HOSTING_PLAN`, API `403` | 최신 SHA 기반 독립 review와 merge 확인 기록 | plan 지원 설정 또는 승인된 수동 절차를 실제 PR에서 수행한 기록 |
 | required review | 자동 강제 없음 | 역할별 reviewer evidence | Repository Owner 채택 + 실제 review URL·시각·SHA |
 | required checks | 자동 강제 확인 안 됨 | 검사 결과를 PR에 연결하고 merge 확인자가 대조 | 설정 캡처 또는 각 PR의 완전한 수동 evidence |
-| secret scanning | `NOT_VERIFIED` | boundary scan과 별도 승인된 secret scan 결과 | GitHub 설정 evidence 또는 승인된 대체 도구·정책 |
+| secret scanning | hosted 기능 `DISABLED`; `main@c0c74de` official gitleaks 일회성 audit finding `0` | audit evidence를 PR에 연결하고 이후 head는 다시 검사 | hosted 설정 evidence 또는 Repository Owner가 채택한 반복 scan·실패 차단 정책과 실제 실행 기록 |
 | environment approver | environments `0` | production job 미구성·fail-closed 유지 | release 전 environment와 실제 approver 설정 evidence |
 
-수동 절차는 GitHub 설정의 부재를 숨기지 않으며 plan 변경을 수행하지 않는다. 자동 강제가 필요한 수용 기준은 설정 evidence가 확보될 때까지 `BLOCKED_BY_HOSTING_PLAN` 또는 `NOT_VERIFIED`로 유지한다.
+수동 절차는 GitHub 설정의 부재를 숨기지 않으며 plan 변경을 수행하지 않는다. 일회성 finding `0`도 hosted 기능 활성이나 필수 강제를 대신하지 않는다. 자동 강제가 필요한 수용 기준은 설정 또는 채택된 반복 정책의 evidence가 확보될 때까지 `BLOCKED_BY_HOSTING_PLAN`, `HOSTED_DISABLED` 또는 `NOT_VERIFIED`로 유지한다.
 
 ## 7. 이 draft에서 하지 않는 작업
 
