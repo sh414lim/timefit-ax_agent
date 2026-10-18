@@ -26,7 +26,7 @@ PR #1~#8 행은 당시 상태를 보존한 historical mapping이다. 현재 상�
 
 | 수용 기준·증거 | 현재 evidence | 판정 | 남은 조건 |
 | --- | --- | --- | --- |
-| 독립 저장소와 visibility 결정 | `main@c0c74de` 감사 당시 `private: true`; 이후 사용자가 추적 문서·기존 Git 이력의 인터넷 공개 범위를 확인하고 전체 저장소 public 전환을 명시 승인 | `INDEPENDENT_SATISFIED_PUBLIC_CHANGE_APPROVED_PENDING_VERIFICATION` | Release 세션이 실제 visibility와 익명 접근을 확인하기 전까지 public 전환 완료로 기록하지 않음 |
+| 독립 저장소와 visibility 결정 | `main@c0c74de` 감사 당시 `private: true`; 사용자 승인 후 2026-10-18T04:27:38Z Release 확인에서 `private: false`, `visibility: public`, 인증 없는 API·Git 읽기 성공 | `SATISFIED_PUBLIC_VERIFIED` | visibility와 무관하게 credential·production 경계 및 독립 release train 유지 |
 | 저장소 경계 ADR | PR #2, `ADR-REL-002` | `PARTIAL` | ADR `APPROVED` 전환과 기술 책임자 승인 기록 |
 | Flutter iOS/Android 최소 구조·test | PR #3 | `SATISFIED_FOR_BOOTSTRAP` | 제품 기능 완료나 production 준비로 확대 해석 금지 |
 | dev/staging/production 구조 | PR #3; production entrypoint 없음, fail-closed | `SATISFIED_FOR_BOOTSTRAP` | production identity는 REL-001/003 승인 후 별도 적용 |
@@ -34,7 +34,7 @@ PR #1~#8 행은 당시 상태를 보존한 historical mapping이다. 현재 상�
 | clean checkout format/analyze/test/build smoke | CI [#39002757916](https://github.com/sh414lim/timefit-ax_agent/actions/runs/39002757916), [#39003684751](https://github.com/sh414lim/timefit-ax_agent/actions/runs/39003684751), [#39007358409](https://github.com/sh414lim/timefit-ax_agent/actions/runs/39007358409) 모두 성공 | `SATISFIED_FOR_CURRENT_BOOTSTRAP` | 후속 dependency/플랫폼 변경 때 같은 검증 유지 |
 | production secret 없는 PR 검사 | workflow `permissions: contents: read`, secret/write permission 및 release/upload trigger 검사 | `SATISFIED_FOR_WORKFLOW_CONTENT` | GitHub secret scanning 설정 자체의 활성화 evidence와 구분 |
 | dependency/boundary allowlist | `scripts/ci/verify_bootstrap_boundaries.sh`가 production identity, signing, provider file, PWA/deploy 경로를 차단 | `PARTIAL` | 향후 실제 dependency allowlist·contract consumer test 확장 |
-| branch protection·required review | `main@c0c74de`의 private 상태에서 branch protection/ruleset API가 GitHub plan 제한으로 HTTP `403`; [수동 검토 절차](governance-review-procedure.md)는 `PROPOSED_NOT_CONFIGURED` | `BLOCKED_BY_HOSTING_PLAN_AT_AUDIT` | visibility 전환 후 지원 여부를 재조회하거나 Repository Owner가 절차를 채택하고 실제 PR의 최신 SHA·독립 review·merge 확인 evidence 확보 |
+| branch protection·required review | private 감사 때 API `403`; public 전환 확인 뒤에도 `main`은 unprotected이고 ruleset은 `0`; [수동 검토 절차](governance-review-procedure.md)는 `PROPOSED_NOT_CONFIGURED` | `NOT_CONFIGURED_PUBLIC` | 보호 설정 또는 Repository Owner가 절차를 채택하고 실제 PR의 최신 SHA·독립 review·merge 확인 evidence 확보 |
 | secret scanning | GitHub hosted secret scanning은 disabled; `main@c0c74de` history와 tree의 공식 gitleaks 일회성 감사 finding `0` | `LOCAL_AUDIT_PASSED_HOSTED_DISABLED` | hosted 기능 활성 또는 승인된 반복 scan 정책·required evidence; 이후 head 재검사 |
 | environment 권한 분리 | GitHub environments `0` | `NOT_CONFIGURED` | release 단계 전 environment/approver 분리; bootstrap production은 계속 차단 |
 | Actions 기본 권한 | workflow 기본 `read`, Actions의 PR review 승인 비활성 | `READ_ONLY_DEFAULT_PR_APPROVAL_DISABLED` | required check·review 강제와는 별도; 승인된 정책과 설정 evidence 필요 |
@@ -110,12 +110,15 @@ finding `0`은 hosted secret scanning 활성, branch protection, ruleset, requir
 
 따라서 REL-002는 `PARTIAL`이다. 현재 보완 문서는 완료 증거를 정리하지만 빠진 설정·역할·승인을 완료 처리하지 않는다.
 
-## 5. repository visibility 승인과 실행 경계
+## 5. repository visibility 승인과 실행 evidence
 
 - 사용자 승인 evidence: `Sentinel_f6c44705f4108191b830d573f0f5c5bc`
 - 승인 범위: `sh414lim/timefit-ax_agent`의 추적 파일·내부 계획 문서와 기존 Git 이력이 인터넷에서 열람될 수 있는 public visibility 전환
-- 현재 판정: `PUBLIC_VISIBILITY_APPROVED_PENDING_RELEASE_VERIFICATION`
-- 실행 완료 판정에 필요한 evidence: GitHub repository visibility 조회와 인증 없는 read 접근 확인
+- Release 확인 시각: `2026-10-18T04:27:38Z`
+- 실행 evidence: GitHub repository API `private: false`, `visibility: public`; 인증 없는 API read와 credential 없는 Git read 성공
+- 공개 전 검사: 전체 reachable history `26` commits와 `main`·PR #10 head `31646021c19effa7b11eb7e39362057c28f7d9a9` tree의 official gitleaks finding `0`
+- 현재 판정: `PUBLIC_VISIBILITY_VERIFIED`
+- 전환 후 설정 상태: hosted secret scanning `DISABLED`, `main` unprotected, ruleset `0`, environment `0`
 - 승인에 포함되지 않는 작업: history rewrite, 기존 내용 무차별 삭제, collaborator/credential 변경, GitHub 요금제 변경, branch protection/ruleset·hosted secret scanning 활성화
 
-public 전환은 독립 저장소 경계를 바꾸지 않으며 hosted secret scanning이나 required review를 자동으로 구성했다는 뜻도 아니다. Release 세션의 실행 확인 전에는 이 문서가 저장소를 이미 public이라고 주장하지 않는다.
+public 전환은 독립 저장소 경계를 바꾸지 않으며 hosted secret scanning이나 required review를 자동으로 구성했다는 뜻도 아니다. 보호 설정은 위 실제 상태에서 계속 미완료로 둔다.

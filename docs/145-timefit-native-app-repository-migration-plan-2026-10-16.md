@@ -3,12 +3,12 @@
 - 문서 번호: `145`
 - 작성일: 2026-10-16
 - 상태: 실행 기준선(Baseline)
-- 기준선 개정: 2026-10-18 — REL-001 비식별 관측과 사용자 확정 결정에 따라 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로 추가, `timefit-ax_agent` public visibility 전환 승인 반영(실행 확인 대기)
+- 기준선 개정: 2026-10-18 — REL-001 비식별 관측과 사용자 확정 결정에 따라 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로 추가, `timefit-ax_agent` public visibility 전환 확인
 - 대상: 제품, Flutter, 백엔드, QA, Release Engineering, 보안, 고객지원
 - 결정 범위: Flutter iOS/Android 앱의 별도 저장소·모바일 웹과의 병렬 운영·공유 백엔드 계약·기존 DevGym 스토어 레코드 업데이트 출시
 
 > **최종 결정**
-> Flutter iOS/Android 앱은 기존 웹·백엔드와 분리된 **`sh414lim/timefit-ax_agent`** 저장소(계획 문서 별칭 `timefit-mobile`)에서 개발한다. 사용자는 추적된 내부 문서와 기존 Git 이력이 인터넷에 공개될 수 있음을 확인하고 이 저장소의 public visibility 전환을 승인했으며, 실제 전환 완료는 Release 세션의 별도 확인 전까지 대기 상태다. 현재 **`time_fit`** 저장소는 계속 개발·배포되는 모바일 웹앱과 Supabase 데이터베이스, RLS, RPC, Edge Functions, Realtime, Storage, 알림 발송을 포함한 **공유 백엔드의 유일한 원본(canonical source)** 으로 유지한다. 모바일 웹과 Flutter 앱은 서로를 대체하지 않고 같은 제품·계정·데이터를 사용하는 독립 클라이언트로 병렬 운영한다. Flutter 앱의 PWA 구현은 본 계획 범위 밖이지만 기존 모바일 웹/PWA 트랙의 개발·배포를 중단하거나 종료하지 않는다. 네이티브 출시는 Android **`데브짐-매니저`**, iOS **`데브짐`** 의 **기존 배포 레코드를 업데이트하는 경로로 확정**한다. 별도 Git 저장소 사용 여부와 스토어 업데이트 가능 여부는 독립적이며, 기존 application ID/Bundle ID·서명 계보·스토어 레코드·상향 version/build를 보존하면 `timefit-ax_agent`에서 만든 바이너리도 같은 레코드에 제출할 수 있다. REL-001에서 Android 설치 사용자 `5`, 최근 28일 활성 기기 `1`, iOS TestFlight 비영(非零) 지표, backend `public.users` `337`행과 `auth.users` `40`계정을 서로 다른 기준 시각으로 관측했으므로 사용자 0명으로 간주하지 않는다. `legacyUserMigrationDecision=REQUIRED`를 유지하되, 사용자가 기존 사용자 전원 동의와 기존 사용자 데이터 미이전을 확정한 결정은 `legacyUserDataTransferDecision=USER_ATTESTED_DO_NOT_MIGRATE`로 별도 기록한다. 이는 consent 원본 검증, 데이터 삭제, 서비스 종료, 구독 해지 또는 출시 승인이 아니다. AI/AX 기능은 본 계획에서 제외한다.
+> Flutter iOS/Android 앱은 기존 웹·백엔드와 분리된 public **`sh414lim/timefit-ax_agent`** 저장소(계획 문서 별칭 `timefit-mobile`)에서 개발한다. 사용자는 추적된 내부 문서와 기존 Git 이력이 인터넷에 공개될 수 있음을 확인하고 public 전환을 승인했으며, Release 세션은 2026-10-18T04:27:38Z에 실제 visibility와 익명 read를 확인했다. 현재 **`time_fit`** 저장소는 계속 개발·배포되는 모바일 웹앱과 Supabase 데이터베이스, RLS, RPC, Edge Functions, Realtime, Storage, 알림 발송을 포함한 **공유 백엔드의 유일한 원본(canonical source)** 으로 유지한다. 모바일 웹과 Flutter 앱은 서로를 대체하지 않고 같은 제품·계정·데이터를 사용하는 독립 클라이언트로 병렬 운영한다. Flutter 앱의 PWA 구현은 본 계획 범위 밖이지만 기존 모바일 웹/PWA 트랙의 개발·배포를 중단하거나 종료하지 않는다. 네이티브 출시는 Android **`데브짐-매니저`**, iOS **`데브짐`** 의 **기존 배포 레코드를 업데이트하는 경로로 확정**한다. 별도 Git 저장소 사용 여부와 스토어 업데이트 가능 여부는 독립적이며, 기존 application ID/Bundle ID·서명 계보·스토어 레코드·상향 version/build를 보존하면 `timefit-ax_agent`에서 만든 바이너리도 같은 레코드에 제출할 수 있다. REL-001에서 Android 설치 사용자 `5`, 최근 28일 활성 기기 `1`, iOS TestFlight 비영(非零) 지표, backend `public.users` `337`행과 `auth.users` `40`계정을 서로 다른 기준 시각으로 관측했으므로 사용자 0명으로 간주하지 않는다. `legacyUserMigrationDecision=REQUIRED`를 유지하되, 사용자가 기존 사용자 전원 동의와 기존 사용자 데이터 미이전을 확정한 결정은 `legacyUserDataTransferDecision=USER_ATTESTED_DO_NOT_MIGRATE`로 별도 기록한다. 이는 consent 원본 검증, 데이터 삭제, 서비스 종료, 구독 해지 또는 출시 승인이 아니다. AI/AX 기능은 본 계획에서 제외한다.
 
 ---
 
@@ -97,7 +97,7 @@
 
 | 항목 | 결정 | 근거 |
 | --- | --- | --- |
-| Flutter 소스 저장소 | 독립 `sh414lim/timefit-ax_agent`; public 전환 승인, 실행 확인 대기 | visibility와 무관하게 네이티브 수명주기, 서명, Flutter CI/CD를 웹·서버 배포와 분리한다. |
+| Flutter 소스 저장소 | public 독립 `sh414lim/timefit-ax_agent`; 익명 read 확인 | visibility와 무관하게 네이티브 수명주기, 서명, Flutter CI/CD를 웹·서버 배포와 분리한다. |
 | 모바일 웹·백엔드 저장소 | 기존 `time_fit` 유지 | 모바일 웹을 계속 개발·배포하고 DB/RLS/RPC/Edge Function 이력과 배포 체인을 단일 원본으로 유지한다. |
 | 클라이언트 관계 | 모바일 웹과 Flutter 병렬 운영 | 어느 한쪽도 다른 쪽의 대체·종료 조건이 아니다. 같은 계정·데이터를 독립 UI와 릴리스 주기로 사용한다. |
 | 스토어 배포 | Android `데브짐-매니저`, iOS `데브짐` 기존 record 재사용 확정 | 새 저장소에서 빌드하되 기존 ID·서명·version 연속성을 지키고 제품·정책·metadata Gate를 통과한다. |
@@ -286,7 +286,7 @@ shared:
 ### 5.1 목표 구조
 
 ```text
-timefit-ax_agent/                # 독립 Flutter repository; public 전환 승인, 실행 확인 대기
+timefit-ax_agent/                # public 독립 Flutter repository
   lib/                           # Flutter UI, domain, data adapters
   ios/                           # iOS project, non-secret capabilities/config
   android/                       # Android project, flavors, non-secret config
@@ -482,7 +482,7 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 
 **적용 저장소/시스템**
 
-- 독립 `sh414lim/timefit-ax_agent`(계획 별칭 `timefit-mobile`); public 전환 승인, 실행 확인 대기
+- public 독립 `sh414lim/timefit-ax_agent`(계획 별칭 `timefit-mobile`)
 - 기존 `time_fit`의 ADR/계약 문서
 - Git hosting, CI, code ownership
 
@@ -1644,4 +1644,4 @@ client_type·release mode·version별 품질과 데이터 무결성을 측정해
 
 ## 13. 최종 승인 문구
 
-> TimeFit Flutter iOS/Android 앱은 독립 `sh414lim/timefit-ax_agent` 저장소에서 개발한다. 사용자는 추적 내부 문서와 기존 Git 이력의 인터넷 공개를 포함한 public visibility 전환을 승인했지만, 실제 전환 완료는 Release 세션 확인 전까지 주장하지 않는다. 기존 `time_fit` 저장소는 계속 개발·배포되는 모바일 웹앱과 Supabase·서버 계약의 canonical source로 유지하며, 웹과 Flutter는 같은 계정·데이터를 쓰는 병렬 클라이언트다. Flutter는 PWA를 구현하지 않지만 기존 모바일 웹/PWA를 대체·중단·종료하지 않는다. 네이티브 출시는 Android `데브짐-매니저`와 iOS `데브짐`의 기존 배포 record를 업데이트하는 경로로 확정한다. 두 record의 정확한 ID·서명 계보·entitlement·상향 version/build, 제품·법무·스토어 정책·metadata Gate가 모두 Go일 때만 제출한다. REL-001의 현재 비식별 관측은 zero-user를 증명하지 않으므로 `legacyUserMigrationDecision=REQUIRED`를 유지한다. 기존 사용자 전원 동의와 데이터 미이전 결정은 `USER_ATTESTED_DO_NOT_MIGRATE`로 구분하며, 승인된 실행 계획은 legacy 데이터를 TimeFit으로 가져오지 않고 원본을 보존하고 fresh login, 새 local namespace와 신규 push 동의·등록을 사용한다. 이 결정은 consent 원본 검증, 데이터 삭제, 서비스 종료, 결제/IAP 부재 또는 출시 승인이 아니다. 저장소 visibility는 credential 공개나 보호 기능 활성화를 뜻하지 않으며, 별도 Git 저장소 사용은 동일 store record 업데이트를 방해하지 않는다. REL-003에서 제출 가능성을 승인하고 REL-017에서 기존 target만 잠근다. 현재 저장소의 `com.example.*` 값과 문서상 `com.timefit.app` 계획값은 production identity의 증거가 아니다. AI/AX는 이번 Flutter 릴리스 범위에서 제외한다.
+> TimeFit Flutter iOS/Android 앱은 public 독립 `sh414lim/timefit-ax_agent` 저장소에서 개발한다. 사용자는 추적 내부 문서와 기존 Git 이력의 인터넷 공개를 포함한 public visibility 전환을 승인했고 Release 세션이 실제 visibility와 익명 read를 확인했다. 기존 `time_fit` 저장소는 계속 개발·배포되는 모바일 웹앱과 Supabase·서버 계약의 canonical source로 유지하며, 웹과 Flutter는 같은 계정·데이터를 쓰는 병렬 클라이언트다. Flutter는 PWA를 구현하지 않지만 기존 모바일 웹/PWA를 대체·중단·종료하지 않는다. 네이티브 출시는 Android `데브짐-매니저`와 iOS `데브짐`의 기존 배포 record를 업데이트하는 경로로 확정한다. 두 record의 정확한 ID·서명 계보·entitlement·상향 version/build, 제품·법무·스토어 정책·metadata Gate가 모두 Go일 때만 제출한다. REL-001의 현재 비식별 관측은 zero-user를 증명하지 않으므로 `legacyUserMigrationDecision=REQUIRED`를 유지한다. 기존 사용자 전원 동의와 데이터 미이전 결정은 `USER_ATTESTED_DO_NOT_MIGRATE`로 구분하며, 승인된 실행 계획은 legacy 데이터를 TimeFit으로 가져오지 않고 원본을 보존하고 fresh login, 새 local namespace와 신규 push 동의·등록을 사용한다. 이 결정은 consent 원본 검증, 데이터 삭제, 서비스 종료, 결제/IAP 부재 또는 출시 승인이 아니다. 저장소 visibility는 credential 공개나 보호 기능 활성화를 뜻하지 않으며, 별도 Git 저장소 사용은 동일 store record 업데이트를 방해하지 않는다. REL-003에서 제출 가능성을 승인하고 REL-017에서 기존 target만 잠근다. 현재 저장소의 `com.example.*` 값과 문서상 `com.timefit.app` 계획값은 production identity의 증거가 아니다. AI/AX는 이번 Flutter 릴리스 범위에서 제외한다.

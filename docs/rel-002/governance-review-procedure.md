@@ -6,7 +6,7 @@
 - 연관 티켓: [REL-002](https://trello.com/c/jl0z2Tvd)
 - 연관 ADR: [ADR-REL-002](../adr/ADR-REL-002-repository-boundaries.md)
 
-이 문서는 `main@c0c74de` 감사 당시 private repository의 branch protection/ruleset API가 GitHub plan 제한으로 HTTP `403`을 반환한 상태에서 사용할 수 있는 **제안된 수동 검토 절차**다. 이후 사용자가 public visibility 전환을 승인했지만 실제 전환과 기능 지원 여부는 별도 확인 대상이다. 설정이 적용됐거나 REL-002가 완료됐다는 증거가 아니다. 절차를 채택하려면 Repository Owner의 명시적 승인, 실제 역할 지정과 각 PR의 독립 검토 evidence가 필요하다.
+이 문서는 `main@c0c74de` 감사 당시 private repository의 branch protection/ruleset API가 GitHub plan 제한으로 HTTP `403`을 반환한 상태에서 작성한 **제안된 수동 검토 절차**다. 사용자의 승인 뒤 2026-10-18T04:27:38Z에 public visibility와 익명 read가 확인됐지만, `main`은 unprotected이고 ruleset은 `0`이다. 설정이 적용됐거나 REL-002가 완료됐다는 증거가 아니다. 절차를 채택하려면 Repository Owner의 명시적 승인, 실제 역할 지정과 각 PR의 독립 검토 evidence가 필요하다.
 
 ## 1. 역할과 신원 등록
 
@@ -109,13 +109,13 @@ mergeConfirmation:
 
 | 항목 | 현재 상태 | 수동 대안 | 완료로 인정하려면 필요한 evidence |
 | --- | --- | --- | --- |
-| branch protection/ruleset | `main@c0c74de` private 감사에서 `BLOCKED_BY_HOSTING_PLAN`, API `403`; public 전환 후 상태 미확인 | 최신 SHA 기반 독립 review와 merge 확인 기록 | 전환 후 설정 지원 여부 재조회와 실제 설정, 또는 승인된 수동 절차를 실제 PR에서 수행한 기록 |
+| branch protection/ruleset | private 감사에서 API `403`; public 전환 후 `main` unprotected, ruleset `0` | 최신 SHA 기반 독립 review와 merge 확인 기록 | 실제 보호 설정 또는 승인된 수동 절차를 실제 PR에서 수행한 기록 |
 | required review | 자동 강제 없음 | 역할별 reviewer evidence | Repository Owner 채택 + 실제 review URL·시각·SHA |
 | required checks | 자동 강제 확인 안 됨 | 검사 결과를 PR에 연결하고 merge 확인자가 대조 | 설정 캡처 또는 각 PR의 완전한 수동 evidence |
-| secret scanning | hosted 기능 `DISABLED`; `main@c0c74de` official gitleaks 일회성 audit finding `0` | audit evidence를 PR에 연결하고 이후 head는 다시 검사 | hosted 설정 evidence 또는 Repository Owner가 채택한 반복 scan·실패 차단 정책과 실제 실행 기록 |
+| secret scanning | public 전환 후에도 hosted 기능 `DISABLED`; 공개 전 전체 26 commits와 `main`·PR #10 tree official gitleaks finding `0` | audit evidence를 PR에 연결하고 이후 head는 다시 검사 | hosted 설정 evidence 또는 Repository Owner가 채택한 반복 scan·실패 차단 정책과 실제 실행 기록 |
 | environment approver | environments `0` | production job 미구성·fail-closed 유지 | release 전 environment와 실제 approver 설정 evidence |
 
-수동 절차는 GitHub 설정의 부재를 숨기지 않으며 plan 변경을 수행하지 않는다. public visibility 전환 승인이나 실행도 branch protection, required review 또는 hosted secret scanning의 활성화를 자동 증명하지 않는다. 일회성 finding `0`도 hosted 기능 활성이나 필수 강제를 대신하지 않는다. 자동 강제가 필요한 수용 기준은 전환 후 재조회와 실제 설정 또는 채택된 반복 정책의 evidence가 확보될 때까지 `BLOCKED_BY_HOSTING_PLAN_AT_AUDIT`, `HOSTED_DISABLED` 또는 `NOT_VERIFIED`로 유지한다.
+수동 절차는 GitHub 설정의 부재를 숨기지 않으며 plan 변경을 수행하지 않는다. public visibility 전환도 branch protection, required review 또는 hosted secret scanning의 활성화를 자동 증명하지 않는다. 일회성 finding `0`도 hosted 기능 활성이나 필수 강제를 대신하지 않는다. 자동 강제가 필요한 수용 기준은 실제 설정 또는 채택된 반복 정책의 evidence가 확보될 때까지 `NOT_CONFIGURED_PUBLIC`, `HOSTED_DISABLED` 또는 `NOT_VERIFIED`로 유지한다.
 
 ## 7. 이 draft에서 하지 않는 작업
 
