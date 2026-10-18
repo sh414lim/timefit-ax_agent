@@ -45,3 +45,38 @@ constraints:
   productionConfigurationChanged: false
   publicDistributionAllowed: false
   trelloUpdated: false
+
+revisionHistory:
+  - revisionId: native-planning-user-attested-no-migration-2026-10-18
+    status: DRAFT_REVIEW_PENDING
+    basedOnCommit: 0ca9428323ff77d4c06ad1bc32fa8fdb48d7a0a4
+    basis:
+      - docs/rel-001/legacy-user-zero-evidence.md
+      - docs/rel-001/production-access-matrix.md
+      - user-confirmed existing-user consent and no-transfer decision
+    scope: >-
+      Preserve the zero-verified path and add a distinct approved REQUIRED plus
+      USER_ATTESTED_DO_NOT_MIGRATE execution path. Keep store identity, signing,
+      IAP/payment, technical continuity, product/policy approval and update-smoke
+      gates independent and unresolved until their own evidence is approved.
+    observedFactsNotConvertedToZero:
+      androidInstalledUsers: 5
+      android28DayActiveDevices: 1
+      backendPublicUsersRows: 337
+      backendAuthUsers: 40
+    attestations:
+      existingUserConsentStatus: USER_ATTESTED_ALL_EXISTING_USERS
+      legacyUserDataTransferDecision: USER_ATTESTED_DO_NOT_MIGRATE
+      consentArtifactVerification: NOT_INDEPENDENTLY_VERIFIED
+    originalImportDigestsPreservedAbove: true
+    proposedDocuments:
+      - path: docs/145-timefit-native-app-repository-migration-plan-2026-10-16.md
+        sha256: 71425b51258b9e118e9711e8a6276a660ba8cdb3f845708389f9012d7207b3a0
+      - path: docs/146-timefit-native-chat-architecture-2026-10-16.md
+        sha256: 4dc86bab82abed9b076fd7920442bed496727fa40ddea2bdcd941f652265ed4b
+      - path: docs/147-timefit-native-chat-execution-ticket-catalog-2026-10-16.md
+        sha256: 8b1a1e5daef454aa145322eb6ffd17478c989f8dd29fdfe2e62118da27bba173
+    releaseApprovalGranted: false
+    storeTargetSelectionGranted: false
+    productionConfigurationChanged: false
+    trelloUpdated: false

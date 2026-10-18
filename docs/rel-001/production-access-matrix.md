@@ -86,7 +86,7 @@ QA source identifier는 evidence 출처이지 위 승인 역할을 자동으로 
 
 GitHub 협업 초대 역시 문서 검토 경로일 뿐 Owner, Release Manager, Backup Approver 또는 스토어·백엔드 접근 권한의 증거가 아니다. 이번 감사 준비에서는 초대를 수락하거나 저장소 권한을 변경하지 않았다.
 
-병합된 설계 원문의 `REUSE_DEVGYM_RECORD`는 출시 모드 요구사항이다. 관찰된 두 iOS record 중 정확한 target 선택, 사용자 0명, 서명·제품·정책 연속성이 확인됐다는 증거로 재해석하지 않는다. 현재 nonzero 관찰값과 서로 다른 기준 시각 때문에 146/147의 zero-user release Gate는 충족되지 않았다.
+병합된 설계 원문의 `REUSE_DEVGYM_RECORD`는 출시 모드 요구사항이다. 관찰된 두 iOS record 중 정확한 target 선택, 사용자 0명, 서명·제품·정책 연속성이 확인됐다는 증거로 재해석하지 않는다. 현재 nonzero 관찰값과 서로 다른 기준 시각 때문에 `NOT_APPLICABLE_ZERO_VERIFIED` 경로는 충족되지 않았다. 2026-10-18 draft 기준선의 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로도 no-transfer 실행 계획, consent 미검증 표기, IAP·기술·정책 독립 Gate와 승인자가 완료되기 전에는 release Gate를 통과하지 않는다.
 
 ## 접근·행위 제한
 

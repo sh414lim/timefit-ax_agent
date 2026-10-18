@@ -29,7 +29,7 @@
 - Apple ID `6757376637`은 source와 일치하는 후보일 뿐 사용자가 대상 record로 선택하지 않았다.
 - production Bundle ID, Team, entitlement, 최대 build와 upload 권한은 확정되지 않았다.
 - Android upload key 소유·접근과 app-signing lineage는 확정되지 않았다.
-- REL-001의 최종 `legacyUserMigrationDecision`과 REL-003의 이중 Go/No-Go는 승인되지 않았다.
+- REL-001의 `legacyUserMigrationDecision=REQUIRED`와 `legacyUserDataTransferDecision=USER_ATTESTED_DO_NOT_MIGRATE` 제품 결정은 기록됐지만, no-transfer 실행 계획과 consent 원본은 독립 승인·검증되지 않았다. REL-003의 이중 Go/No-Go도 승인되지 않았다.
 - 모바일, backend와 release owner의 실제 사용자·팀 handle은 지정되지 않았다.
 
 미결정 값을 placeholder라도 production 설정으로 입력하지 않는다.
@@ -100,7 +100,7 @@ Flutter pipeline은 PWA artifact, WebView wrapper 또는 웹 배포 결과를 �
 
 확인된 로컬 toolchain은 Flutter `3.38.5`, Dart `3.10.4`, Xcode `16.1`, Java `17`이다. 이 버전 표시는 실행 성공 증거가 아니다. Flutter SDK cache 쓰기 제한이 관찰됐으므로 analyze/test/build가 cache write를 요구하면 허용된 승인 절차로 실행하고 SDK 복사, cache 경로 변조 또는 비공식 우회를 사용하지 않는다.
 
-CHAT-006은 REL-001, REL-002와 CHAT-003 선행 조건이 있으므로 이 부트스트랩 준비로 착수됐다고 간주하지 않는다.
+CHAT-006의 카드상 직접 선행은 `CHAT-003`이다. 별도로 모든 CHAT 카드에 적용되는 전역 Gate인 REL-001·REL-002 완료 조건도 충족되지 않았으므로 이 부트스트랩 준비로 CHAT-006이 착수됐다고 간주하지 않는다.
 
 ### 후속 작업 순서
 
@@ -168,6 +168,8 @@ REL-002 전체 완료에는 이 ADR 외에 다음 증거가 추가로 필요하�
 - Flutter clean checkout의 format/analyze/test/build smoke
 - production secret 없이 PR 검사가 실행된 결과
 - 기술 책임자의 ADR 승인 기록
+
+PR #1~#8 산출물의 수용 기준별 충족·부분 충족·미충족 매핑은 [`docs/rel-002/pr-evidence-mapping.md`](../rel-002/pr-evidence-mapping.md)에 기록한다. 해당 매핑은 merge 수를 티켓 완료로 환산하지 않으며, 현재 남은 branch protection, secret scanning, 실제 owner 지정과 ADR 승인 blocker를 그대로 유지한다.
 
 위 증거가 없으므로 이 문서만으로 REL-002를 완료 처리하지 않는다. REL-001과 REL-002가 모두 완료되기 전에는 CHAT-000을 시작하지 않는다.
 

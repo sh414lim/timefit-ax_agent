@@ -2,12 +2,13 @@
 
 - 문서 상태: Trello 등록·Codex 실행 기준안 v1.2
 - 기준일: 2026-10-16
+- 기준선 개정: 2026-10-18 — REL-001 관측과 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로 반영(검토 중)
 - 상위 아키텍처: `docs/146-timefit-native-chat-architecture-2026-10-16.md`
 - Flutter 앱 저장소: `timefit-mobile`
 - 모바일 웹·공유 백엔드 저장소: `time_fit`
 - 대상: 기존 모바일 웹과 병렬 개발·독립 배포하는 Flutter iOS·Android 네이티브 앱
 - 스토어 릴리스 모드: `REUSE_DEVGYM_RECORD` 확정(Android `데브짐-매니저`, iOS `데브짐`)
-- 기존 사용자 이전 판정: REL-001의 동일 `as_of` 증거가 모두 0일 때만 `NOT_APPLICABLE_ZERO_VERIFIED`
+- 기존 사용자 이전 판정: zero evidence이면 `NOT_APPLICABLE_ZERO_VERIFIED`; 현재 nonzero 관측은 `REQUIRED`이며 승인된 `USER_ATTESTED_DO_NOT_MIGRATE` 실행 계획으로 처리
 - 제외: `timefit-mobile`의 PWA 구현, AI·AX·LLM·에이전트 응답 전체
 
 ## 1. 사용 방법
@@ -30,7 +31,7 @@ BLOCKED
 - Android `데브짐-매니저`의 실제 store record·application ID·app-signing lineage·upload owner·최대 versionCode
 - iOS `데브짐`의 실제 App Store Connect record·Bundle ID·Apple Team·entitlement·최대 version/build
 - 기술 연속성과 제품·스토어 정책 연속성의 이중 `GO`
-- REL-001의 동일 `as_of`로 스토어 설치·활성 기기, backend installation·push token, 활성 구독/IAP가 모두 0으로 증명된 `legacyUserMigrationDecision: NOT_APPLICABLE_ZERO_VERIFIED`. `PENDING`·`REQUIRED`면 본 카탈로그의 이전 생략 전제를 폐기하고 별도 migration 티켓 승인 전까지 릴리스 중단
+- REL-001의 동일 `as_of` 스토어 설치·활성 기기, backend installation·push token, 활성 구독/IAP evidence와 승인된 처리 경로. 허용 경로는 `legacyUserMigrationDecision: NOT_APPLICABLE_ZERO_VERIFIED`, 또는 `legacyUserMigrationDecision: REQUIRED`와 `legacyUserDataTransferDecision: USER_ATTESTED_DO_NOT_MIGRATE`를 함께 기록한 승인 실행 계획이다. 그 밖의 `PENDING`·`REQUIRED`는 별도 처리 계획 승인 전까지 릴리스를 중단한다.
 - `timefit-mobile` 저장소 생성·이전 기준 commit과 보호 브랜치
 - 개발·스테이징·운영 환경별 native 설정 소유 위치
 
@@ -46,7 +47,7 @@ BLOCKED
 | 기존 모바일 웹 | 개발·배포 계속; Flutter와 상호 대체하지 않고 독립 release |
 | PWA 경계 | Flutter 저장소에서는 구현하지 않음; 기존 웹/PWA 트랙 중단을 뜻하지 않음 |
 | 스토어 경로 | `REUSE_DEVGYM_RECORD` 고정; Android `데브짐-매니저`, iOS `데브짐`; 신규 listing 금지 |
-| 기존 사용자 이전 | REL-001 동일 `as_of` 증거가 모두 0일 때만 `NOT_APPLICABLE_ZERO_VERIFIED`; update 연속성 테스트는 생략 금지 |
+| 기존 사용자 이전 | REL-001 동일 `as_of` 증거가 모두 0이면 `NOT_APPLICABLE_ZERO_VERIFIED`; 현재 nonzero 관측은 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 계획으로 원본 보존·fresh login·새 namespace·신규 push 동의를 적용; update 연속성 테스트는 생략 금지 |
 | 영속 메시지 쓰기 | 인증된 Supabase PostgreSQL RPC over HTTPS |
 | 실시간 | Private Realtime Broadcast, 변경 힌트 전용 |
 | 정합성 | 대화별 `sequence`, `afterSequence` gap-fill |
@@ -125,7 +126,7 @@ dev_dependencies:
 - 디자인 또는 운영 결정이 필요한 항목이 남아 있지 않음
 - `time_fit` 대상 카드이면 현재 production 모바일 웹 계약 baseline, 소비자 영향표, additive-first 변경 순서가 준비됨
 - native identity 대상 카드이면 REL-003의 `REUSE_DEVGYM_RECORD` 이중 `GO`와 승인된 DevGym identity manifest가 준비됨
-- legacy local/session/push 이전을 생략하는 카드이면 REL-001의 동일 `as_of` 0명 증거와 `NOT_APPLICABLE_ZERO_VERIFIED` 승인 링크가 있음
+- legacy local/session/push reader·import를 포함하지 않는 카드이면 REL-001의 `NOT_APPLICABLE_ZERO_VERIFIED`, 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 계획과 evidence 링크가 있음
 
 ### 3.2 Definition of Done
 
@@ -147,7 +148,7 @@ dev_dependencies:
 - DB 변경이면 Expand–Migrate–Contract 단계가 분리되고, 적용된 migration 수정이나 destructive rollback이 없음
 - 웹, Flutter, 공유 백엔드 중 하나의 배포·롤백이 다른 두 트랙의 동시 배포를 요구하지 않음
 - native store artifact 대상 카드는 `REUSE_DEVGYM_RECORD` allowlist 검증을 통과하고 신규 listing·신규 production ID를 생성하지 않음
-- `NOT_APPLICABLE_ZERO_VERIFIED`를 적용한 카드는 REL-001 증거와 같은 `as_of`·조회 범위·승인자를 완료 증거에 기록함
+- `NOT_APPLICABLE_ZERO_VERIFIED` 또는 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`를 적용한 카드는 REL-001 evidence의 `as_of`·조회 범위·decision·승인자와 미해결 증거를 완료 증거에 기록함
 
 ### 3.3 카드 완료 증거 형식
 
@@ -184,9 +185,9 @@ dev_dependencies:
 - release mode는 Android·iOS 모두 `REUSE_DEVGYM_RECORD`로 고정한다. 신규 listing·신규 production ID 생성과 자동 fallback을 금지한다.
 - Android는 `데브짐-매니저`의 record·application ID·app-signing lineage·upload owner·상향 versionCode, iOS는 `데브짐`의 record·Bundle ID·Team·entitlement·상향 version/build를 artifact에서 추출해 manifest와 비교한다.
 - 실제 기존 store build를 설치한 뒤 삭제하지 않고 Flutter RC로 update하는 smoke는 두 플랫폼 모두 필수다. clean-install 결과로 대체할 수 없다.
-- 기존 사용자가 0명이라는 제품 진술만으로 legacy migration을 생략하지 않는다. REL-001의 동일 `as_of`로 store 설치·활성 기기, backend installation·push token, 활성 구독/IAP가 모두 0이고 `legacyUserMigrationDecision=NOT_APPLICABLE_ZERO_VERIFIED`로 승인된 경우에만 local DB·session·push token·IAP 이전을 N/A로 처리한다.
-- migration이 N/A여도 update 설치, 정상 부트, 새 TimeFit 로그인, 새 Drift schema 초기화, 신규 push token 동의·등록, 딥링크, 핵심 채팅 smoke는 필수다.
-- 정체성·서명·정책 Gate가 실패하거나 zero-user 증거가 불완전하면 `BLOCKED_PENDING_RECOVERY`로 중단하고 REL-001/003을 다시 연다.
+- 제품 진술만으로 legacy 처리를 생략하지 않는다. REL-001 동일 `as_of` evidence가 모두 0이고 `legacyUserMigrationDecision=NOT_APPLICABLE_ZERO_VERIFIED`로 승인되면 local DB·session·push token·IAP 이전을 N/A로 처리한다. nonzero인 현재 경로는 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 실행 계획이 승인된 경우 legacy 자료를 읽거나 TimeFit으로 이전하지 않고 원본 보존·fresh login·새 namespace·신규 push 동의·등록을 적용한다. consent 원본 미검증과 IAP·기술 evidence 미완료는 별도 blocker로 유지한다.
+- 두 허용 경로 모두 update 설치, 정상 부트, 새 TimeFit 로그인, 새 Drift schema 초기화, legacy reader/import 부재, 신규 push token 동의·등록, 딥링크, 핵심 채팅 smoke가 필수다.
+- 정체성·서명·정책 Gate가 실패하거나 처리 계획·필수 evidence가 불완전하면 `BLOCKED_PENDING_RECOVERY`로 중단하고 REL-001/003을 다시 연다.
 
 ## 4. 단계와 의존성
 
@@ -1929,7 +1930,7 @@ flowchart TD
 3. iOS push capability, background remote notification, APNs key 연결을 구성한다.
 4. Android notification permission/channel과 icon을 구성한다.
 5. credential 파일 배포 위치와 rotation runbook을 문서화한다.
-6. DevGym push token은 TimeFit 동의와 현재 앱 재등록 없이 승계하지 않는다. REL-001이 `NOT_APPLICABLE_ZERO_VERIFIED`이면 legacy token import·topic migration 코드를 만들지 않고 증거 링크를 남긴다.
+6. DevGym push token은 TimeFit 동의와 현재 앱 재등록 없이 승계하지 않는다. REL-001이 `NOT_APPLICABLE_ZERO_VERIFIED`이거나 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`이면 legacy token import·topic migration 코드를 만들지 않고 증거 링크를 남긴다.
 7. 기존 store build → Flutter RC update 후 새 알림 권한 흐름과 신규 token 등록이 동작하는 통합 테스트 절차를 `docs/native-push-setup.md`에 기록한다.
 
 **테스트 명령·케이스:**
@@ -1938,18 +1939,18 @@ flowchart TD
 - `fvm flutter build ios --flavor staging -t lib/main_staging.dart --no-codesign`
 - Firebase console test push를 iOS/Android staging 실기기에서 확인
 - production-signed internal RC에서 DevGym manifest·Firebase package·APNs topic 일치 검증
-- `NOT_APPLICABLE_ZERO_VERIFIED` 경우 legacy token import 코드가 빌드에 없고 새 동의 후 현재 token만 등록되는지 검증
+- `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`에서 legacy token import 코드가 빌드에 없고 새 동의 후 현재 token만 등록되는지 검증
 
 **인수 조건:**
 
 - Given staging build, When test push를 보내면, Then production 앱이 아니라 해당 staging 기기만 수신한다.
 - Given repository scan, When credential pattern을 찾으면, Then 실제 secret 파일이 commit되지 않았다.
 - Given DevGym 정체성 evidence가 없거나 한 Gate가 `NO_GO`일 때, When production push 설정을 승격하면, Then `BLOCKED_PENDING_RECOVERY`로 차단되고 신규 store target·production ID로 우회하지 않는다.
-- Given REL-001이 `NOT_APPLICABLE_ZERO_VERIFIED`일 때, When 기존 store build에서 Flutter RC로 update하고 push에 동의하면, Then legacy token을 읽지 않고 현재 설치의 새 token만 등록된다.
+- Given REL-001이 `NOT_APPLICABLE_ZERO_VERIFIED`이거나 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`일 때, When 기존 store build에서 Flutter RC로 update하고 push에 동의하면, Then legacy token을 읽지 않고 현재 설치의 새 token만 등록된다.
 
 **완료 증거:** 양 플랫폼 test push video, DevGym identifier/Firebase/APNs matrix, REL-001 `as_of`·migration decision 링크, update 후 신규 token 등록 증거, secret scan.
 
-**금지:** production credential commit, REL-003 미승인 ID 변경, 신규 store target·production application/Bundle ID 생성, 미승인 Firebase project/app 생성, DevGym token 무단 승계, zero-user 증거 없는 migration 생략, 기존 웹 푸시 설정 변경.
+**금지:** production credential commit, REL-003 미승인 ID 변경, 신규 store target·production application/Bundle ID 생성, 미승인 Firebase project/app 생성, DevGym token 무단 승계, 승인된 REL-001 처리 경로 없는 legacy 처리 생략, 기존 웹 푸시 설정 변경.
 
 **롤아웃:** dev → staging → production signing 환경 순으로 연결한다.
 **롤백:** provider 설정을 비활성화하고 entitlement/signing lineage는 보존한다.
@@ -2332,11 +2333,11 @@ flowchart TD
 2. Android AAB에서 application ID·versionCode·signing certificate/lineage를 추출해 `데브짐-매니저` record·현재 최대 versionCode·REL-003 manifest와 비교한다.
 3. iOS IPA/archive에서 Bundle ID·Team ID·entitlement·version·build를 추출해 `데브짐` record·현재 최대 build·REL-003 manifest와 비교한다.
 4. production config 공개값과 secret injection, release obfuscation, symbol upload, Crashlytics symbol을 release job에 연결한다.
-5. REL-001 증거의 동일 `as_of`, 조회 범위, 스토어 설치·활성 기기, backend installation·push token, 활성 구독/IAP 모두 0, `legacyUserMigrationDecision=NOT_APPLICABLE_ZERO_VERIFIED`, 승인자를 검증한다. 하나라도 누락되면 RC promotion을 차단하고 REL-001/003을 다시 연다.
+5. REL-001 evidence의 `as_of`, 조회 범위, 스토어 설치·활성 기기, backend installation·push token, 활성 구독/IAP와 승인자를 검증한다. 허용 경로는 `NOT_APPLICABLE_ZERO_VERIFIED`, 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 실행 계획이다. 사용자 처리 계획, consent 미검증 표기, IAP·기술·정책 독립 Gate 중 하나라도 누락되면 RC promotion을 차단하고 REL-001/003을 다시 연다.
 6. 두 플랫폼의 실제 기존 store record에 TestFlight·Play internal 빌드를 업로드하고 processing 완료 URL·build ID·version을 증거로 보관한다.
 7. 두 플랫폼 모두 앱 삭제 후 RC를 설치하는 clean-install 핵심 smoke를 수행한다.
 8. 두 플랫폼 모두 실제 DevGym store build를 설치·실행한 뒤 앱을 삭제하지 않고 Flutter RC로 update한다. 정상 부트, 새 TimeFit 로그인, 새 Drift schema 초기화, 새 push token 동의·등록, 딥링크, 메시지·첨부 전송을 검증한다.
-9. `NOT_APPLICABLE_ZERO_VERIFIED`이므로 DevGym local DB·session·push token·IAP 이전 코드가 없음을 source scan·빌드 검사로 확인하되, update 설치를 N/A로 처리하지 않는다.
+9. `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로에서 DevGym local DB·session·push token·IAP reader/import 코드가 없음을 source scan·빌드 검사로 확인하되, update 설치를 N/A로 처리하지 않는다.
 
 **테스트 명령·케이스:**
 
@@ -2351,16 +2352,16 @@ flowchart TD
 **인수 조건:**
 
 - Given Android·iOS 실제 DevGym 설치본, When 앱을 삭제하지 않고 internal RC를 배포하면, Then 동일 앱 update로 인식되고 식별자·서명·version·entitlement 오류 없이 시작한다.
-- Given `NOT_APPLICABLE_ZERO_VERIFIED`, When update 후 첫 실행하면, Then legacy 세션·로컬 DB·push token을 읽거나 옮기지 않고 새 로그인과 TimeFit 로컬 schema를 안전하게 초기화한다.
-- Given REL-001의 zero-user 증거 중 하나가 누락되거나 `as_of`가 다를 때, When legacy migration을 N/A로 판정하면, Then RC promotion이 실패하고 REL-001/003이 재열린다.
+- Given `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`, When update 후 첫 실행하면, Then legacy 세션·로컬 DB·push token을 읽거나 옮기지 않고 새 로그인과 TimeFit 로컬 schema를 안전하게 초기화한다.
+- Given REL-001의 선택된 처리 경로 증거·승인 중 하나가 누락되거나 `as_of`가 일치하지 않을 때, When RC promotion을 요청하면, Then promotion이 실패하고 REL-001/003이 재열린다.
 - Given 신규 listing·production ID, When release workflow에 주입하면, Then 업로드 전에 CI가 실패하고 기존 DevGym target으로도 자동 변경하지 않는다.
 - Given clean install, When 핵심 smoke를 수행하면, Then staging이 아닌 production backend와 정상 동작한다.
 
-**완료 증거:** `REUSE_DEVGYM_RECORD` manifest, DevGym store build·internal RC link, processing build ID, artifact signing/ID/version/entitlement 검증, REL-001 동일 `as_of` zero-user 증거·`NOT_APPLICABLE_ZERO_VERIFIED` 승인, 양 플랫폼 clean-install 영상, 실제 기존 build→uninstall 없는 update 영상, symbol upload.
+**완료 증거:** `REUSE_DEVGYM_RECORD` manifest, DevGym store build·internal RC link, processing build ID, artifact signing/ID/version/entitlement 검증, REL-001 동일 `as_of` population evidence와 `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 처리 기록, 양 플랫폼 clean-install 영상, 실제 기존 build→uninstall 없는 update 영상, symbol upload.
 
-**금지:** REL-003과 다른 listing 임의 생성, 신규 production application/Bundle ID, 이중 GO 없는 DevGym→TimeFit 전환, update 실패를 clean install로 대체, zero-user 증거 없는 legacy migration 생략, update 자체를 `NOT_APPLICABLE` 처리, 미승인 ID/signing 변경, PWA 링크, AI 기능 표기.
+**금지:** REL-003과 다른 listing 임의 생성, 신규 production application/Bundle ID, 이중 GO 없는 DevGym→TimeFit 전환, update 실패를 clean install로 대체, 승인된 REL-001 처리 경로 없는 legacy 처리 생략, update 자체를 `NOT_APPLICABLE` 처리, 미승인 ID/signing 변경, PWA 링크, AI 기능 표기.
 
-**롤아웃:** 기존 사용자 0명 증거 확정 후에도 내부 QA가 각 플랫폼에서 clean install과 기존 build→RC update를 각각 수행한다. 두 경로의 증거 승인 후에만 운영 레코드 promotion을 허용한다.
+**롤아웃:** REL-001 처리 경로 승인 후에도 내부 QA가 각 플랫폼에서 clean install과 기존 build→RC update를 각각 수행한다. 두 설치 경로와 사용자 처리 증거 승인 후에만 운영 레코드 promotion을 허용한다.
 **롤백:** store rollout과 feature flag를 중지하고 compatible backend를 유지한다. 설치된 build의 강제 downgrade를 가정하지 않으며 forward fix를 준비한다.
 
 ### CHAT-077 — 운영 점진 배포·중단·롤백 runbook
@@ -2390,7 +2391,7 @@ flowchart TD
 5. incident 연락·증거 수집·사용자 공지 초안을 포함하고 tabletop rehearsal을 수행한다.
 6. 모바일 웹, Flutter iOS, Flutter Android, 공유 backend를 각각 독립 rollout 단위로 정의하고 한 단위 중단이 다른 단위 rollback을 요구하지 않게 한다.
 7. Android `데브짐-매니저`·iOS `데브짐` 기존 record만 rollout target으로 허용하고 신규 listing·production ID를 차단하는 2인 대조 절차를 넣는다.
-8. production 전환 직전 REL-001과 동일 조회 범위와 단일 `as_of`로 스토어 설치·활성 기기, backend installation·push token, 활성 구독/IAP를 다시 조회한다. 하나라도 0이 아니거나 조회할 수 없으면 `NOT_APPLICABLE_ZERO_VERIFIED`를 폐기하고 rollout을 중단한 뒤 REL-001/003을 다시 연다.
+8. production 전환 직전 REL-001과 동일 조회 범위와 단일 `as_of`로 스토어 설치·활성 기기, backend installation·push token, 활성 구독/IAP를 다시 조회한다. `NOT_APPLICABLE_ZERO_VERIFIED` 경로에서 하나라도 비영이거나 조회할 수 없으면 해당 판정을 폐기하고 rollout을 중단한다. 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로에서는 새 관측값을 지원·보존·복구 계획과 대조하고 승인 범위를 벗어나면 rollout을 중단한다. 두 경우 모두 REL-001/003을 다시 연다.
 9. legacy migration이 N/A여도 CHAT-076의 양 플랫폼 실제 기존 build→uninstall 없는 Flutter RC update 증거가 없으면 rollout을 금지한다.
 
 **테스트 명령·케이스:**
@@ -2398,17 +2399,17 @@ flowchart TD
 - `bash scripts/verify-chat-staging.sh`
 - staging에서 Realtime off, push off, attachment off, send RPC revoke 각각 rehearsal
 - dashboard alert test event 발행
-- DevGym store target·artifact identity 2인 대조, release 직전 zero-user 재조회, CHAT-076 update 증거 링크 무결성 검증
+- DevGym store target·artifact identity 2인 대조, release 직전 population 재조회와 처리 계획 대조, CHAT-076 update 증거 링크 무결성 검증
 
 **인수 조건:**
 
 - Given send error threshold 초과, When incident runbook을 실행하면, Then 15분 내 rollout 중단과 안전한 write 차단이 가능하다.
 - Given Realtime만 장애, When trigger를 끄면, Then durable send/history와 polling 수렴은 유지된다.
 - Given Flutter rollout을 중단할 때, When 기존 웹과 additive backend를 유지하면, Then 웹 서비스와 v1 계약은 계속 정상 동작한다.
-- Given release 직전 zero-user 재조회에서 1건이라도 발견될 때, When rollout 승인을 요청하면, Then 승인이 차단되고 REL-001/003으로 돌아간다.
+- Given release 직전 재조회 결과가 승인된 처리 경로 또는 지원·보존·복구 범위를 벗어날 때, When rollout 승인을 요청하면, Then 승인이 차단되고 REL-001/003으로 돌아간다.
 - Given CHAT-076 update 증거가 없을 때, When clean-install 증거만으로 rollout을 시도하면, Then 승인이 실패한다.
 
-**완료 증거:** signed runbook, DevGym target 2인 대조, release 직전 zero-user 재조회 export·`as_of`, CHAT-076 update 영상 링크, tabletop 타임라인, alert screenshot, rollback checklist.
+**완료 증거:** signed runbook, DevGym target 2인 대조, release 직전 population 재조회 export·`as_of`와 처리 계획 대조, CHAT-076 update 영상 링크, tabletop 타임라인, alert screenshot, rollback checklist.
 
 **금지:** DB row 대량 삭제, store ID 변경 롤백, 관측 없이 100% 즉시 배포.
 
@@ -2423,8 +2424,8 @@ flowchart TD
 - Android artifact가 `데브짐-매니저` record의 application ID·app-signing lineage·상향 versionCode와 일치하지 않음
 - iOS artifact가 `데브짐` record의 Bundle ID·Team·entitlement·상향 version/build와 일치하지 않음
 - DevGym 기술 연속성 GO와 제품·스토어 정책 연속성 GO 중 하나라도 없음
-- REL-001의 동일 `as_of` 스토어 설치·활성 기기, backend installation·push token, 활성 구독/IAP 증거가 모두 0이 아닌데 legacy local/session/push/IAP migration을 생략함
-- `legacyUserMigrationDecision=NOT_APPLICABLE_ZERO_VERIFIED`가 아닌데 migration을 N/A로 처리함
+- REL-001의 `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로 없이 legacy local/session/push/IAP 처리를 생략함
+- `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`인데 legacy reader/import를 포함하거나 원본 보존·fresh login·새 namespace·신규 push 동의 조건을 위반함
 - Flutter 앱의 필수 경로에 PWA 코드·웹 build가 포함됨. 단, 기존 모바일 웹/PWA의 병렬 개발·배포 자체는 실패 조건이 아님
 - AI/LLM 호출 또는 가짜 bot 응답이 포함됨
 - 메시지 write가 WebSocket 성공에 의존함
@@ -2440,4 +2441,4 @@ flowchart TD
 - 기존 v1 계약을 즉시 변경·삭제했거나 additive migration·독립 rollout·forward-fix 증거가 없음
 - iOS 또는 Android 한 플랫폼만 E2E·내부 배포가 완료됨
 
-최종 완료 증거는 CHAT-077 카드에 Android·iOS `REUSE_DEVGYM_RECORD` manifest, backend migration hash, 웹 회귀 결과, mobile release commit, 실제 `데브짐-매니저`·`데브짐` TestFlight/Play build, 양 플랫폼 clean-install 증거, 양 플랫폼 실제 기존 build→uninstall 없는 update 증거, REL-001 동일 `as_of` zero-user export·`NOT_APPLICABLE_ZERO_VERIFIED` 승인, E2E 결과, SLO dashboard, 독립 rollback rehearsal을 한 번에 연결한다. update 증거는 `NOT_APPLICABLE`로 대체할 수 없다.
+최종 완료 증거는 CHAT-077 카드에 Android·iOS `REUSE_DEVGYM_RECORD` manifest, backend migration hash, 웹 회귀 결과, mobile release commit, 실제 `데브짐-매니저`·`데브짐` TestFlight/Play build, 양 플랫폼 clean-install 증거, 양 플랫폼 실제 기존 build→uninstall 없는 update 증거, REL-001 동일 `as_of` population export와 `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 처리 기록, E2E 결과, SLO dashboard, 독립 rollback rehearsal을 한 번에 연결한다. update 증거는 `NOT_APPLICABLE`로 대체할 수 없다.

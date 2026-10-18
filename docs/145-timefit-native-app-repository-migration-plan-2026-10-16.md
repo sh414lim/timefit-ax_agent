@@ -3,11 +3,12 @@
 - 문서 번호: `145`
 - 작성일: 2026-10-16
 - 상태: 실행 기준선(Baseline)
+- 기준선 개정: 2026-10-18 — REL-001 비식별 관측과 사용자 확정 결정에 따라 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로 추가(검토 중)
 - 대상: 제품, Flutter, 백엔드, QA, Release Engineering, 보안, 고객지원
 - 결정 범위: Flutter iOS/Android 앱의 별도 저장소·모바일 웹과의 병렬 운영·공유 백엔드 계약·기존 DevGym 스토어 레코드 업데이트 출시
 
 > **최종 결정**
-> Flutter iOS/Android 앱은 새 비공개 저장소 **`timefit-mobile`** 에서 개발한다. 현재 **`time_fit`** 저장소는 계속 개발·배포되는 모바일 웹앱과 Supabase 데이터베이스, RLS, RPC, Edge Functions, Realtime, Storage, 알림 발송을 포함한 **공유 백엔드의 유일한 원본(canonical source)** 으로 유지한다. 모바일 웹과 Flutter 앱은 서로를 대체하지 않고 같은 제품·계정·데이터를 사용하는 독립 클라이언트로 병렬 운영한다. Flutter 앱의 PWA 구현은 본 계획 범위 밖이지만 기존 모바일 웹/PWA 트랙의 개발·배포를 중단하거나 종료하지 않는다. 네이티브 출시는 Android **`데브짐-매니저`**, iOS **`데브짐`** 의 **기존 배포 레코드를 업데이트하는 경로로 확정**한다. 새 Git 저장소 사용 여부와 스토어 업데이트 가능 여부는 독립적이며, 기존 application ID/Bundle ID·서명 계보·스토어 레코드·상향 version/build를 보존하면 `timefit-mobile`에서 만든 바이너리도 같은 레코드에 제출할 수 있다. 현재 기존 사용자는 없다는 제품 책임자 정보를 받았으나, REL-001에서 스토어 지표·백엔드 설치·활성 구독/IAP가 모두 0임을 증명하기 전에는 사용자·세션·로컬 데이터·푸시 이전을 임의로 생략하지 않는다. AI/AX 기능은 본 계획에서 제외한다.
+> Flutter iOS/Android 앱은 새 비공개 저장소 **`timefit-mobile`** 에서 개발한다. 현재 **`time_fit`** 저장소는 계속 개발·배포되는 모바일 웹앱과 Supabase 데이터베이스, RLS, RPC, Edge Functions, Realtime, Storage, 알림 발송을 포함한 **공유 백엔드의 유일한 원본(canonical source)** 으로 유지한다. 모바일 웹과 Flutter 앱은 서로를 대체하지 않고 같은 제품·계정·데이터를 사용하는 독립 클라이언트로 병렬 운영한다. Flutter 앱의 PWA 구현은 본 계획 범위 밖이지만 기존 모바일 웹/PWA 트랙의 개발·배포를 중단하거나 종료하지 않는다. 네이티브 출시는 Android **`데브짐-매니저`**, iOS **`데브짐`** 의 **기존 배포 레코드를 업데이트하는 경로로 확정**한다. 새 Git 저장소 사용 여부와 스토어 업데이트 가능 여부는 독립적이며, 기존 application ID/Bundle ID·서명 계보·스토어 레코드·상향 version/build를 보존하면 `timefit-mobile`에서 만든 바이너리도 같은 레코드에 제출할 수 있다. REL-001에서 Android 설치 사용자 `5`, 최근 28일 활성 기기 `1`, iOS TestFlight 비영(非零) 지표, backend `public.users` `337`행과 `auth.users` `40`계정을 서로 다른 기준 시각으로 관측했으므로 사용자 0명으로 간주하지 않는다. `legacyUserMigrationDecision=REQUIRED`를 유지하되, 사용자가 기존 사용자 전원 동의와 기존 사용자 데이터 미이전을 확정한 결정은 `legacyUserDataTransferDecision=USER_ATTESTED_DO_NOT_MIGRATE`로 별도 기록한다. 이는 consent 원본 검증, 데이터 삭제, 서비스 종료, 구독 해지 또는 출시 승인이 아니다. AI/AX 기능은 본 계획에서 제외한다.
 
 ---
 
@@ -59,7 +60,8 @@
 | `docs/144-admin-mobile-app-replan-2026-10-15.md:10,253` | 기존 문서가 모바일 웹/PWA 트랙의 계획과 검증을 정의 | 그 웹 트랙은 계속 유효하다. 본 문서는 별도 Flutter 네이티브 트랙만 추가하며 기존 웹 계획을 대체하지 않는다. |
 | `services/timefit-ax/`, AI 관련 migration | 저장소에 AX/AI 관련 자산이 존재 | 존재 여부와 무관하게 본 릴리스 범위에서는 참조·연동·확장하지 않는다. |
 | 제품 책임자 제공 정보 | Android 운영 네이티브 앱은 `데브짐-매니저`, iOS 운영 네이티브 앱은 `데브짐`이며 TimeFit과 기능이 완전히 다름 | 두 기존 record의 재사용은 확정했으며, 기술 연속성과 제품·정책·심사 준비가 모두 충족돼야 제출한다. |
-| 제품 책임자 제공 정보 | 현재 기존 네이티브 사용자는 0명 | REL-001의 스토어 활성 설치/기기 지표, 백엔드 installation·push token, 활성 구독/IAP를 같은 기준 시점에 조회해 0을 증명한 뒤에만 사용자 migration 항목을 `NOT_APPLICABLE_ZERO_VERIFIED`로 전환한다. |
+| REL-001 비식별 관측 | Android 설치 사용자 `5`, 최근 28일 활성 기기 `1`; iOS TestFlight 비영 지표; backend `public.users` `337`행, `auth.users` `40`계정 | 서로 다른 기준 시각·범위의 관측이며 동일 사람 수나 삭제 대상을 뜻하지 않는다. zero-user는 증명되지 않았고 `legacyUserMigrationDecision=REQUIRED`다. |
+| 사용자 확정 제품 결정 | 기존 사용자 전원 동의, 기존 사용자 데이터 미이전 | `USER_ATTESTED` 결정으로 기록한다. consent 원본·대상·고지 내용은 독립 검증되지 않았고, 원본 데이터는 별도 승인 없이 삭제·변경하지 않는다. |
 
 ### 2.2 아직 확인되지 않은 사실
 
@@ -135,7 +137,7 @@ REL-001은 iOS와 Android를 각각 감사하되 릴리스 경로를 다시 선�
 
 - 기존 ID·서명·entitlement·version 연속성을 훼손하면 release blocker다.
 - 제품·법무·개인정보·스토어 정책과 metadata 전환 승인도 반드시 필요하다. 제품이 다르다는 사실을 숨기거나 단순 UI 개편으로 축소 설명하지 않는다.
-- 현재 사용자 0명이라는 제공 정보는 REL-001 증거로 검증한다. 검증되면 사용자 데이터·session·push 이전 구현만 `NOT_APPLICABLE_ZERO_VERIFIED`로 처리하고, 스토어 업데이트 설치·서명·version 검증은 생략하지 않는다.
+- legacy 처리 경로는 둘뿐이다. 동일 `as_of` 증거가 모두 0이면 `NOT_APPLICABLE_ZERO_VERIFIED`; 하나라도 비영이거나 조회 불능이면 `REQUIRED`다. `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`가 승인되면 legacy 데이터·session·local DB·push token·IAP를 TimeFit으로 가져오지 않고 원본을 보존하며 fresh login, 새 local namespace, 신규 push 동의·등록을 사용한다. 두 경로 모두 스토어 업데이트 설치·서명·version 검증을 생략하지 않는다.
 - 허용된 store target/ID를 manifest와 CI allowlist에 기록하고 신규 record·새 production ID 생성을 차단한다.
 - 모바일 웹은 계속 운영되며 Flutter 출시의 롤백·종료 대상이 아니다.
 
@@ -175,7 +177,7 @@ REL-001은 iOS와 Android를 각각 감사하되 릴리스 경로를 다시 선�
 
 iOS에서 “같은 인증서 파일” 자체가 영구 식별자인 것은 아니다. 배포 인증서는 갱신할 수 있다. 핵심은 **같은 App Store Connect 레코드와 Bundle ID**, 현재 소유 Team의 유효한 서명, 그리고 데이터·기능 연속성에 필요한 entitlement다. 앱 이전(App Transfer)이 실제로 있었던 경우 Team prefix, Keychain, APNs, Sign in with Apple 영향은 별도 점검 없이는 안전하다고 보지 않는다.
 
-신규 Bundle ID 또는 App Store Connect record는 만들지 않는다. 사용자 0명 증거가 승인되면 기존 Keychain/session 데이터 이전은 `NOT_APPLICABLE_ZERO_VERIFIED`로 처리하고 최초 TimeFit 로그인을 제공하되, 기존 앱→신규 Flutter archive의 앱 삭제 없는 업데이트 설치와 entitlement 연속성은 반드시 검증한다.
+신규 Bundle ID 또는 App Store Connect record는 만들지 않는다. `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로에서는 기존 Keychain/session 데이터를 읽거나 옮기지 않고 최초 TimeFit 로그인을 제공한다. 어느 경로든 기존 앱→신규 Flutter archive의 앱 삭제 없는 업데이트 설치와 entitlement 연속성은 반드시 검증한다.
 
 ### 4.3 Android 경로별 요구사항
 
@@ -197,7 +199,7 @@ iOS에서 “같은 인증서 파일” 자체가 영구 식별자인 것은 아
 
 Android의 upload key와 사용자의 기기에 설치되는 app-signing key를 혼동하면 안 된다. 관리형 앱 서명을 쓰는 스토어에서는 둘이 다를 수 있다. 여러 Android 스토어에서 같은 앱을 배포한다면 설치 출처별 최종 signing certificate와 교차 업데이트 정책을 REL-001에서 확정한다.
 
-신규 application ID 또는 스토어 record는 만들지 않는다. 사용자 0명 증거가 승인되면 기존 Keystore/session/push 데이터 이전은 `NOT_APPLICABLE_ZERO_VERIFIED`로 처리하되, 기존 배포 APK/AAB→신규 Flutter artifact의 앱 삭제 없는 업데이트 설치, signing lineage와 versionCode 증가는 반드시 검증한다. 모바일 웹/PWA의 manifest ID나 브라우저 설치 이력은 Android package 연속성으로 취급하지 않는다.
+신규 application ID 또는 스토어 record는 만들지 않는다. `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로에서는 기존 Keystore/session/push 데이터를 읽거나 옮기지 않는다. 어느 경로든 기존 배포 APK/AAB→신규 Flutter artifact의 앱 삭제 없는 업데이트 설치, signing lineage와 versionCode 증가는 반드시 검증한다. 모바일 웹/PWA의 manifest ID나 브라우저 설치 이력은 Android package 연속성으로 취급하지 않는다.
 
 ### 4.4 DevGym 레코드 재사용의 제품·정책 연속성 요구사항
 
@@ -206,10 +208,10 @@ Android의 upload key와 사용자의 기기에 설치되는 app-signing key를 
 | 검토 항목 | 필수 판단 | 승인/증거 |
 | --- | --- | --- |
 | 제품 정체성 | DevGym과 TimeFit의 핵심 기능·대상 사용자가 완전히 다르다는 사실을 전제로 record 전환이 허용되는가 | 제품 책임자 decision record |
-| 기존 사용자 | 실제 활성 사용자·설치가 0인지, 0이 아니라면 자동 업데이트 후 기능 소멸·계정 차이·데이터 접근·재로그인·지원 경로를 어떻게 처리할지 | 같은 기준 시점의 스토어 활성 설치/기기 export + 백엔드 installation/token 조회; 0이 증명되면 migration/공지 구현만 `NOT_APPLICABLE_ZERO_VERIFIED` |
+| 기존 사용자 | 실제 활성 사용자·설치가 0인지, 0이 아니라면 자동 업데이트 후 기능 소멸·계정 차이·데이터 접근·재로그인·지원 경로를 어떻게 처리할지 | 같은 기준 시점의 스토어 활성 설치/기기 export + 백엔드 installation/token 조회; 0이면 `NOT_APPLICABLE_ZERO_VERIFIED`, 비영이면 승인된 `REQUIRED` 계획. 현재 제품 결정은 `USER_ATTESTED_DO_NOT_MIGRATE`이며 원본 보존·fresh login·지원 계획 검토가 필요 |
 | 스토어 심사 | 이름·아이콘·카테고리·기능·개인정보 목적의 대폭 변경을 해당 record에서 제출해도 되는가 | 최신 공식 정책 검토 및 필요 시 스토어 사전 문의 evidence |
 | 개인정보·약관 | DevGym 동의·고지와 TimeFit 수집·처리 목적의 차이가 해소되는가 | 법무/개인정보 책임자 승인 |
-| 구독·결제 | 활성 IAP/구독·미정산 거래·entitlement가 실제 0인지, 0이 아니라면 어떻게 보호·종료·이관하는가 | App Store Connect/Android 판매자 콘솔과 서버 영수증 DB export; 모두 0이면 migration만 `NOT_APPLICABLE_ZERO_VERIFIED` |
+| 구독·결제 | 활성 IAP/구독·미정산 거래·entitlement가 실제 0인지, 0이 아니라면 어떻게 보호·종료·이관하는가 | App Store Connect/Android 판매자 콘솔과 서버 영수증 DB export; 모두 0이면 `NOT_APPLICABLE_ZERO_VERIFIED`, 비영·조회 불능이면 `REQUIRED` 계획에서 보호·지원·복구 책임을 승인. `USER_ATTESTED_DO_NOT_MIGRATE`만으로 결제 상태를 0 또는 종료로 간주하지 않음 |
 | 브랜드·지원 | 기존 리뷰·평점·지원 채널을 TimeFit이 승계하는 것이 사용자 오인을 만들지 않는가 | 브랜드·고객지원 승인 |
 | 데이터 | DevGym 로컬/서버 데이터를 TimeFit 사용자 데이터로 오인·자동 연결하지 않는가 | 데이터 매핑 `NONE` 기본, 명시적 migration 근거 |
 
@@ -258,11 +260,14 @@ android:
   uploadCredentialAccessVerified: true|false
   binaryFormatVerified: true|false
 shared:
-  existingUsersClaimedZero: true
+  observedLegacyPopulationStatus: NONZERO_PARTIAL_MULTI_SOURCE
   activeStoreInstallEvidenceAsOfRecorded: true|false
   backendActiveInstallationCountVerifiedZero: true|false
   activeSubscriptionAndIapVerifiedZero: true|false
   legacyUserMigrationDecision: PENDING|NOT_APPLICABLE_ZERO_VERIFIED|REQUIRED
+  legacyUserDataTransferDecision: PENDING|USER_ATTESTED_DO_NOT_MIGRATE|APPROVED_MIGRATION
+  existingUserConsentStatus: UNKNOWN|USER_ATTESTED_ALL_EXISTING_USERS|INDEPENDENTLY_VERIFIED
+  consentArtifactVerification: NOT_ACQUIRED|NOT_INDEPENDENTLY_VERIFIED|VERIFIED
   authProjectVerified: true|false
   mobileWebContinuesIndependently: true|false
   sharedContractOwnerRecorded: true|false
@@ -418,7 +423,7 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 5. 동일한 `as_of` 시각과 조회 범위를 사용해 각 스토어의 현재 설치/활성 기기/최근 30·90일 활성 지표를 export하고, 지표 정의와 timezone을 함께 기록한다.
 6. 기존 백엔드에서 DevGym installation, 최근 접속, push token, 사용자 연결을 조회하고 스토어 지표와 reconciliation한다. 접근할 기존 백엔드가 없다면 그 사실과 소유자 확인을 증거화한다.
 7. App Store Connect·Android 판매자 콘솔·영수증 서버에서 활성 구독, 미정산 거래, 복원 가능한 entitlement, 판매 중 IAP가 0인지 확인한다.
-8. 사용자/설치/구독 중 하나라도 0이 아니거나 조회 불능이면 `legacyUserMigrationDecision: REQUIRED` 또는 `PENDING`으로 두고 세션·로컬 데이터·푸시·결제 영향 분석을 생략하지 않는다. 모두 0일 때만 `NOT_APPLICABLE_ZERO_VERIFIED`로 승인한다.
+8. 사용자/설치/구독 중 하나라도 0이 아니거나 조회 불능이면 `legacyUserMigrationDecision: REQUIRED` 또는 `PENDING`으로 두고 세션·로컬 데이터·푸시·결제 영향 분석을 생략하지 않는다. 모두 0일 때만 `NOT_APPLICABLE_ZERO_VERIFIED`로 승인한다. `REQUIRED`에서 데이터 미이전을 결정한 경우에는 `legacyUserDataTransferDecision: USER_ATTESTED_DO_NOT_MIGRATE`를 별도 기록하고 원본 보존·no-transfer inventory·fresh login·신규 push 동의·지원·복구 계획을 승인 대상으로 둔다.
 9. DevGym record의 평점·리뷰, 개인정보 신고, 브랜드/계약, 지원 채널, 기능 설명과 TimeFit 전환 시 영향 목록을 만든다.
 10. App Store/Android 스토어의 사전 문의 또는 공식 검토가 필요한 항목과 담당자를 기록한다. 추측 답변을 승인 증거로 쓰지 않는다.
 11. Firebase 앱 등록, APNs, FCM project, OAuth callback, Universal/App Links, 웹 도메인 소유권을 inventory로 만들고 웹 전용/DevGym 전용/TimeFit용으로 전환할 항목/공유를 표시한다.
@@ -439,7 +444,7 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 - iOS/Android 각각 DevGym record의 실제 운영 식별자, 최대 version/build, app-signing 연속성과 upload 가능 여부가 증명된다.
 - 기술적으로 update가 가능하다는 결론과 제품·정책상 재사용 가능하다는 결론이 혼합되지 않는다.
 - DevGym 활성 사용자/설치·backend installation/push token·활성 구독/IAP가 같은 기준 시점으로 검증되고 migration decision이 `PENDING`, `REQUIRED`, `NOT_APPLICABLE_ZERO_VERIFIED` 중 하나로 기록된다.
-- 사용자 0명이 증명된 경우에만 세션·로컬 데이터·푸시·결제 migration 구현을 `NOT_APPLICABLE_ZERO_VERIFIED`로 처리하고, 스토어 update 설치 시험은 그대로 유지한다.
+- 사용자 0명이 증명된 경우에만 세션·로컬 데이터·푸시·결제 migration 구현을 `NOT_APPLICABLE_ZERO_VERIFIED`로 처리한다. 비영 관측에서는 `REQUIRED`를 유지하며, 승인된 `USER_ATTESTED_DO_NOT_MIGRATE` 계획이 있으면 legacy 데이터를 읽거나 이전하지 않는 fresh-login 경로를 구현한다. 어느 경로든 스토어 update 설치 시험은 그대로 유지한다.
 - DevGym 스토어 metadata·개인정보·브랜드 영향이 문서화된다.
 - 모바일 웹 배포가 어느 플랫폼의 기존 네이티브 record로 오분류되지 않는다.
 - 현재 저장소의 `com.example.*` 및 계획값 `com.timefit.app`을 운영값으로 오인하지 않는다.
@@ -558,7 +563,7 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 
 1. `Technical Continuity Gate`에서 iOS DevGym record 접근, Bundle ID, Team, entitlement와 Android DevGym 상품, package, app-signing lineage, upload credential, version 증가 가능성을 플랫폼별 `GO/NO_GO`로 판정한다.
 2. `Product/Policy Continuity Gate`에서 DevGym과 TimeFit의 기능·대상 사용자·브랜드·스토어 설명·카테고리·리뷰·구독/IAP·개인정보 수집·지원 의무 차이를 기록한다.
-3. REL-001의 `legacyUserMigrationDecision`을 검토한다. `NOT_APPLICABLE_ZERO_VERIFIED`이면 기존 사용자 공지·세션·로컬 데이터·push·결제 migration 구현만 N/A로 승인하고, `REQUIRED`이면 데이터/계정 처리, opt-out, 고객지원과 법무 책임 계획을 요구한다.
+3. REL-001의 `legacyUserMigrationDecision`과 `legacyUserDataTransferDecision`을 함께 검토한다. `NOT_APPLICABLE_ZERO_VERIFIED`이면 기존 사용자 공지·세션·로컬 데이터·push·결제 migration 구현만 N/A로 승인한다. `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`이면 기존 데이터를 TimeFit으로 이전하거나 읽지 않고 원본을 보존하며 fresh login, 새 local namespace, 신규 push 동의·등록을 사용하는 실행 계획을 요구한다. consent 원본 미검증, no-transfer inventory, opt-out·고객지원·개인정보·법무·보존·복구 책임은 별도 승인한다.
 4. 기능이 완전히 다른 앱으로의 전환에 대해 필요한 경우 App Store/Android 스토어에 사전 검토를 요청하고 답변을 evidence로 보존한다.
 5. 제품 책임자·법무/정책 책임자·보안·Release Engineering이 Product/Policy Gate를 각각 승인한다. 기술 담당자의 단독 승인은 허용하지 않는다.
 6. Android `데브짐-매니저`, iOS `데브짐`의 store target, ID와 `REUSE_DEVGYM_RECORD` mode를 CI allowlist에 고정하고 그 외 target/ID를 denylist로 차단한다.
@@ -570,7 +575,7 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 - Native Store Path Decision Record
 - Technical Continuity Gate 및 Product/Policy Continuity Gate 서명본
 - DevGym 사용자 영향·스토어 사전 검토 evidence
-- 사용자 0명 증거와 `legacyUserMigrationDecision` 승인본
+- zero-user 증거 또는 비영 관측 증거, `legacyUserMigrationDecision`과 `legacyUserDataTransferDecision` 승인본
 - identity drift CI policy
 - blocker recovery plan(필요 시)
 
@@ -584,7 +589,7 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 **검증/증거**
 
 - DevGym 후보의 기술 연속성 검사와 별도 제품·정책 승인 기록
-- store/backend/IAP 0명 증거와 migration decision 검토 기록
+- store/backend/IAP 관측 증거와 migration/data-transfer decision 검토 기록
 - CI identity mismatch 실패 테스트
 - 승인자와 승인 시각이 있는 decision record
 
@@ -629,14 +634,14 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 4. 웹의 성공률·오류율·p95 latency와 공유 backend 지표를 기준선으로 저장한다.
 5. Flutter가 추가할 bootstrap/API/event 호출과 기존 웹 호출의 충돌 가능성을 비교한다.
 6. 두 플랫폼의 마지막 DevGym 스토어 설치본과 앱 삭제 없는 update fixture를 만든다. 서명·version·설치 성공 검증은 사용자 0명 여부와 무관하게 필수다.
-7. `legacyUserMigrationDecision: NOT_APPLICABLE_ZERO_VERIFIED`이면 local/session/push/IAP 데이터 fixture만 N/A로 표시하고 근거 링크를 남긴다. `PENDING` 또는 `REQUIRED`이면 해당 상태 fixture와 보존/삭제/재로그인 기대값을 만든다.
+7. `legacyUserMigrationDecision: NOT_APPLICABLE_ZERO_VERIFIED`이면 local/session/push/IAP 데이터 fixture만 N/A로 표시하고 근거 링크를 남긴다. `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`이면 원본 보존, legacy reader/import 부재, fresh login, 새 local namespace, 신규 push 동의·등록, 결제 상태 미승계 기대값을 fixture로 만든다. `PENDING` 또는 다른 `REQUIRED` 상태는 승인된 처리 계획 없이는 통과시키지 않는다.
 8. Flutter clean-install 기준선도 별도로 정의해 신규 설치와 기존 record update 설치를 모두 검증한다.
 
 **산출물**
 
 - web/native/backend compatibility matrix
 - 모바일 웹 golden E2E scenario/fixture
-- DevGym update-install fixture, 조건부 legacy-state fixture 또는 `NOT_APPLICABLE_ZERO_VERIFIED` 증거
+- DevGym update-install fixture와 REL-001 결정별 legacy-state fixture 또는 `NOT_APPLICABLE_ZERO_VERIFIED` 증거
 - API/RPC 제거 금지 목록
 - 웹·공유 backend 품질·성능 baseline
 
@@ -657,7 +662,7 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 **금지 작업**
 
 - 운영 고객 데이터를 fixture로 복사
-- 사용자 0명 증거 없이 DevGym local/session/push/IAP migration을 생략
+- `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 계획 없이 DevGym local/session/push/IAP 처리를 생략
 - 모바일 웹 회귀를 Flutter widget test로 대체
 - 아직 호출되는 RPC를 정리 대상으로 표시
 
@@ -795,7 +800,7 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 
 **목표**
 
-모바일 웹과 Flutter가 같은 사용자 UUID·조직 권한을 사용하되 세션 저장소와 lifecycle은 분리한다. 기존 native session 이전은 REL-001의 사용자 0명 증거와 실제 session 형식 조사 결과에 따라 구현 또는 N/A 처리한다.
+모바일 웹과 Flutter가 같은 사용자 UUID·조직 권한을 사용하되 세션 저장소와 lifecycle은 분리한다. 기존 native session 처리는 REL-001 결정에 따른다. `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`에서는 legacy session을 읽거나 이전하지 않고 최초 TimeFit 로그인을 사용한다.
 
 **적용 저장소/시스템**
 
@@ -813,7 +818,7 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 1. 모바일 웹의 cookie/local storage/session lifecycle과 Flutter secure storage를 별도 namespace로 정의한다. 브라우저 저장소를 앱이 읽거나 복사하지 않는다.
 2. Flutter는 같은 운영 Auth project를 사용하고 로그인 후 서버에서 사용자 UUID·조직 membership·role을 다시 조회한다.
 3. refresh token rotation, revoke, 다중 기기, 비밀번호 변경, 계정 비활성화가 웹과 Flutter에서 일관되게 강제되는지 검증한다.
-4. `NOT_APPLICABLE_ZERO_VERIFIED`이면 DevGym session reader를 구현하지 않고 최초 TimeFit 로그인을 기본으로 한다. 웹 로그인 상태 자동 이전도 약속하지 않는다.
+4. `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`이면 DevGym session reader를 구현하지 않고 최초 TimeFit 로그인을 기본으로 한다. 웹 로그인 상태 자동 이전도 약속하지 않는다. `REQUIRED` no-transfer 경로에서는 원본 세션을 변경·삭제하지 않는다.
 5. `REQUIRED`이고 동일 app sandbox와 issuer/project가 증명된 경우에만 DevGym session reader를 별도 flag로 구현한다. DevGym 계정 체계가 다르면 반드시 재로그인한다.
 6. 구조·issuer·project를 검증하고 서버 refresh 성공 후 현재 사용자와 조직 context를 다시 조회한 뒤에만 Flutter secure storage에 기록한다.
 7. 재로그인 중 pending deep link를 비민감 형태로 보존하고 성공 후 권한 재검증 뒤 이동한다.
@@ -824,7 +829,7 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 - auth/session state machine과 client namespace 문서
 - secure storage adapter
 - reauthentication UX/copy
-- DevGym session migration adapter 또는 REL-001 증거에 연결된 `NOT_APPLICABLE_ZERO_VERIFIED` 기록
+- DevGym session migration adapter, 또는 REL-001 증거에 연결된 `NOT_APPLICABLE_ZERO_VERIFIED`/승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 기록
 - threat model과 test matrix
 
 **수용 기준**
@@ -851,7 +856,7 @@ REL-016은 순서상 R3에 있지만 runbook과 client-scoped Kill Switch는 REL
 
 **롤아웃/롤백**
 
-- 내부 파일럿에서 Flutter 인증 성공률을 먼저 측정한다. `REQUIRED`인 DevGym migration은 별도 cohort에서만 측정한다.
+- 내부 파일럿에서 Flutter 인증 성공률을 먼저 측정한다. 실제 데이터 이전이 승인된 `REQUIRED` migration만 별도 cohort에서 측정하며, `USER_ATTESTED_DO_NOT_MIGRATE` 경로는 fresh-login cohort로 검증한다.
 - 오류율이 기준을 넘으면 native migration flag만 끄고 안전한 재로그인 경로로 전환한다. 모바일 웹 세션과 서버 사용자 데이터는 변경하지 않는다.
 
 ---
@@ -881,14 +886,14 @@ Flutter 전용 로컬 DB·캐시·Outbox를 새로 설계해 중복 전송·계�
 4. process kill, 저장 공간 부족, DB corruption, 계정 전환에서 cache 재초기화와 서버 resync가 가능하게 한다.
 5. pending write는 서버에 idempotency key로 저장 여부를 확인한 뒤에만 재개한다.
 6. 모바일 웹의 IndexedDB/localStorage를 Flutter local DB로 읽거나 공유하지 않는다.
-7. `legacyUserMigrationDecision: REQUIRED`이고 옮길 값이 실제로 확인된 경우에만 언어·테마, 검증 가능한 draft, idempotency key가 있는 pending operation을 후보로 분류한다.
-8. migration은 `migrationKey`, source schema, status, attempt, timestamp, error를 journal에 기록하고 copy→validate→commit으로 처리한다. `NOT_APPLICABLE_ZERO_VERIFIED`이면 migration code를 포함하지 않고 증거 링크만 남긴다.
+7. `legacyUserMigrationDecision: REQUIRED`이고 `legacyUserDataTransferDecision`이 승인된 migration이며 옮길 값이 실제로 확인된 경우에만 언어·테마, 검증 가능한 draft, idempotency key가 있는 pending operation을 후보로 분류한다. `USER_ATTESTED_DO_NOT_MIGRATE`에서는 후보를 만들지 않는다.
+8. 승인된 migration은 `migrationKey`, source schema, status, attempt, timestamp, error를 journal에 기록하고 copy→validate→commit으로 처리한다. `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`이면 migration code를 포함하지 않고 증거 링크, 원본 보존과 새 namespace 검증만 남긴다.
 
 **산출물**
 
 - versioned Flutter local schema, namespace, retention policy
 - outbox state machine과 recovery policy
-- DevGym migration journal/reader 또는 `NOT_APPLICABLE_ZERO_VERIFIED` 기록
+- DevGym migration journal/reader, 또는 `NOT_APPLICABLE_ZERO_VERIFIED`/승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 기록
 - server reconciliation endpoint/test
 - cleanup policy
 
@@ -897,7 +902,7 @@ Flutter 전용 로컬 DB·캐시·Outbox를 새로 설계해 중복 전송·계�
 - clean install에서 웹 또는 다른 환경의 로컬 데이터가 섞이지 않는다.
 - 메시지/업무 작업의 중복 서버 저장과 확인된 유실이 0건이다.
 - outbox 처리 중 강제 종료 후 재실행해도 같은 결과가 나온다.
-- `REQUIRED`로 승인된 migration만 앱 삭제 없는 업데이트에서 allowlist 값을 보존하며, N/A인 경우 legacy 값에 의존하지 않는다.
+- 실제 데이터 이전이 승인된 `REQUIRED` migration만 앱 삭제 없는 업데이트에서 allowlist 값을 복사한다. `NOT_APPLICABLE_ZERO_VERIFIED`와 `USER_ATTESTED_DO_NOT_MIGRATE`에서는 legacy 값에 의존하거나 복사하지 않는다.
 - 계정 전환 후 이전 계정 cache가 보이지 않는다.
 
 **검증/증거**
@@ -918,7 +923,7 @@ Flutter 전용 로컬 DB·캐시·Outbox를 새로 설계해 중복 전송·계�
 
 **롤아웃/롤백**
 
-- Flutter cache/outbox는 내부 cohort부터 활성화하고 `REQUIRED`인 DevGym migration reader는 별도 flag로 제한한다.
+- Flutter cache/outbox는 내부 cohort부터 활성화하고 실제 데이터 이전이 승인된 DevGym migration reader만 별도 flag로 제한한다. `USER_ATTESTED_DO_NOT_MIGRATE` 빌드에는 reader를 포함하지 않는다.
 - 이상 시 Flutter cache를 폐기하고 서버에서 재동기화하며 DevGym 원본이 있으면 보존한다. 모바일 웹 로컬 상태는 건드리지 않는다.
 
 ---
@@ -951,7 +956,7 @@ Flutter 네이티브 push를 모바일 웹/Web Push와 독립 등록하고 알�
 6. 모바일 웹과 Flutter가 이해하는 payload 범위가 다르면 client_type/generation별 payload를 생성한다. legacy push payload는 REL-001에서 실제 활성 installation이 확인된 경우에만 호환한다.
 7. 기존 알림 권한을 무조건 다시 요청하지 않고 OS 상태를 먼저 읽는다. DevGym record 재사용이어도 기능·목적이 달라진 TimeFit 알림의 사용자 안내와 동의 요구사항을 제품·법무 검토에 따른다.
 8. 웹 push subscription과 native device token은 서로 다른 installation record로 저장하고 한쪽 revoke가 다른 쪽을 삭제하지 않게 한다.
-9. `NOT_APPLICABLE_ZERO_VERIFIED`이면 legacy token import/발송 코드를 만들지 않고 TimeFit 로그인·권한 안내 후 현재 설치에서 받은 token만 새 installation으로 등록한다. `REQUIRED`이면 기존 token을 자동 승계하지 않고 승인된 재동의·재등록 절차를 따른다.
+9. `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`이면 legacy token import/발송 코드를 만들지 않고 TimeFit 로그인·권한 안내 후 현재 설치에서 받은 token만 새 installation으로 등록한다. 그 밖의 `REQUIRED` 상태에서도 기존 token을 자동 승계하지 않고 승인된 재동의·재등록 절차를 따른다.
 
 **산출물**
 
@@ -1119,7 +1124,7 @@ Flutter 네이티브 push를 모바일 웹/Web Push와 독립 등록하고 알�
 
 **목표**
 
-기존 Android `데브짐-매니저`와 iOS `데브짐` listing을 TimeFit으로 전환하고, metadata·개인정보·심사 자료를 Flutter 실제 동작과 사용자 0명 증거에 맞춘다.
+기존 Android `데브짐-매니저`와 iOS `데브짐` listing을 TimeFit으로 전환하고, metadata·개인정보·심사 자료를 Flutter 실제 동작과 REL-001의 실제 population evidence 및 승인된 사용자 처리 계획에 맞춘다.
 
 **적용 저장소/시스템**
 
@@ -1136,12 +1141,12 @@ Flutter 네이티브 push를 모바일 웹/Web Push와 독립 등록하고 알�
 **작업**
 
 1. 기존 두 record에서 이름, 설명, 카테고리, 아이콘, 스크린샷, 지원 URL, version metadata를 TimeFit 실제 기능에 맞춰 작성한다. 신규 record는 만들지 않는다.
-2. DevGym→TimeFit의 기능·브랜드·대상 사용자 변경, 사용자 0명 evidence 기준 시각, 데이터/계정 migration decision과 사전 검토 결과를 심사 노트에 명시한다. 단순 “Flutter 재구현”으로 축소 설명하지 않는다.
+2. DevGym→TimeFit의 기능·브랜드·대상 사용자 변경, 실제 population evidence의 기준 시각·범위, 데이터/계정 migration 및 data-transfer decision과 사전 검토 결과를 심사 노트에 명시한다. 단순 “Flutter 재구현”으로 축소 설명하지 않는다.
 3. 개인정보처리방침, 이용약관, 고객지원, 계정 삭제 경로를 실기기에서 검증한다.
 4. App Privacy/Data Safety 신고를 실제 SDK, 로그, push, 파일/카메라 사용과 맞춘다.
 5. iOS Privacy Manifest와 third-party SDK manifest를 검토한다.
 6. 권한은 실제 기능 사용 시점에만 요청하고 purpose string을 정확히 쓴다.
-7. REL-001이 `REQUIRED`인 경우에만 재로그인이나 기존 사용자 조치를 릴리스 노트·사전 공지·앱 내 안내에 명시한다. `NOT_APPLICABLE_ZERO_VERIFIED`이면 공지 N/A 근거를 review packet에 포함한다.
+7. REL-001이 `REQUIRED`이면 승인된 계획에 따라 재로그인, no-transfer, 원본 보존과 지원 경로를 릴리스 노트·사전 공지·앱 내 안내에 명시한다. `NOT_APPLICABLE_ZERO_VERIFIED`이면 공지 N/A 근거를 review packet에 포함한다.
 8. PWA 및 구현되지 않은 AI/AX 기능을 설명·스크린샷·키워드에 넣지 않는다.
 
 **산출물**
@@ -1207,7 +1212,7 @@ TimeFit Flutter 앱의 clean-install 전체 경로와 모바일 웹 병렬 사�
 4. 최소/최신 iOS, 최소/최신 Android, 저사양 Android에서 반복한다.
 5. 유효/만료 세션, 알림 허용/거부, Wi-Fi↔LTE, network loss, 저장 공간 부족, process kill을 시험한다.
 6. 두 플랫폼의 DevGym 스토어 설치본을 삭제하지 않고 Flutter candidate로 업데이트해 package/Bundle ID, 서명, version, startup, 최초 TimeFit 로그인, 알림, 링크를 확인한다.
-7. `legacyUserMigrationDecision: REQUIRED`이면 로그인·설정·push token·pending state를 포함한 fixture로 승인된 migration을 검증한다. `NOT_APPLICABLE_ZERO_VERIFIED`이면 빈 legacy sandbox와 최소 설정값에서 update 후 crash·오인식이 없고 최초 로그인이 표시되는지만 검증한다.
+7. `legacyUserMigrationDecision: REQUIRED`이면 승인된 처리 계획의 fixture를 검증한다. `USER_ATTESTED_DO_NOT_MIGRATE`이면 legacy 로그인·설정·push token·pending state를 읽거나 옮기지 않고 원본을 보존하며 최초 로그인과 새 namespace가 표시되는지 확인한다. `NOT_APPLICABLE_ZERO_VERIFIED`이면 빈 legacy sandbox와 최소 설정값에서 같은 무이전 동작을 검증한다.
 8. client-scoped read-only/maintenance/Kill Switch에서 웹과 Flutter의 독립 안전 동작을 검증한다.
 
 **산출물**
@@ -1234,7 +1239,7 @@ TimeFit Flutter 앱의 clean-install 전체 경로와 모바일 웹 병렬 사�
 **금지 작업**
 
 - 실패한 upgrade를 clean install 성공으로 대체
-- `NOT_APPLICABLE_ZERO_VERIFIED`인데 근거 없이 legacy migration 코드를 추가
+- `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`인데 근거 없이 legacy migration 코드를 추가
 - 실제 운영 고객 계정으로 파괴적 테스트
 - blocker를 알려진 제한사항으로만 남기고 출시 승인
 - production DB 직접 수정으로 테스트 결과 보정
@@ -1336,7 +1341,7 @@ client_type·release mode·version별 품질과 데이터 무결성을 측정해
 5. 스토어가 원하는 비율 제어를 제공하지 않으면 binary 배포와 server cohort flag를 결합한다.
 6. 승인자, 지표 snapshot, 결정 시각, 다음 단계 조건을 release log에 기록한다.
 7. 네이티브 100% 뒤 최소 7일 집중 관찰하되 모바일 웹 개발·배포 종료로 해석하지 않는다.
-8. `legacyUserMigrationDecision: NOT_APPLICABLE_ZERO_VERIFIED`이면 기존 사용자 공지 gate를 N/A 처리하되 production 전환 직전 REL-001과 같은 조회 범위와 단일 `as_of`로 스토어 설치·활성 기기, backend installation·push token, 활성 구독·IAP가 모두 0인지 다시 확인한다. 하나라도 0이 아니거나 조회할 수 없으면 즉시 중단하고 REL-001/003을 다시 연다.
+8. production 전환 직전 REL-001과 같은 조회 범위와 단일 `as_of`로 스토어 설치·활성 기기, backend installation·push token, 활성 구독·IAP를 다시 확인한다. `NOT_APPLICABLE_ZERO_VERIFIED` 경로에서 하나라도 0이 아니거나 조회할 수 없으면 즉시 중단하고 REL-001/003을 다시 연다. 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로에서는 새 관측값을 기존 사용자 영향·지원·보존·복구 계획과 다시 대조하고 승인 범위를 벗어나면 rollout을 중단한다.
 9. 신규 설치가 발생하기 시작하면 acquisition, activation, login, crash, 지원 문의를 플랫폼별로 관찰하고 다음 단계 승인에 포함한다.
 
 **산출물**
@@ -1608,7 +1613,7 @@ client_type·release mode·version별 품질과 데이터 무결성을 측정해
 | --- | --- | --- | --- | --- |
 | 선택된 store target/ID를 잘못 적용 | 오배포 또는 업로드 실패 | manifest/console/artifact 불일치 | REL-003 결정, REL-017 2인 대조, CI allowlist | 불일치 1건 |
 | DevGym→TimeFit 제품 전환 심사·신뢰 위험 | 심사 거절, 사용자 혼란, 법무/지원 이슈 | 사전 검토 미승인, 문의·리뷰 증가 | 정확한 변경 공개, 기술/제품·정책 이중 Gate, 0명 evidence | Product/Policy Gate No-Go 또는 승인 철회 |
-| 사용자 0명 오판 | 숨은 설치·구독자의 데이터/권리 침해 | store/backend/IAP 지표 불일치 | 동일 기준 시각 export와 reconciliation, production 직전 재확인 | 1명/1건 이상 발견 또는 조회 불능 |
+| legacy population·처리 계획 오판 | 숨은 설치·구독자의 데이터/권리 침해 | store/backend/IAP 지표 불일치 또는 승인 범위 밖 사용자 발견 | 동일 기준 시각 export와 reconciliation, `USER_ATTESTED`와 독립 증거 구분, production 직전 재확인 | 처리 계획 미승인, consent/지원 범위 불일치 또는 조회 불능 |
 | Android signing key 부재 | DevGym 재사용 불가 | 테스트 트랙 서명 거부 | 공식 키 복구 절차와 소유자 escalation | 기술 연속성 미증명 |
 | iOS entitlement drift | update에서 세션·푸시·링크 단절 | Keychain/APNs/Universal Link 실패 | DevGym binary entitlement diff와 update E2E | Critical capability 실패 |
 | legacy local migration 오류 | `REQUIRED` cohort의 유실·중복·crash loop | migration 실패율 상승 | 0명 증명 시 N/A; 필요 시 copy-on-write/journal | 실패율 > 0.5% 또는 유실 1건 |
@@ -1639,4 +1644,4 @@ client_type·release mode·version별 품질과 데이터 무결성을 측정해
 
 ## 13. 최종 승인 문구
 
-> TimeFit Flutter iOS/Android 앱은 비공개 `timefit-mobile` 저장소에서 독립 개발한다. 기존 `time_fit` 저장소는 계속 개발·배포되는 모바일 웹앱과 Supabase·서버 계약의 canonical source로 유지하며, 웹과 Flutter는 같은 계정·데이터를 쓰는 병렬 클라이언트다. Flutter는 PWA를 구현하지 않지만 기존 모바일 웹/PWA를 대체·중단·종료하지 않는다. 네이티브 출시는 Android `데브짐-매니저`와 iOS `데브짐`의 기존 배포 record를 업데이트하는 경로로 확정한다. 두 record의 정확한 ID·서명 계보·entitlement·상향 version/build, 제품·법무·스토어 정책·metadata Gate가 모두 Go일 때만 제출한다. 현재 기존 사용자는 0명이라는 제품 책임자 정보를 REL-001에서 스토어 활성 설치/기기, backend installation/push token, 활성 구독/IAP의 같은 기준 시점 증거로 확인하며, 모두 0일 때만 세션·로컬 데이터·push·결제 migration 구현을 `NOT_APPLICABLE_ZERO_VERIFIED`로 처리한다. 새 Git 저장소 사용은 동일 store record 업데이트를 방해하지 않는다. REL-003에서 제출 가능성을 승인하고 REL-017에서 기존 target만 잠근다. 현재 저장소의 `com.example.*` 값과 문서상 `com.timefit.app` 계획값은 production identity의 증거가 아니다. AI/AX는 이번 Flutter 릴리스 범위에서 제외한다.
+> TimeFit Flutter iOS/Android 앱은 비공개 `timefit-mobile` 저장소에서 독립 개발한다. 기존 `time_fit` 저장소는 계속 개발·배포되는 모바일 웹앱과 Supabase·서버 계약의 canonical source로 유지하며, 웹과 Flutter는 같은 계정·데이터를 쓰는 병렬 클라이언트다. Flutter는 PWA를 구현하지 않지만 기존 모바일 웹/PWA를 대체·중단·종료하지 않는다. 네이티브 출시는 Android `데브짐-매니저`와 iOS `데브짐`의 기존 배포 record를 업데이트하는 경로로 확정한다. 두 record의 정확한 ID·서명 계보·entitlement·상향 version/build, 제품·법무·스토어 정책·metadata Gate가 모두 Go일 때만 제출한다. REL-001의 현재 비식별 관측은 zero-user를 증명하지 않으므로 `legacyUserMigrationDecision=REQUIRED`를 유지한다. 기존 사용자 전원 동의와 데이터 미이전 결정은 `USER_ATTESTED_DO_NOT_MIGRATE`로 구분하며, 승인된 실행 계획은 legacy 데이터를 TimeFit으로 가져오지 않고 원본을 보존하고 fresh login, 새 local namespace와 신규 push 동의·등록을 사용한다. 이 결정은 consent 원본 검증, 데이터 삭제, 서비스 종료, 결제/IAP 부재 또는 출시 승인이 아니다. 새 Git 저장소 사용은 동일 store record 업데이트를 방해하지 않는다. REL-003에서 제출 가능성을 승인하고 REL-017에서 기존 target만 잠근다. 현재 저장소의 `com.example.*` 값과 문서상 `com.timefit.app` 계획값은 production identity의 증거가 아니다. AI/AX는 이번 Flutter 릴리스 범위에서 제외한다.

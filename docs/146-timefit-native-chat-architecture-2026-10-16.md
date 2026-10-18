@@ -2,6 +2,7 @@
 
 - 문서 상태: 구현 기준안 v1.2
 - 기준일: 2026-10-16
+- 기준선 개정: 2026-10-18 — REL-001 관측과 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 경로 반영(검토 중)
 - 대상 클라이언트: Flutter 기반 iOS·Android 네이티브 앱
 - Flutter 앱 저장소: `timefit-mobile`
 - 모바일 웹·공유 백엔드 저장소: `time_fit`
@@ -10,7 +11,7 @@
 - 개발 방식: 기존 모바일 웹과 신규 Flutter 앱을 서로 중단시키지 않는 병렬 개발·독립 배포
 - 스토어 릴리스 모드: `REUSE_DEVGYM_RECORD` 확정
 - 재사용 대상: Android `데브짐-매니저`, iOS `데브짐` 기존 스토어 레코드
-- 기존 사용자 이전 판정: 제품 책임자 제공 정보는 0명이나, REL-001의 동일 `as_of` 증거가 모두 0일 때만 `legacyUserMigrationDecision=NOT_APPLICABLE_ZERO_VERIFIED`
+- 기존 사용자 이전 판정: 현재 비식별 관측은 nonzero이므로 `legacyUserMigrationDecision=REQUIRED`; 사용자 확정 데이터 미이전 결정은 `legacyUserDataTransferDecision=USER_ATTESTED_DO_NOT_MIGRATE`로 별도 관리
 
 ## 1. 문서의 목적과 강제 수준
 
@@ -90,15 +91,20 @@
 4. 서명 비밀·키·프로비전닝 비밀은 Git에 커밋하지 않고 승인된 CI secret 저장소에만 둔다. 식별자, 스토어 레코드, 소유권, 서명 fingerprint, 버전 기준의 비밀이 아닌 매핑은 `timefit-mobile/docs/release/store-identity-matrix.md`에 기록한다.
 5. 기술 연속성 증거가 하나라도 누락되면 신규 앱 레코드로 자동 전환하지 않고 production 릴리스를 차단한다. 릴리스 모드 변경은 제품 책임자의 새 결정과 문서 개정 없이 수행하지 않는다.
 
-### 2.5 기존 사용자 0명 주장과 검증 범위
+### 2.5 기존 사용자 population 증거와 처리 경로
 
-현재 기존 사용자는 0명이라는 제품 책임자 제공 정보가 있으나, 이것만으로 migration을 생략하지 않는다. REL-001에서 다음 항목을 **동일한 `as_of`** 와 조회 범위로 추출·대조하고 모두 0임을 증명해야 한다.
+REL-001에서 Android 설치 사용자 `5`, 최근 28일 활성 기기 `1`, iOS TestFlight 비영 지표, backend `public.users` `337`행과 `auth.users` `40`계정을 관측했다. source별 기준 시각·범위가 달라 이 숫자를 같은 사람 수, 활성 사용자 수 또는 삭제 대상으로 환산하지 않지만, zero-user를 증명하지도 않는다. 따라서 현재 `legacyUserMigrationDecision`은 `REQUIRED`다. 다음 항목은 release 직전에도 **동일한 `as_of`** 와 조회 범위로 추출·대조한다.
 
 - Android·iOS 스토어 설치·활성 기기
 - backend installation·push token
 - 활성 구독·IAP
 
-위 증거가 모두 0이고 승인자가 `legacyUserMigrationDecision=NOT_APPLICABLE_ZERO_VERIFIED`로 기록한 경우에만 다음을 `N/A`로 처리하고 구현하지 않는다. 하나라도 0이 아니거나 조회할 수 없거나 기준 시점·범위가 일치하지 않으면 `PENDING` 또는 `REQUIRED`로 두고 승인된 별도 migration 계획 없이 production 릴리스를 진행하지 않는다.
+처리 경로는 다음과 같다.
+
+1. 위 증거가 모두 0이고 승인자가 `legacyUserMigrationDecision=NOT_APPLICABLE_ZERO_VERIFIED`로 기록하면 아래 legacy migration 항목을 `N/A`로 처리한다.
+2. 하나라도 0이 아니거나 조회할 수 없거나 기준 시점·범위가 일치하지 않으면 `PENDING` 또는 `REQUIRED`다. 사용자가 기존 사용자 전원 동의와 데이터 미이전을 확정한 현재 결정은 `legacyUserDataTransferDecision=USER_ATTESTED_DO_NOT_MIGRATE`로 기록한다. 이 결정은 consent 원본·대상·고지 내용의 독립 검증, 데이터 삭제, 서비스 종료, 구독 해지 또는 결제/IAP 부재를 뜻하지 않는다.
+3. `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 실행 계획이 승인되면 아래 legacy 자료를 읽거나 TimeFit으로 이전하지 않고 원본을 보존한다. 앱은 fresh login, 새 Drift namespace, 신규 push 동의·token 등록을 사용한다. no-transfer inventory, 고객지원, 개인정보·법무·보존·복구 계획과 consent 원본 미검증 상태를 release evidence에 남긴다.
+4. 승인되지 않은 `PENDING` 또는 `REQUIRED` 상태에서는 production 릴리스를 진행하지 않는다.
 
 - 이전 DevGym 로컬 DB에서 TimeFit Drift schema로의 데이터 이관
 - 이전 DevGym 로그인 세션·Keychain·Keystore 재사용
@@ -106,7 +112,7 @@
 - 이전 앱 설정·캐시·기능 상태를 보존하는 호환 코드
 - 이전 DevGym 구독·IAP entitlement 이관
 
-다만 스토어 레코드 업데이트 가능성은 데이터 이관과 별개다. `NOT_APPLICABLE_ZERO_VERIFIED`여도 릴리스 전에 각 플랫폼에서 (a) 실제 기존 store build 위에 앱을 삭제하지 않고 신규 Flutter RC를 설치하는 update smoke와 (b) 앱을 삭제한 후 신규 설치하는 clean-install smoke를 모두 수행한다. update smoke는 `N/A`로 처리하거나 clean-install 결과로 대체할 수 없다. N/A 경로의 업데이트 후에는 정상 부트, 새 TimeFit 로그인, 새 Drift schema 초기화, 신규 push token 동의·등록, 딥링크와 핵심 채팅 smoke를 검증한다.
+다만 스토어 레코드 업데이트 가능성은 데이터 이관과 별개다. `NOT_APPLICABLE_ZERO_VERIFIED`와 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 모두 릴리스 전에 각 플랫폼에서 (a) 실제 기존 store build 위에 앱을 삭제하지 않고 신규 Flutter RC를 설치하는 update smoke와 (b) 앱을 삭제한 후 신규 설치하는 clean-install smoke를 수행한다. update smoke는 `N/A`로 처리하거나 clean-install 결과로 대체할 수 없다. 업데이트 후 정상 부트, 새 TimeFit 로그인, 새 Drift schema 초기화, legacy reader/import 부재, 신규 push token 동의·등록, 딥링크와 핵심 채팅 smoke를 검증한다.
 
 ### 2.6 앱 기능 아키텍처와 릴리스 정체성의 분리
 
@@ -1140,8 +1146,8 @@ message DB commit
 - Android AAB의 application ID·signing certificate fingerprint·versionCode를 `store-identity-matrix.md`와 비교하고 하나라도 다르면 제출을 실패시킨다.
 - iOS archive의 Bundle ID·Team ID·entitlement·version·build를 `store-identity-matrix.md`와 비교하고 하나라도 다르면 upload을 실패시킨다.
 - 실제 스토어 레코드와 연결된 internal/TestFlight processing 완료 링크를 증거로 보관한다. 로컬 archive 성공만으로 업데이트 가능성을 판정하지 않는다.
-- REL-001의 동일 `as_of` 기준 스토어 설치·활성 기기, backend installation·push token, 활성 구독·IAP가 모두 0인 증거와 `legacyUserMigrationDecision=NOT_APPLICABLE_ZERO_VERIFIED` 승인 기록을 보관한다.
-- `NOT_APPLICABLE_ZERO_VERIFIED`여도 양 플랫폼 실제 기존 store build→Flutter RC 무삭제 update smoke를 필수로 실행하며 `N/A` 또는 clean-install 결과로 대체하지 않는다.
+- REL-001의 동일 `as_of` 기준 스토어 설치·활성 기기, backend installation·push token, 활성 구독·IAP evidence와 승인된 처리 경로를 보관한다. 허용 경로는 `NOT_APPLICABLE_ZERO_VERIFIED` 또는 승인된 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE`다.
+- 두 허용 경로 모두 양 플랫폼 실제 기존 store build→Flutter RC 무삭제 update smoke를 필수로 실행하며 `N/A` 또는 clean-install 결과로 대체하지 않는다.
 - 신규 스토어 레코드로 업로드되거나 새 package·Bundle ID가 발견되면 릴리스 실패로 처리한다.
 
 ## 23. 구현 완료 게이트
@@ -1149,7 +1155,7 @@ message DB commit
 ### Gate A — 기반
 
 - 릴리스 모드는 `REUSE_DEVGYM_RECORD`로 고정하고 `REL-001`에서 Android `데브짐-매니저`·iOS `데브짐` production identity의 실제 증거를 보관한다.
-- REL-001의 동일 `as_of` 기준 스토어 설치·활성 기기, backend installation·push token, 활성 구독·IAP가 모두 0임을 확인하고 `legacyUserMigrationDecision=NOT_APPLICABLE_ZERO_VERIFIED`인 경우에만 legacy local/session/push/settings/IAP migration을 `N/A`로 승인한다.
+- REL-001의 동일 `as_of` evidence가 모두 0이면 `NOT_APPLICABLE_ZERO_VERIFIED`로 legacy local/session/push/settings/IAP migration을 `N/A` 승인한다. nonzero인 현재 경로는 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 실행 계획이 승인된 경우에만 legacy reader/import 없이 fresh login·새 namespace·신규 push 동의로 진행한다.
 - 양 플랫폼 실제 기존 store build→Flutter RC 무삭제 update smoke는 migration 판정과 무관하게 필수이며 `N/A`로 대체하지 않는다.
 - `timefit-mobile`이 iOS·Android에서 환경별 Supabase Auth에 연결된다.
 - Drift migration, Riverpod DI, router, crash-safe bootstrap이 통과한다.
