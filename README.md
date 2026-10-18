@@ -28,19 +28,30 @@ Flutter 3.38.5와 Dart 3.10.4로 생성한 iOS/Android 최소 bootstrap이 있�
 
 ## 로컬 실행과 검증
 
-```bash
-flutter pub get
-flutter analyze
-flutter test
+깨끗한 checkout에서 [FVM](https://fvm.app/)을 준비한 뒤 저장소가 고정한 Flutter SDK와 lockfile을 사용합니다. `fvm use`는 `.fvmrc`의 `3.38.5`를 유지해야 하며 다른 Flutter 버전으로 갱신하지 않습니다.
 
-# Android
-flutter run --flavor dev -t lib/main.dart
-flutter run --flavor staging -t lib/main_staging.dart
+```bash
+git clone https://github.com/sh414lim/timefit-ax_agent.git
+cd timefit-ax_agent
+fvm install 3.38.5
+fvm use 3.38.5 --force
+fvm flutter --version
+fvm flutter pub get --enforce-lockfile
+fvm dart format --output=none --set-exit-if-changed lib test
+fvm flutter analyze --fatal-infos --fatal-warnings
+fvm flutter test --reporter expanded
+bash scripts/ci/verify_bootstrap_boundaries.sh
+
+# Android 비서명 debug smoke
+fvm flutter build apk --debug --no-pub --flavor dev --target lib/main.dart
+fvm flutter build apk --debug --no-pub --flavor staging --target lib/main_staging.dart
 
 # iOS 서명 없는 build smoke
-flutter build ios --debug --no-codesign --flavor dev -t lib/main.dart
-flutter build ios --debug --no-codesign --flavor staging -t lib/main_staging.dart
+fvm flutter build ios --debug --no-codesign --no-pub --flavor dev --target lib/main.dart
+fvm flutter build ios --debug --no-codesign --no-pub --flavor staging --target lib/main_staging.dart
 ```
+
+`fvm flutter --version`은 Flutter `3.38.5`, Dart `3.10.4`를 출력해야 합니다. `pubspec.yaml`의 직접 dependency는 exact version만 허용하며, `pubspec.lock`이 바뀌면 명세와 함께 검토합니다.
 
 production identifier나 signing credential을 로컬 파일에 입력하지 않습니다. Apple·Android production 설정은 REL-001/003 승인 후 별도 변경으로 적용합니다.
 

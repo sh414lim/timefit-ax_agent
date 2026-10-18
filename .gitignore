@@ -26,5 +26,6 @@ coverage/
 build/
 dist/
 .dart_tool/
+.fvm/
 .next/
 node_modules/
