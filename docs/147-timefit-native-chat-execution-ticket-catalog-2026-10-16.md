@@ -105,7 +105,7 @@ dependencies:
   connectivity_plus: 6.1.5
   path_provider: 2.1.5
   path: 1.9.1
-  crypto: 3.0.6
+  crypto: 3.0.7
 
 dev_dependencies:
   build_runner: 2.4.14
