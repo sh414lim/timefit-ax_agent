@@ -91,7 +91,7 @@
 4. 서명 비밀·키·프로비전닝 비밀은 Git에 커밋하지 않고 승인된 CI secret 저장소에만 둔다. 식별자, 스토어 레코드, 소유권, 서명 fingerprint, 버전 기준의 비밀이 아닌 매핑은 `timefit-mobile/docs/release/store-identity-matrix.md`에 기록한다.
 5. 기술 연속성 증거가 하나라도 누락되면 신규 앱 레코드로 자동 전환하지 않고 production 릴리스를 차단한다. 릴리스 모드 변경은 제품 책임자의 새 결정과 문서 개정 없이 수행하지 않는다.
 
-사용자의 2026-10-18 결정에 따라 signing 확인·설정·연속성 판정과 실제 signed update 검증은 `SIGNING_DEFERRED_TO_RELEASE_GATE`로 관리한다. 이는 위 불변조건을 완료·면제하거나 production 제출을 승인하지 않는다. 다만 dev/staging 공개 설정, no-codesign compile, 앱 계층·계약·테스트 구현은 production signing evidence와 분리해 진행할 수 있다. IAP/결제, legacy population·데이터 처리, 실제 provider 권한과 제품·정책 Gate는 그대로 독립 blocker다.
+사용자의 2026-10-18 결정에 따라 signing 확인·설정·연속성 판정과 실제 signed update 검증은 `SIGNING_DEFERRED_TO_RELEASE_GATE`로 관리한다. 이는 위 불변조건을 완료·면제하거나 production 제출을 승인하지 않는다. 첫 비서명 구현은 CHAT-003의 `.fvmrc`, exact dependency·lockfile, README 재현 절차와 Android debug·iOS no-codesign smoke gap을 닫는 범위다. 앱 계층·계약·테스트 후속 카드는 CHAT-003의 수용 증거와 각 카드의 선행조건을 충족한 뒤 진행한다. IAP/결제, legacy population·데이터 처리, 실제 provider 권한과 제품·정책 Gate는 그대로 독립 blocker다.
 
 ### 2.5 기존 사용자 population 증거와 처리 경로
 
@@ -121,7 +121,7 @@ REL-001에서 Android 설치 사용자 `5`, 최근 28일 활성 기기 `1`, iOS 
 `REUSE_DEVGYM_RECORD`는 앱 기능 아키텍처가 아니라 배포 제어면의 설정이다. RPC·PostgreSQL·Private Realtime Broadcast·Drift·Outbox·Storage 계약은 스토어 레코드, 이전 DevGym 코드, 이전 DevGym 데이터에 의존하지 않는다. 이를 보장하기 위해:
 
 - 스토어 identity·signing·metadata 티켓과 채팅 기능·DB·동기화 티켓을 링크만 하고 구현 작업으로 혼합하지 않는다.
-- production identity와 signing 확인 전에도 development·staging에서 기능 아키텍처 구현, no-codesign build와 계약 테스트를 병렬로 진행할 수 있다.
+- production identity와 signing 확인 전에도 CHAT-003의 development·staging bootstrap과 no-codesign build를 진행할 수 있다. 기능 아키텍처·계약 테스트는 CHAT-003 완료 증거와 해당 카드 선행조건을 충족한 뒤 진행한다.
 - production 아카이브·빌드·제출은 스토어 정체성 게이트가 완료될 때까지 차단한다.
 - 스토어 정체성 설정은 백엔드 계약, 데이터 모델, Realtime topic, 메시지 멱등성 규칙을 변경하는 근거가 될 수 없다.
 
@@ -1158,6 +1158,8 @@ message DB commit
 
 - 릴리스 모드는 `REUSE_DEVGYM_RECORD`로 고정하되 production identity·signing 값은 주입하지 않고 fail-closed 상태를 유지한다.
 - 현재 nonzero 관측과 `REQUIRED + USER_ATTESTED_DO_NOT_MIGRATE` 결정을 보존하고, legacy reader/import 없이 fresh login·새 namespace·신규 push 동의를 사용하는 설계 경계를 침범하지 않는다. consent·IAP·데이터 처리의 미완료 상태는 별도 표시한다.
+- 첫 구현 milestone인 CHAT-003에서 `.fvmrc`로 Flutter 3.38.5를 고정하고, 카탈로그의 exact dependency와 `pubspec.lock`, README clean-checkout 절차, Android debug·iOS no-codesign smoke를 함께 검증한다.
+- CHAT-005의 CI 확장과 CHAT-006의 앱 계층·디자인 token은 CHAT-003의 위 수용 증거가 생긴 뒤에만 시작한다.
 - `timefit-mobile`이 secret 없는 dev/staging 설정과 no-codesign 방식으로 iOS·Android에서 환경별 Supabase Auth 경계를 검증한다. 실제 provider 연결은 별도 승인 전까지 수행하지 않는다.
 - Drift migration, Riverpod DI, router, crash-safe bootstrap이 통과한다.
 - Flutter 저장소는 PWA·모바일 웹 코드를 포함하거나 의존하지 않는다.

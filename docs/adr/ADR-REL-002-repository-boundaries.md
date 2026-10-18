@@ -105,7 +105,7 @@ Flutter pipeline은 PWA artifact, WebView wrapper 또는 웹 배포 결과를 �
 
 확인된 로컬 toolchain은 Flutter `3.38.5`, Dart `3.10.4`, Xcode `16.1`, Java `17`이다. 이 버전 표시는 실행 성공 증거가 아니다. Flutter SDK cache 쓰기 제한이 관찰됐으므로 analyze/test/build가 cache write를 요구하면 허용된 승인 절차로 실행하고 SDK 복사, cache 경로 변조 또는 비공식 우회를 사용하지 않는다.
 
-CHAT-006의 카드상 직접 선행은 `CHAT-003`이다. 별도로 모든 CHAT 카드에 적용되는 전역 Gate인 REL-001·REL-002 완료 조건도 충족되지 않았으므로 이 부트스트랩 준비로 CHAT-006이 착수됐다고 간주하지 않는다.
+CHAT-006의 카드상 직접 선행은 `CHAT-003`이다. 현재 scaffold에는 `.fvmrc`, 명세의 exact dependency 집합·lockfile, README clean-checkout 재현 증거가 없으므로 이 부트스트랩 준비로 CHAT-003 완료나 CHAT-006 착수를 간주하지 않는다. 2026-10-18 signing 유예 결정은 먼저 CHAT-003의 비서명 gap만 열며, CHAT-005·CHAT-006은 CHAT-003 수용 증거가 생긴 뒤 각 카드 Gate로 다시 판단한다. 이 순서 변경은 REL-001·REL-002 완료, signing 면제 또는 release `GO`를 뜻하지 않는다.
 
 ### 후속 작업 순서
 

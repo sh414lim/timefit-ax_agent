@@ -155,10 +155,13 @@ revisions:
       product/policy approval and repository governance remain independent.
     signingDecision: SIGNING_DEFERRED_TO_RELEASE_GATE
     developmentStartScope:
-      - dev_staging_no_codesign_builds
-      - static_analysis_and_unit_widget_architecture_tests
-      - mobile_ci_code_and_workflow_validation
-      - app_layer_and_design_token_skeleton
+      - chat_003_fvmrc_flutter_3_38_5_pin
+      - chat_003_exact_spec_dependencies_and_lockfile
+      - chat_003_readme_clean_checkout_reproduction
+      - chat_003_android_debug_and_ios_no_codesign_smoke
+    deferredUntilChat003Evidence:
+      - chat_005_mobile_ci_quality_gate
+      - chat_006_app_layer_and_design_token_skeleton
     signingDeferredItems:
       - signing_lineage_and_upload_owner_verification
       - signed_artifact_promotion
@@ -181,14 +184,18 @@ revisions:
       digestsPreservedUnder: revisions[1].currentRevisionDocuments
     currentRevisionDocuments:
       - path: docs/145-timefit-native-app-repository-migration-plan-2026-10-16.md
-        currentRevisionSha256: c33b2e90f1984e7acb2a4d6cea38f13e76c11caf4b60b17e747e61f4b0371755
+        currentRevisionSha256: ca1f2dd367ffba79513836966b09643ab6167c909fba29d145a0198b8197b8b8
         contentChangedFromOriginalImport: true
       - path: docs/146-timefit-native-chat-architecture-2026-10-16.md
-        currentRevisionSha256: b8bb116434fe149e4214e57d2eca0eaee0e90ec4041d8d6b64dc72d5fc2f89be
+        currentRevisionSha256: 3a209555e28fc5729575e531929bc6beeb1671f39a4998218e6da8e33c1ca946
         contentChangedFromOriginalImport: true
       - path: docs/147-timefit-native-chat-execution-ticket-catalog-2026-10-16.md
-        currentRevisionSha256: e03c7e66491a6e1acc5ff9f3ae9e2afb069c73a2cdcd2069cf8f4a2e6bdb6e9c
+        currentRevisionSha256: daedc39925c91d9b79a3a8a8be8414c22c5ee0cd3fe8ed633a236cb3697ad4c3
         contentChangedFromOriginalImport: true
+    relatedDocumentDigests:
+      - path: docs/adr/ADR-REL-002-repository-boundaries.md
+        currentRevisionSha256: 29335a2fc04235034d69c30b680a1f332f0a7a73b5442022fb41412e0decf367
+        purpose: chat_003_before_chat_005_and_chat_006_consistency
     executionPlanApproval: PENDING
     releaseApprovalGranted: false
     signingCompleted: false

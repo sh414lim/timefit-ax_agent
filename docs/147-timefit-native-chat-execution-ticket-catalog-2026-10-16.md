@@ -35,7 +35,7 @@ production identity·signing credential·Firebase/APNs production 설정·스토
 - IAP/결제, 실제 사용자·데이터 처리, provider/console 권한, 제품·정책 및 repository governance 미완료 상태를 별도 blocker로 유지한다.
 - `time_fit` 변경이 필요한 카드는 공유 백엔드 Gate와 교차 저장소 승인 없이는 착수하지 않는다.
 
-이에 따라 현재 저장소 안에서 직접 이어갈 수 있는 우선 후보는 `CHAT-005`의 코드·workflow 검증 부분과 `CHAT-006`의 앱 계층·디자인 token skeleton이다. required-check 설정, merge와 Done은 독립 review·governance evidence가 생길 때까지 보류한다. `CHAT-001`, `CHAT-002`와 후속 backend 카드는 signing과 무관하더라도 `time_fit` 변경 승인이 별도로 필요하다.
+이에 따라 현재 저장소 안에서 가장 먼저 열리는 범위는 `CHAT-003`의 bootstrap gap이다. 현재 `.fvmrc`가 없고 `pubspec.yaml`은 2.1의 exact dependency 집합을 충족하지 않으므로, `.fvmrc`, 명세 고정 dependency와 lockfile, README clean-checkout 재현 절차, Android debug·iOS no-codesign smoke를 하나의 CHAT-003 작업으로 검증한다. `CHAT-005`와 `CHAT-006`은 CHAT-003의 수용 증거가 생긴 뒤에만 후속 후보가 된다. `CHAT-001`, `CHAT-002`와 후속 backend 카드는 signing과 무관하더라도 `time_fit` 변경 승인이 별도로 필요하다.
 
 production native identity, signing, Firebase/APNs 또는 스토어 artifact를 다루는 `CHAT-004`, `CHAT-060`, `CHAT-076`, `CHAT-077`은 `REL-003`에서 확정된 `REUSE_DEVGYM_RECORD` 대상의 기술·제품·정책 이중 `GO`와 signing 출시 Gate가 승인되기 전까지 계속 `Blocked`다. REL 카드의 내용과 완료 판정은 배포 전환 문서가 원본이며, 다음 값은 비서명 개발 착수값이 아니라 **출시 전 필수값**이다.
 
@@ -433,12 +433,14 @@ flowchart TD
 
 ### CHAT-003 — `timefit-mobile` 저장소와 고정 Flutter toolchain bootstrap
 
-**상태:** Blocked — REL-001, REL-002 및 CHAT-000 필요
+**상태:** 비서명 bootstrap gap 착수 가능 — merge·Done 및 REL/CHAT 전체 완료는 별도
 **예상:** 2일
 **대상 저장소:** `timefit-mobile`
-**선행:** CHAT-000
+**선행:** 1장의 비서명 개발 착수 Gate와 현재 저장소 경계. CHAT-000의 production identity/signing 최종 동결은 출시 전 별도
 
 **목표:** Flutter 3.38.5/Dart 3.10.4와 고정 dependency로 재현 가능한 새 앱 기반을 만든다.
+
+현재 최소 scaffold·dev/staging smoke가 존재해도 CHAT-003은 완료되지 않았다. `.fvmrc`, 2.1의 exact dependency 집합과 갱신된 lockfile, README clean-checkout 재현 명령·결과가 모두 없으면 후속 카드의 선행조건으로 사용할 수 없다. signing·provider production 설정과 실제 update 검증은 이 카드 범위가 아니다.
 
 **대상 경로:**
 
@@ -531,7 +533,7 @@ flowchart TD
 
 ### CHAT-005 — 모바일 CI 품질 Gate
 
-**상태:** 비서명 코드 작업 후보 — feature branch/Draft PR 가능; required-check 설정·merge·Done은 governance evidence 대기
+**상태:** Blocked — CHAT-003의 `.fvmrc`·exact dependency/lockfile·재현 smoke 증거 필요; signing 자체는 선행 아님
 **예상:** 2일
 **대상 저장소:** `timefit-mobile`
 **선행:** CHAT-003
@@ -573,7 +575,7 @@ flowchart TD
 
 ### CHAT-006 — 앱 레이어 skeleton과 공통 디자인 token
 
-**상태:** 비서명 코드 작업 후보 — feature branch/Draft PR 가능; merge·Done은 CHAT-000 승인과 governance evidence 대기
+**상태:** Blocked — CHAT-003의 `.fvmrc`·exact dependency/lockfile·재현 smoke 증거 필요; signing 자체는 선행 아님
 **예상:** 3일
 **대상 저장소:** `timefit-mobile`
 **선행:** CHAT-003

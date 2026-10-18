@@ -11,7 +11,7 @@
 > Flutter iOS/Android 앱은 기존 웹·백엔드와 분리된 public **`sh414lim/timefit-ax_agent`** 저장소(계획 문서 별칭 `timefit-mobile`)에서 개발한다. 사용자는 추적된 내부 문서와 기존 Git 이력이 인터넷에 공개될 수 있음을 확인하고 public 전환을 승인했으며, Release 세션은 2026-10-18T04:27:38Z에 실제 visibility와 익명 read를 확인했다. 현재 **`time_fit`** 저장소는 계속 개발·배포되는 모바일 웹앱과 Supabase 데이터베이스, RLS, RPC, Edge Functions, Realtime, Storage, 알림 발송을 포함한 **공유 백엔드의 유일한 원본(canonical source)** 으로 유지한다. 모바일 웹과 Flutter 앱은 서로를 대체하지 않고 같은 제품·계정·데이터를 사용하는 독립 클라이언트로 병렬 운영한다. Flutter 앱의 PWA 구현은 본 계획 범위 밖이지만 기존 모바일 웹/PWA 트랙의 개발·배포를 중단하거나 종료하지 않는다. 네이티브 출시는 Android **`데브짐-매니저`**, iOS **`데브짐`** 의 **기존 배포 레코드를 업데이트하는 경로로 확정**한다. 별도 Git 저장소 사용 여부와 스토어 업데이트 가능 여부는 독립적이며, 기존 application ID/Bundle ID·서명 계보·스토어 레코드·상향 version/build를 보존하면 `timefit-ax_agent`에서 만든 바이너리도 같은 레코드에 제출할 수 있다. REL-001에서 Android 설치 사용자 `5`, 최근 28일 활성 기기 `1`, iOS TestFlight 비영(非零) 지표, backend `public.users` `337`행과 `auth.users` `40`계정을 서로 다른 기준 시각으로 관측했으므로 사용자 0명으로 간주하지 않는다. `legacyUserMigrationDecision=REQUIRED`를 유지하되, 사용자가 기존 사용자 전원 동의와 기존 사용자 데이터 미이전을 확정한 결정은 `legacyUserDataTransferDecision=USER_ATTESTED_DO_NOT_MIGRATE`로 별도 기록한다. 이는 consent 원본 검증, 데이터 삭제, 서비스 종료, 구독 해지 또는 출시 승인이 아니다. AI/AX 기능은 본 계획에서 제외한다.
 
 > **Production signing 유예 결정 — 2026-10-18**
-> 사용자는 앱 서명 확인·설정·서명 연속성 및 실제 signed update 검증을 앱 출시 준비 시점으로 유예하고, 그 밖의 작업을 진행하기로 결정했다. 이 상태는 `SIGNING_DEFERRED_TO_RELEASE_GATE`이며 완료·면제·기술 `GO`·배포 승인이 아니다. production identity/signing 주입, signed artifact promotion, TestFlight·스토어 업로드와 기존 설치본 위 signed update smoke는 REL-003·REL-011·REL-013·REL-017의 출시 전 필수 Gate로 남긴다. secret 없는 dev/staging·no-codesign 빌드, 앱 구조·테스트·계약 구현은 별도 개발 착수 Gate로 분리할 수 있지만, IAP/결제, 사용자·데이터 처리, 실제 콘솔 권한, 제품·정책 승인과 저장소 거버넌스 조건은 이 결정으로 제거하지 않는다.
+> 사용자는 앱 서명 확인·설정·서명 연속성 및 실제 signed update 검증을 앱 출시 준비 시점으로 유예하고, 그 밖의 작업을 진행하기로 결정했다. 이 상태는 `SIGNING_DEFERRED_TO_RELEASE_GATE`이며 완료·면제·기술 `GO`·배포 승인이 아니다. production identity/signing 주입, signed artifact promotion, TestFlight·스토어 업로드와 기존 설치본 위 signed update smoke는 REL-003·REL-011·REL-013·REL-017의 출시 전 필수 Gate로 남긴다. 첫 비서명 개발 범위는 CHAT-003의 재현 가능한 bootstrap gap으로 한정하며, CHAT-005·CHAT-006은 CHAT-003의 명시된 선행조건과 증거를 충족한 뒤에만 착수한다. IAP/결제, 사용자·데이터 처리, 실제 콘솔 권한, 제품·정책 승인과 저장소 거버넌스 조건은 이 결정으로 제거하지 않는다.
 
 ---
 
@@ -286,7 +286,8 @@ shared:
 
 `SIGNING_DEFERRED_TO_RELEASE_GATE`는 signing 관련 작업의 시점만 바꾼다.
 
-- **개발 착수 가능 범위:** production identity·signing credential·provider production 설정을 사용하지 않는 dev/staging 코드, no-codesign 빌드, 정적 분석·unit/widget/architecture test, 공개 fixture와 계약 검증.
+- **첫 개발 착수 범위:** CHAT-003의 누락된 `.fvmrc`, 명세의 exact dependency와 lockfile, README clean-checkout 재현 절차, Android debug·iOS `--no-codesign` smoke를 완성한다. production identity·signing credential·provider production 설정은 사용하지 않는다.
+- **후속 비서명 범위:** CHAT-005·CHAT-006은 CHAT-003의 위 산출물과 수용 증거가 충족된 뒤 각 카드의 선행조건에 따라 별도 feature branch/Draft PR로 진행한다. signing 유예만으로 두 카드를 즉시 착수하거나 완료로 간주하지 않는다.
 - **signing 유예 범위:** certificate/profile/upload key 생성·연결·교체, signing lineage 판정, signed artifact promotion, TestFlight·스토어 업로드, 기존 store build 위 signed update smoke.
 - **계속 진행할 비서명 정체성 작업:** store record·application ID·Bundle ID·version/build·소유권의 read-only inventory와 비밀이 아닌 manifest 필드 검토. 이를 production project에 주입하거나 승인된 최종 manifest로 표시하지 않는다.
 - **별도 미완료 조건:** IAP/결제·entitlement evidence, legacy population과 실제 데이터 처리 승인, 실제 콘솔·provider 권한, 제품·법무·스토어 정책, branch protection·독립 review와 owner 지정은 signing 유예로 충족되거나 면제되지 않는다.
