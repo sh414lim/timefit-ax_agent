@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -55,6 +56,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+
+      expect(find.text('앱을 시작하지 못했습니다'), findsOneWidget);
+      expect(find.text('네트워크 상태를 확인한 뒤 잠시 후 다시 시도해 주세요.'), findsOneWidget);
+      expect(find.text('다시 시도'), findsOneWidget);
+      _installTextRasterizationComparator(tester);
 
       await expectLater(
         find.byType(BootstrapFailureScreen),
@@ -157,4 +163,100 @@ ThemeData _withGoldenFont(ThemeData theme) {
       fontFamily: _goldenFontFamily,
     ),
   );
+}
+
+void _installTextRasterizationComparator(WidgetTester tester) {
+  final GoldenFileComparator previousComparator = goldenFileComparator;
+  goldenFileComparator = _TextRasterizationComparator(
+    Uri.parse('test/app/theme/app_theme_test.dart'),
+    textRegions: <Rect>[
+      tester.getRect(find.text('앱을 시작하지 못했습니다')).inflate(1),
+      tester.getRect(find.text('네트워크 상태를 확인한 뒤 잠시 후 다시 시도해 주세요.')).inflate(1),
+      tester.getRect(find.text('다시 시도')).inflate(1),
+    ],
+  );
+  addTearDown(() => goldenFileComparator = previousComparator);
+}
+
+/// Compares every pixel exactly except inside the measured text line boxes.
+///
+/// Flutter rasterizes the same bundled font differently on macOS and Linux.
+/// The exact Korean strings are asserted separately above, while this
+/// comparator keeps layout, spacing, surfaces, and button pixels strict.
+class _TextRasterizationComparator extends LocalFileComparator {
+  _TextRasterizationComparator(super.testFile, {required this.textRegions});
+
+  final List<Rect> textRegions;
+
+  @override
+  Future<bool> compare(Uint8List imageBytes, Uri golden) async {
+    final _DecodedImage actual = await _decode(imageBytes);
+    final _DecodedImage expected = await _decode(
+      Uint8List.fromList(await getGoldenBytes(golden)),
+    );
+    try {
+      if (actual.width != expected.width || actual.height != expected.height) {
+        throw FlutterError(
+          'Golden $golden has ${expected.width}x${expected.height} pixels, '
+          'but the test rendered ${actual.width}x${actual.height}.',
+        );
+      }
+
+      var differenceCount = 0;
+      for (var y = 0; y < actual.height; y += 1) {
+        for (var x = 0; x < actual.width; x += 1) {
+          if (_isTextPixel(x, y)) {
+            continue;
+          }
+          final int offset = (y * actual.width + x) * 4;
+          if (actual.bytes.getUint32(offset) !=
+              expected.bytes.getUint32(offset)) {
+            differenceCount += 1;
+          }
+        }
+      }
+
+      if (differenceCount != 0) {
+        throw FlutterError(
+          'Golden $golden differs by $differenceCount pixels outside the '
+          'measured text rasterization regions.',
+        );
+      }
+      return true;
+    } finally {
+      actual.dispose();
+      expected.dispose();
+    }
+  }
+
+  bool _isTextPixel(int x, int y) {
+    final Offset pixelCenter = Offset(x + 0.5, y + 0.5);
+    return textRegions.any((Rect region) => region.contains(pixelCenter));
+  }
+}
+
+class _DecodedImage {
+  const _DecodedImage(this.image, this.bytes);
+
+  final ui.Image image;
+  final ByteData bytes;
+
+  int get width => image.width;
+  int get height => image.height;
+
+  void dispose() => image.dispose();
+}
+
+Future<_DecodedImage> _decode(Uint8List pngBytes) async {
+  final ui.Codec codec = await ui.instantiateImageCodec(pngBytes);
+  final ui.FrameInfo frame = await codec.getNextFrame();
+  codec.dispose();
+  final ByteData? bytes = await frame.image.toByteData(
+    format: ui.ImageByteFormat.rawRgba,
+  );
+  if (bytes == null) {
+    frame.image.dispose();
+    throw FlutterError('Unable to decode golden image pixels.');
+  }
+  return _DecodedImage(frame.image, bytes);
 }
