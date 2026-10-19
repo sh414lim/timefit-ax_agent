@@ -39,17 +39,53 @@ final class IoPrivateAttachmentFileStore implements PrivateAttachmentFileStore {
     }
 
     final rootPath = await privateRoot.resolveSymbolicLinks();
-    final file = File.fromUri(fileUri);
-    final filePath = await file.exists()
+    final file = File(path.normalize(File.fromUri(fileUri).absolute.path));
+    final entityType = await FileSystemEntity.type(
+      file.path,
+      followLinks: false,
+    );
+    if (entityType != FileSystemEntityType.file &&
+        entityType != FileSystemEntityType.notFound) {
+      throw const FileSystemException(
+        'Only regular private files may be deleted',
+      );
+    }
+    final filePath = entityType == FileSystemEntityType.file
         ? await file.resolveSymbolicLinks()
-        : path.normalize(file.absolute.path);
+        : await _canonicalMissingPath(file.absolute.path);
     if (!path.equals(rootPath, filePath) &&
         !path.isWithin(rootPath, filePath)) {
       throw FileOutsidePrivateRootException(fileUri);
     }
-    if (await file.exists()) {
+    final finalType = await FileSystemEntity.type(
+      file.path,
+      followLinks: false,
+    );
+    if (finalType != FileSystemEntityType.file &&
+        finalType != FileSystemEntityType.notFound) {
+      throw const FileSystemException(
+        'Only regular private files may be deleted',
+      );
+    }
+    if (finalType == FileSystemEntityType.file) {
       await file.delete();
     }
+  }
+
+  Future<String> _canonicalMissingPath(String missingPath) async {
+    var ancestor = path.dirname(missingPath);
+    final suffix = <String>[path.basename(missingPath)];
+    while (await FileSystemEntity.type(ancestor, followLinks: false) ==
+        FileSystemEntityType.notFound) {
+      suffix.insert(0, path.basename(ancestor));
+      final parent = path.dirname(ancestor);
+      if (parent == ancestor) {
+        throw const FileSystemException('No existing parent for private file');
+      }
+      ancestor = parent;
+    }
+    final resolvedParent = await Directory(ancestor).resolveSymbolicLinks();
+    return path.normalize(path.joinAll([resolvedParent, ...suffix]));
   }
 }
 

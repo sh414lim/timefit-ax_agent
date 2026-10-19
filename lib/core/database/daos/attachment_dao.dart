@@ -70,7 +70,8 @@ class AttachmentDao extends DatabaseAccessor<AppDatabase>
     final rows =
         await (selectOnly(localAttachments)
               ..addColumns([localAttachments.localFileUri])
-              ..where(localAttachments.localFileUri.isNotNull()))
+              ..where(localAttachments.localFileUri.isNotNull())
+              ..orderBy([OrderingTerm.asc(localAttachments.localId)]))
             .get();
     return rows
         .map((row) => row.read(localAttachments.localFileUri))
