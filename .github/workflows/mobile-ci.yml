@@ -1,31 +1,19 @@
-name: Flutter bootstrap validation
+name: Mobile CI
 
 on:
   pull_request:
-    paths:
-      - .github/CODEOWNERS
-      - .github/pull_request_template.md
-      - .github/workflows/flutter-bootstrap-validation.yml
-      - scripts/ci/**
-      - pubspec.yaml
-      - pubspec.lock
-      - analysis_options.yaml
-      - lib/**
-      - test/**
-      - integration_test/**
-      - android/**
-      - ios/**
 
 permissions:
   contents: read
 
 concurrency:
-  group: flutter-bootstrap-${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: mobile-ci-${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 env:
   FLUTTER_VERSION: 3.38.5
   FLUTTER_SOURCE_SHA: f6ff1529fd6d8af5f706051d9251ac9231c83407
+  CI_MOBILE_USE_SYSTEM_FLUTTER: "1"
 
 jobs:
   boundaries:
@@ -43,10 +31,10 @@ jobs:
         run: bash scripts/ci/verify_bootstrap_boundaries.sh
 
   quality-and-android-smoke:
-    name: Format, analyze, test, Android smoke
+    name: Format, analyze, coverage, Android smoke
     needs: boundaries
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -54,7 +42,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Install Flutter from the official repository
+      - name: Install pinned Flutter source
         shell: bash
         run: |
           set -euo pipefail
@@ -64,6 +52,16 @@ jobs:
           [[ "$actual_sha" == "$FLUTTER_SOURCE_SHA" ]]
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
 
+      - name: Cache locked dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-
+
       - name: Record toolchain
         run: |
           flutter config --no-analytics
@@ -71,38 +69,49 @@ jobs:
           java -version
           java -version 2>&1 | grep -Fq 'version "17.'
 
-      - name: Resolve locked dependencies
-        run: flutter pub get --enforce-lockfile
+      - name: Run mobile quality and Android gates
+        run: bash scripts/ci_mobile.sh
 
-      - name: Check formatting
+  gate-fixtures:
+    name: Intentional gate failure fixtures
+    needs: boundaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install pinned Flutter source
         shell: bash
         run: |
           set -euo pipefail
-          targets=(lib test)
-          if [[ -d integration_test ]]; then
-            targets+=(integration_test)
-          fi
-          dart format --output=none --set-exit-if-changed "${targets[@]}"
+          git clone --depth 1 --single-branch --branch "$FLUTTER_VERSION" \
+            https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          actual_sha="$(git -C "$RUNNER_TEMP/flutter" rev-parse HEAD)"
+          [[ "$actual_sha" == "$FLUTTER_SOURCE_SHA" ]]
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
 
-      - name: Analyze
-        run: flutter analyze --fatal-infos --fatal-warnings
+      - name: Cache locked dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-
 
-      - name: Run unit and widget tests
-        run: flutter test --reporter expanded
-
-      - name: Build Android dev debug smoke
-        run: flutter build apk --debug --no-pub --flavor dev --target lib/main.dart
-
-      - name: Build Android staging debug smoke
-        run: >-
-          flutter build apk --debug --no-pub --flavor staging
-          --target lib/main_staging.dart
+      - name: Verify intentional lint, lockfile, and generated diff failures
+        run: bash scripts/ci_mobile_gate_fixtures.sh
 
   ios-smoke:
     name: iOS no-codesign smoke
     needs: boundaries
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
@@ -112,7 +121,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Install Flutter from the official repository
+      - name: Install pinned Flutter source
         shell: bash
         run: |
           set -euo pipefail
@@ -122,7 +131,17 @@ jobs:
           [[ "$actual_sha" == "$FLUTTER_SOURCE_SHA" ]]
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
 
-      - name: Record toolchain
+      - name: Cache locked dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-
+
+      - name: Record Apple toolchain
         run: |
           test -d "$DEVELOPER_DIR"
           sw_vers
@@ -133,15 +152,5 @@ jobs:
           xcodebuild -version | grep -Fxq 'Xcode 16.4'
           xcodebuild -version | grep -Fxq 'Build version 16F6'
 
-      - name: Resolve locked dependencies
-        run: flutter pub get --enforce-lockfile
-
-      - name: Build iOS dev debug smoke without signing
-        run: >-
-          flutter build ios --debug --no-codesign --no-pub --flavor dev
-          --target lib/main.dart
-
-      - name: Build iOS staging debug smoke without signing
-        run: >-
-          flutter build ios --debug --no-codesign --no-pub --flavor staging
-          --target lib/main_staging.dart
+      - name: Run iOS no-codesign gates
+        run: bash scripts/ci_mobile.sh ios
