@@ -11,7 +11,7 @@ Flutter 3.38.5 (framework revision f6ff1529fd)
 Dart 3.10.4
 ```
 
-현재 실행 환경에는 `fvm` executable이 없어 설치된 공식 Flutter SDK의 동일 버전으로 version 확인과 dependency solver를 실행했다. `.fvmrc` 기반 clean-checkout 명령은 dependency 충돌이 해소된 뒤 FVM 환경에서도 재검증해야 한다.
+초기 실행 환경에는 `fvm` executable이 없어 설치된 공식 Flutter SDK의 동일 버전으로 version 확인과 dependency solver를 실행했다. 이후 clean `main`에서 수행한 FVM 재검증 결과는 아래에 별도로 기록한다.
 
 ## dependency 해석
 
@@ -52,3 +52,30 @@ crypto direct lock: 3.0.7
 명세 밖 버전 변경이나 pub-cache source patch는 적용하지 않았다.
 
 민감정보, 운영 식별자, signing 설정, provider 설정은 추가하지 않았다.
+
+## FVM clean-checkout 재검증 (2026-10-19 UTC)
+
+- 기준 revision: `c5ee59c8d700e02e3a68959d43da5fe19789036f`
+- FVM: pub.dev 공식 `fvm 4.3.2`를 임시 `PUB_CACHE`에 설치해 사용
+- SDK: `.fvmrc`의 Flutter `3.38.5`, Dart `3.10.4`, framework `f6ff1529fd`
+- 전역 PATH, 저장소 FVM 설정, dependency 파일: 변경 없음
+- `pubspec.lock` SHA-256 전후 동일: `567aa7f5bdc661318185366e2e595245b2af2428eb39d66136785a7cb68197ec`
+
+다음 README 및 CI 경로를 FVM wrapper로 실행해 통과했다.
+
+```text
+fvm flutter pub get: PASS
+locked dependency enforcement: PASS
+dart format: PASS (35 files)
+flutter analyze: PASS (no issues)
+unit/widget tests: PASS (19 tests)
+repository boundary validation: PASS
+bash scripts/ci_mobile.sh: PASS (Android dev/staging debug)
+LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 bash scripts/ci_mobile.sh ios: PASS (iOS dev/staging debug --no-codesign)
+```
+
+기존 catalog의 flavor 없는 generic 명령은 현재 프로젝트 구조와 맞지 않았다. Android generic 명령은 flavor APK를 만든 뒤 기본 APK 위치를 찾다가 실패했고, iOS generic 명령은 dev/staging scheme 때문에 Xcode 실행 전에 `--flavor`를 요구하며 실패했다. 따라서 CHAT-003의 수용 명령은 README 및 `scripts/ci_mobile.sh`와 동일한 dev/staging flavor와 entrypoint를 명시해야 한다.
+
+초기 `LC_ALL=C` iOS 시도는 CocoaPods의 UTF-8 요구 때문에 실패했으며 UTF-8 locale에서 성공했다. Build runner가 pinned analyzer 언어 버전에 대한 경고를 출력했지만 generation과 fatal analysis는 통과했고 dependency 또는 lockfile 변경은 없었다.
+
+이 재검증은 비서명 dev/staging 범위만 다룬다. production identity, signing credential, provider 설정, 사용자 데이터에는 접근하거나 변경하지 않았고, release 승인이나 CHAT-003 완료를 의미하지 않는다.
