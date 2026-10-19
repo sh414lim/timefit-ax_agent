@@ -19,6 +19,11 @@
 
 <!-- Describe the change and why it belongs in this repository. -->
 
+## Architecture
+
+- Architecture or ADR link: <!-- required: approved architecture section, ADR, or not-applicable reason -->
+- Boundary impact: <!-- required: Flutter app, native platform, CI-only, or explicit scope -->
+
 ## Evidence
 
 <!-- Required: list exact commands and attach or link their results. -->
@@ -40,8 +45,11 @@
 
 - [ ] Formatting check passed.
 - [ ] Static analysis passed or is not applicable with a reason below.
-- [ ] Relevant tests and non-deployment build smoke passed or are not applicable with a reason below.
+- [ ] Unit/widget tests with coverage passed or are not applicable with a reason below.
+- [ ] Relevant Android debug and iOS no-codesign build smoke passed or is not applicable with a reason below.
+- [ ] Generated files were regenerated and the generated-file diff gate passed.
 - [ ] `scripts/ci/verify_bootstrap_boundaries.sh` passed when bootstrap, native platform, workflow, or dependency files changed.
+- [ ] Logs contain no message body, attachment filename, signed URL, access/refresh token, push token, credential, or personal identifier.
 
 Not-applicable reasons:
 
