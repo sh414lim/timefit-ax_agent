@@ -91,6 +91,10 @@ final class OutboxWorker {
         if (!applied)
           return; // Expired/cancelled/reclaimed: ignore stale result.
       }
+    } on OutboxContention {
+      // Another connection still owns SQLite's write lock. Keep persisted
+      // commands/leases unchanged and retry on the next lifecycle/timer wake.
+      return;
     } finally {
       _activeScopes.remove(scope);
     }
