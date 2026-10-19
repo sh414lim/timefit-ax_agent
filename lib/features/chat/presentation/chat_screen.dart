@@ -70,13 +70,29 @@ class ChatScreen extends StatelessWidget {
 }
 
 List<ChatMessage> _ordered(List<ChatMessage> source) {
-  final Map<int, ChatMessage> bySequence = <int, ChatMessage>{};
+  final Map<String, ChatMessage> byClientIdentity = <String, ChatMessage>{};
   for (final ChatMessage message in source) {
-    bySequence[message.sequence] = message;
+    byClientIdentity[message.clientMessageId] = message;
   }
-  final List<ChatMessage> result = bySequence.values.toList()
-    ..sort((ChatMessage a, ChatMessage b) => a.sequence.compareTo(b.sequence));
-  return List<ChatMessage>.unmodifiable(result);
+  final Map<int, ChatMessage> canonicalBySequence = <int, ChatMessage>{};
+  final List<ChatMessage> pending = <ChatMessage>[];
+  for (final ChatMessage message in byClientIdentity.values) {
+    if (message.sequence case final int sequence) {
+      canonicalBySequence[sequence] = message;
+    } else {
+      // The Drift stream owns durable local insertion order. Client timestamps
+      // are display-only and must never reorder pending messages.
+      pending.add(message);
+    }
+  }
+  final List<ChatMessage> canonical = canonicalBySequence.values.toList()
+    ..sort(
+      (ChatMessage a, ChatMessage b) => a.sequence!.compareTo(b.sequence!),
+    );
+  return List<ChatMessage>.unmodifiable(<ChatMessage>[
+    ...canonical,
+    ...pending,
+  ]);
 }
 
 class _ChatState extends StatelessWidget {

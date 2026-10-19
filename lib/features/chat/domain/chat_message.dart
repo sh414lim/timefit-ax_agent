@@ -2,7 +2,7 @@ enum MessageDeliveryState { pending, uploading, sending, sent, failed }
 
 class ChatMessage {
   const ChatMessage({
-    required this.id,
+    required this.clientMessageId,
     required this.sequence,
     required this.body,
     required this.displayedAt,
@@ -10,8 +10,8 @@ class ChatMessage {
     required this.deliveryState,
   });
 
-  final String id;
-  final int sequence;
+  final String clientMessageId;
+  final int? sequence;
   final String body;
   final DateTime displayedAt;
   final bool isMine;

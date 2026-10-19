@@ -40,6 +40,72 @@ void main() {
     expect(find.text('교체 전'), findsNothing);
   });
 
+  testWidgets('pending promotes canonically by stable client identity', (
+    WidgetTester tester,
+  ) async {
+    final StreamController<List<ChatMessage>> stream =
+        StreamController<List<ChatMessage>>();
+    addTearDown(stream.close);
+    await _pump(tester, stream.stream);
+    stream.add(<ChatMessage>[
+      _message(1),
+      _message(null, clientMessageId: 'stable', body: '로컬 전송 중'),
+      _message(3),
+    ]);
+    await tester.pump();
+    expect(
+      tester
+          .widgetList<MessageBubble>(find.byType(MessageBubble))
+          .map((bubble) => bubble.message.clientMessageId),
+      <String>['client-1', 'client-3', 'stable'],
+    );
+
+    stream.add(<ChatMessage>[
+      _message(1),
+      _message(null, clientMessageId: 'stable', body: '로컬 전송 중'),
+      _message(2, clientMessageId: 'stable', body: '서버 확정'),
+      _message(3),
+    ]);
+    await tester.pumpAndSettle();
+
+    final List<MessageBubble> promoted = tester
+        .widgetList<MessageBubble>(find.byType(MessageBubble))
+        .toList();
+    expect(promoted.map((bubble) => bubble.message.clientMessageId), <String>[
+      'client-1',
+      'stable',
+      'client-3',
+    ]);
+    expect(find.text('서버 확정'), findsOneWidget);
+    expect(find.text('로컬 전송 중'), findsNothing);
+  });
+
+  testWidgets('pending retains stream order without timestamp sorting', (
+    WidgetTester tester,
+  ) async {
+    await _pump(
+      tester,
+      Stream<List<ChatMessage>>.value(<ChatMessage>[
+        _message(
+          null,
+          clientMessageId: 'first-pending',
+          displayedAt: _baseTime.add(const Duration(days: 2)),
+        ),
+        _message(
+          null,
+          clientMessageId: 'second-pending',
+          displayedAt: _baseTime.subtract(const Duration(days: 2)),
+        ),
+      ]),
+    );
+    expect(
+      tester
+          .widgetList<MessageBubble>(find.byType(MessageBubble))
+          .map((bubble) => bubble.message.clientMessageId),
+      <String>['first-pending', 'second-pending'],
+    );
+  });
+
   testWidgets('all delivery states expose accessible text', (
     WidgetTester tester,
   ) async {
@@ -112,33 +178,67 @@ void main() {
     expect(find.text('새 메시지'), findsNothing);
   });
 
-  testWidgets(
-    '500 messages preserve the visible anchor when history prepends',
-    (WidgetTester tester) async {
-      final StreamController<List<ChatMessage>> stream =
-          StreamController<List<ChatMessage>>();
-      addTearDown(stream.close);
-      final ScrollController scroll = ScrollController();
-      addTearDown(scroll.dispose);
-      await _pump(tester, stream.stream, scrollController: scroll);
-      stream.add(<ChatMessage>[
-        for (var sequence = 2; sequence <= 501; sequence++) _message(sequence),
-      ]);
-      await tester.pumpAndSettle();
-      scroll.jumpTo(scroll.position.maxScrollExtent / 2);
-      await tester.pump();
-      final Finder anchor = find.byKey(const ValueKey<String>('message-250'));
-      final double before = tester.getTopLeft(anchor).dy;
+  testWidgets('variable 500 messages preserve anchor on prepend and append', (
+    WidgetTester tester,
+  ) async {
+    final StreamController<List<ChatMessage>> stream =
+        StreamController<List<ChatMessage>>();
+    addTearDown(stream.close);
+    final ScrollController scroll = ScrollController();
+    addTearDown(scroll.dispose);
+    await _pump(tester, stream.stream, scrollController: scroll);
+    stream.add(<ChatMessage>[
+      for (var sequence = 2; sequence <= 501; sequence++)
+        _message(sequence, body: _variableBody(sequence)),
+    ]);
+    await tester.pumpAndSettle();
+    scroll.jumpTo(scroll.position.maxScrollExtent / 2);
+    await tester.pump();
+    final List<MessageBubble> visibleBubbles = tester
+        .widgetList<MessageBubble>(find.byType(MessageBubble))
+        .toList();
+    final ChatMessage anchorMessage =
+        visibleBubbles[visibleBubbles.length ~/ 2].message;
+    final Finder anchor = find.text(anchorMessage.body);
+    final double before = tester.getTopLeft(anchor).dy;
 
-      stream.add(<ChatMessage>[
-        for (var sequence = 1; sequence <= 501; sequence++) _message(sequence),
-      ]);
-      await tester.pumpAndSettle();
+    stream.add(<ChatMessage>[
+      for (var sequence = 1; sequence <= 502; sequence++)
+        _message(sequence, body: _variableBody(sequence)),
+    ]);
+    await tester.pumpAndSettle();
 
-      expect(tester.getTopLeft(anchor).dy, closeTo(before, 1));
-      expect(find.byType(MessageBubble), findsWidgets);
-    },
-  );
+    expect(tester.getTopLeft(anchor).dy, closeTo(before, 1));
+    expect(find.text('새 메시지'), findsOneWidget);
+    expect(find.byType(MessageBubble), findsWidgets);
+  });
+
+  testWidgets('active user scroll suppresses auto-scroll inside threshold', (
+    WidgetTester tester,
+  ) async {
+    final StreamController<List<ChatMessage>> stream =
+        StreamController<List<ChatMessage>>();
+    addTearDown(stream.close);
+    final ScrollController scroll = ScrollController();
+    addTearDown(scroll.dispose);
+    await _pump(tester, stream.stream, scrollController: scroll);
+    stream.add(_messages(40));
+    await tester.pumpAndSettle();
+    final TestGesture gesture = await tester.startGesture(
+      tester.getCenter(find.byType(Scrollable)),
+    );
+    await gesture.moveBy(const Offset(0, -40));
+    await tester.pump();
+    expect(scroll.position.extentAfter, lessThanOrEqualTo(80));
+
+    stream.add(<ChatMessage>[..._messages(40), _message(41)]);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('새 메시지'), findsOneWidget);
+    expect(scroll.position.extentAfter, greaterThan(0));
+    await gesture.up();
+  });
 
   testWidgets('320dp and textScale2 render without clipping', (
     WidgetTester tester,
@@ -179,6 +279,50 @@ void main() {
     expect(find.text('대화에 접근할 수 없습니다'), findsOneWidget);
   });
 
+  testWidgets(
+    'stream replacement unsubscribes old stream and dispose is safe',
+    (WidgetTester tester) async {
+      final StreamController<List<ChatMessage>> oldStream =
+          StreamController<List<ChatMessage>>();
+      final StreamController<List<ChatMessage>> newStream =
+          StreamController<List<ChatMessage>>();
+      addTearDown(oldStream.close);
+      addTearDown(newStream.close);
+      await _pump(tester, oldStream.stream);
+      oldStream.add(<ChatMessage>[_message(1, body: '이전 스트림')]);
+      await tester.pump();
+      expect(find.text('이전 스트림'), findsOneWidget);
+
+      await _pump(tester, newStream.stream);
+      oldStream.add(<ChatMessage>[_message(2, body: '늦은 이전 값')]);
+      newStream.add(<ChatMessage>[_message(3, body: '새 스트림')]);
+      await tester.pumpAndSettle();
+      expect(find.text('늦은 이전 값'), findsNothing);
+      expect(find.text('새 스트림'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      newStream.add(<ChatMessage>[_message(4, body: 'dispose 이후')]);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('access revoked immediately hides previously rendered data', (
+    WidgetTester tester,
+  ) async {
+    final StreamController<List<ChatMessage>> stream =
+        StreamController<List<ChatMessage>>();
+    addTearDown(stream.close);
+    await _pump(tester, stream.stream);
+    stream.add(<ChatMessage>[_message(1, body: '민감한 기존 메시지')]);
+    await tester.pump();
+    expect(find.text('민감한 기존 메시지'), findsOneWidget);
+
+    await _pump(tester, stream.stream, status: ChatScreenStatus.accessRevoked);
+    expect(find.text('민감한 기존 메시지'), findsNothing);
+    expect(find.text('대화에 접근할 수 없습니다'), findsOneWidget);
+  });
+
   group('goldens', () {
     testWidgets('timeline light', (WidgetTester tester) async {
       await _golden(tester, 'light');
@@ -203,17 +347,19 @@ void main() {
 final DateTime _baseTime = DateTime.utc(2026, 10, 19, 12);
 
 ChatMessage _message(
-  int sequence, {
+  int? sequence, {
+  String? clientMessageId,
   String? body,
   MessageDeliveryState delivery = MessageDeliveryState.sent,
   DateTime? displayedAt,
 }) {
   return ChatMessage(
-    id: '$sequence',
+    clientMessageId: clientMessageId ?? 'client-$sequence',
     sequence: sequence,
     body: body ?? '메시지 $sequence',
-    displayedAt: displayedAt ?? _baseTime.add(Duration(minutes: sequence)),
-    isMine: sequence.isEven,
+    displayedAt:
+        displayedAt ?? _baseTime.add(Duration(minutes: sequence ?? 10000)),
+    isMine: sequence?.isEven ?? true,
     deliveryState: delivery,
   );
 }
@@ -221,6 +367,10 @@ ChatMessage _message(
 List<ChatMessage> _messages(int count) => <ChatMessage>[
   for (var sequence = 1; sequence <= count; sequence++) _message(sequence),
 ];
+
+String _variableBody(int sequence) => sequence.isEven
+    ? '메시지 $sequence — 높이가 다른 행을 검증하기 위한 긴 본문입니다. 줄바꿈이 생겨도 anchor가 유지되어야 합니다.'
+    : '메시지 $sequence';
 
 Future<void> _pump(
   WidgetTester tester,

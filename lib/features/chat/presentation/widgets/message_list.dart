@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 
 import '../../domain/chat_message.dart';
 import 'message_bubble.dart';
@@ -18,6 +19,8 @@ class _MessageListState extends State<MessageList> {
   late final ScrollController _controller =
       widget.scrollController ?? ScrollController();
   bool _showNewMessages = false;
+  bool _userScrollActive = false;
+  final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
 
   @override
   void initState() {
@@ -33,36 +36,49 @@ class _MessageListState extends State<MessageList> {
         widget.messages.isEmpty) {
       return;
     }
-    final int? oldMin = oldWidget.messages.isEmpty
-        ? null
-        : oldWidget.messages.first.sequence;
-    final int? oldMax = oldWidget.messages.isEmpty
-        ? null
-        : oldWidget.messages.last.sequence;
-    final bool prepended =
-        oldMin != null && widget.messages.first.sequence < oldMin;
-    final bool appended =
-        oldMax == null || widget.messages.last.sequence > oldMax;
+    final Set<String> oldIdentities = oldWidget.messages
+        .map((ChatMessage message) => message.clientMessageId)
+        .toSet();
+    final int? oldMax = oldWidget.messages
+        .map((ChatMessage message) => message.sequence)
+        .whereType<int>()
+        .fold<int?>(
+          null,
+          (int? max, int value) => max == null || value > max ? value : max,
+        );
+    final bool appended = widget.messages.any(
+      (ChatMessage message) =>
+          !oldIdentities.contains(message.clientMessageId) &&
+          (message.sequence == null ||
+              oldMax == null ||
+              message.sequence! > oldMax),
+    );
     final bool wasLatest =
         !_controller.hasClients ||
         _controller.position.extentAfter <= _latestThreshold;
-    final double oldExtent = _controller.hasClients
-        ? _controller.position.maxScrollExtent
-        : 0;
-    final double oldOffset = _controller.hasClients ? _controller.offset : 0;
+    final _VisibleAnchor? anchor = wasLatest ? null : _captureVisibleAnchor();
+    final bool allowAutoScroll =
+        wasLatest &&
+        !_userScrollActive &&
+        (!_controller.hasClients ||
+            !_controller.position.isScrollingNotifier.value);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_controller.hasClients) return;
-      if (prepended && !wasLatest) {
-        final double delta = _controller.position.maxScrollExtent - oldExtent;
-        _controller.jumpTo(
-          (oldOffset + delta).clamp(0, _controller.position.maxScrollExtent),
-        );
-      } else if (appended && wasLatest) {
+      if (anchor != null) {
+        _restoreAnchor(anchor);
+      }
+      if (appended && allowAutoScroll) {
         _jumpToLatest();
-      } else if (appended && mounted) {
+      } else if (appended) {
         setState(() => _showNewMessages = true);
       }
+      final Set<String> current = widget.messages
+          .map((ChatMessage message) => message.clientMessageId)
+          .toSet();
+      _messageKeys.removeWhere(
+        (String identity, _) => !current.contains(identity),
+      );
     });
   }
 
@@ -87,31 +103,68 @@ class _MessageListState extends State<MessageList> {
     if (_showNewMessages) setState(() => _showNewMessages = false);
   }
 
+  _VisibleAnchor? _captureVisibleAnchor() {
+    for (final ChatMessage message in widget.messages) {
+      final BuildContext? rowContext =
+          _messageKeys[message.clientMessageId]?.currentContext;
+      final RenderObject? renderObject = rowContext?.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.attached) continue;
+      final double y = renderObject.localToGlobal(Offset.zero).dy;
+      if (y + renderObject.size.height >= 0 &&
+          y <= MediaQuery.sizeOf(context).height) {
+        return _VisibleAnchor(message.clientMessageId, y);
+      }
+    }
+    return null;
+  }
+
+  void _restoreAnchor(_VisibleAnchor anchor) {
+    final BuildContext? rowContext =
+        _messageKeys[anchor.clientMessageId]?.currentContext;
+    final RenderObject? renderObject = rowContext?.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.attached) return;
+    final double newY = renderObject.localToGlobal(Offset.zero).dy;
+    final double target = (_controller.offset + newY - anchor.globalY).clamp(
+      0,
+      _controller.position.maxScrollExtent,
+    );
+    _controller.jumpTo(target);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: <Widget>[
-        ListView.builder(
-          key: const ValueKey<String>('message-timeline'),
-          controller: _controller,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
-          itemCount: widget.messages.length,
-          itemBuilder: (BuildContext context, int index) {
-            final ChatMessage message = widget.messages[index];
-            final bool showDate =
-                index == 0 ||
-                !_sameDay(
-                  widget.messages[index - 1].displayedAt,
-                  message.displayedAt,
-                );
-            return Column(
-              key: ValueKey<String>('message-${message.id}'),
-              children: <Widget>[
-                if (showDate) _DateDivider(date: message.displayedAt),
-                MessageBubble(message: message),
-              ],
-            );
+        NotificationListener<UserScrollNotification>(
+          onNotification: (UserScrollNotification notification) {
+            _userScrollActive = notification.direction != ScrollDirection.idle;
+            return false;
           },
+          child: ListView.builder(
+            key: const ValueKey<String>('message-timeline'),
+            controller: _controller,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+            itemCount: widget.messages.length,
+            itemBuilder: (BuildContext context, int index) {
+              final ChatMessage message = widget.messages[index];
+              final bool showDate =
+                  index == 0 ||
+                  !_sameDay(
+                    widget.messages[index - 1].displayedAt,
+                    message.displayedAt,
+                  );
+              return Column(
+                key: _messageKeys.putIfAbsent(
+                  message.clientMessageId,
+                  GlobalKey.new,
+                ),
+                children: <Widget>[
+                  if (showDate) _DateDivider(date: message.displayedAt),
+                  MessageBubble(message: message),
+                ],
+              );
+            },
+          ),
         ),
         if (_showNewMessages)
           Positioned(
@@ -128,6 +181,13 @@ class _MessageListState extends State<MessageList> {
       ],
     );
   }
+}
+
+class _VisibleAnchor {
+  const _VisibleAnchor(this.clientMessageId, this.globalY);
+
+  final String clientMessageId;
+  final double globalY;
 }
 
 class _DateDivider extends StatelessWidget {
