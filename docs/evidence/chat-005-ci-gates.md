@@ -64,4 +64,11 @@ fixture harness result: PASS
 - Disposable fixture copies exclude regenerated build caches, dependency state, coverage, and CocoaPods outputs.
 - No production identity, signing credential, secret, service, deployment, store upload, branch protection, or required-check setting change.
 - Build runner reports that the pinned analyzer language version trails Dart 3.10. The exact package set is owned by CHAT-003 and was not changed in CHAT-005; generation and fatal analysis still pass.
-- CI uses the pinned official Flutter source in GitHub-hosted runners. The separate FVM wrapper execution evidence remains a CHAT-003 follow-up and is not claimed here.
+- CI uses the pinned official Flutter source in GitHub-hosted runners. A separate clean-checkout FVM wrapper rerun on `main@c5ee59c8d700e02e3a68959d43da5fe19789036f` passed the locked dependency, format, analysis, 19 tests, boundary, Android dev/staging, and UTF-8 iOS dev/staging no-codesign paths without changing `pubspec.lock`; see [`CHAT-003 bootstrap evidence`](../chat-003-bootstrap-evidence.md#fvm-clean-checkout-재검증-2026-10-19-utc).
+- The same rerun showed that the old flavorless catalog build commands are not valid acceptance commands for the current dev/staging schemes. This documentation erratum records the corrected commands and is not a release approval or production configuration change.
+
+## Current follow-up status (2026-10-19 UTC)
+
+- The clean-checkout FVM wrapper evidence above closes the previously unclaimed FVM execution-evidence item; it does not grant production, signing, or release approval.
+- Repository ruleset [`main-mobile-ci`](https://github.com/sh414lim/timefit-ax_agent/rules/25366367) is active for `refs/heads/main` with pull requests required, zero required approvals, no bypass actors, strict latest-`main` evaluation, deletion and force-push blocks, and the four Mobile CI job names pinned to GitHub Actions integration `15368`.
+- The required-check and FVM evidence follow-ups are no longer open. CHAT-005 card completion still requires the separate owner completion decision; this document does not update Trello or claim that decision.

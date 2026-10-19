@@ -463,8 +463,12 @@ flowchart TD
 - `fvm flutter pub get`
 - `fvm flutter analyze`
 - `fvm flutter test`
-- `fvm flutter build apk --debug`
-- `fvm flutter build ios --debug --no-codesign`
+- `fvm flutter build apk --debug --no-pub --flavor dev --target lib/main.dart`
+- `fvm flutter build apk --debug --no-pub --flavor staging --target lib/main_staging.dart`
+- `fvm flutter build ios --debug --no-codesign --no-pub --flavor dev --target lib/main.dart`
+- `fvm flutter build ios --debug --no-codesign --no-pub --flavor staging --target lib/main_staging.dart`
+
+dev/staging scheme을 사용하는 현재 프로젝트에서는 `--flavor`와 대응 entrypoint를 생략한 generic build 명령을 수용 증거로 사용하지 않는다. iOS CocoaPods 명령과 build는 UTF-8 locale에서 실행한다.
 
 **인수 조건:**
 

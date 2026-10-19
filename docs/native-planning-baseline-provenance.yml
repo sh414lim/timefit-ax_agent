@@ -353,3 +353,98 @@ revisions:
     storeTargetSelectionGranted: false
     productionConfigurationChanged: false
     trelloUpdated: false
+
+  - revisionId: native-planning-flavor-aware-bootstrap-command-erratum-2026-10-19
+    status: DRAFT_REVIEW_PENDING
+    basedOnCommit: c5ee59c8d700e02e3a68959d43da5fe19789036f
+    supersedesRevisionId: native-planning-file-picker-compatibility-erratum-2026-10-18
+    basis:
+      - README.md
+      - scripts/ci_mobile.sh
+      - docs/chat-003-bootstrap-evidence.md
+      - docs/evidence/chat-005-ci-gates.md
+      - 'delegated clean-checkout FVM evidence for main c5ee59c8d700e02e3a68959d43da5fe19789036f'
+    scope: >-
+      Replace only CHAT-003's obsolete flavorless Android and iOS acceptance
+      commands with the current dev/staging flavor-aware commands and record the
+      FVM wrapper validation. Preserve dependency and toolchain pins, product
+      scope, security boundaries, signing deferral and production gates. This
+      documentation erratum is not a completion, release approval, technical GO or
+      production configuration change.
+    correctionType: BOOTSTRAP_COMMAND_COMPATIBILITY_ERRATUM
+    commandCorrection:
+      previousAndroidCommand: fvm flutter build apk --debug
+      correctedAndroidCommands:
+        - fvm flutter build apk --debug --no-pub --flavor dev --target lib/main.dart
+        - fvm flutter build apk --debug --no-pub --flavor staging --target lib/main_staging.dart
+      previousIosCommand: fvm flutter build ios --debug --no-codesign
+      correctedIosCommands:
+        - fvm flutter build ios --debug --no-codesign --no-pub --flavor dev --target lib/main.dart
+        - fvm flutter build ios --debug --no-codesign --no-pub --flavor staging --target lib/main_staging.dart
+      iosLocaleRequirement: UTF-8
+    fvmValidation:
+      observedAtUtc: '2026-10-19'
+      sourceHead: c5ee59c8d700e02e3a68959d43da5fe19789036f
+      fvmVersion: 4.3.2
+      flutterVersion: 3.38.5
+      dartVersion: 3.10.4
+      flutterFrameworkRevision: f6ff1529fd
+      temporaryPubCache: true
+      repositoryFvmConfigurationChanged: false
+      pubspecLockSha256Before: 567aa7f5bdc661318185366e2e595245b2af2428eb39d66136785a7cb68197ec
+      pubspecLockSha256After: 567aa7f5bdc661318185366e2e595245b2af2428eb39d66136785a7cb68197ec
+      flutterPubGet: PASS
+      lockedDependencyEnforcement: PASS
+      dartFormatFiles: 35
+      flutterAnalyze: PASS
+      testsPassed: 19
+      repositoryBoundaryValidation: PASS
+      androidDevDebug: PASS
+      androidStagingDebug: PASS
+      iosDevNoCodesign: PASS
+      iosStagingNoCodesign: PASS
+    genericCommandEvidence:
+      android: >-
+        FAIL after flavor artifacts were produced because Flutter searched for
+        the default non-flavor APK output.
+      ios: >-
+        FAIL before Xcode because the dev/staging schemes require --flavor.
+      acceptanceUse: REJECTED_AS_OBSOLETE
+    verificationLimits:
+      designCorrectionState: DOCUMENTATION_ERRATUM_VALIDATED
+      productionIdentityAccessed: false
+      signingCredentialAccessed: false
+      providerConfigurationAccessed: false
+      userDataAccessed: false
+      releaseApprovalGranted: false
+      technicalGoGranted: false
+    originalImportReference:
+      mergedRevision: 237268ef73efddafb12a902b9da99bad870066c2
+      digestsPreservedUnder: originalImport.documents
+    previousRevisionReference:
+      revisionId: native-planning-file-picker-compatibility-erratum-2026-10-18
+      digestsPreservedUnder: revisions[4].currentRevisionDocuments
+    currentRevisionDocuments:
+      - path: docs/145-timefit-native-app-repository-migration-plan-2026-10-16.md
+        currentRevisionSha256: ca1f2dd367ffba79513836966b09643ab6167c909fba29d145a0198b8197b8b8
+        contentChangedFromOriginalImport: true
+      - path: docs/146-timefit-native-chat-architecture-2026-10-16.md
+        currentRevisionSha256: 3a209555e28fc5729575e531929bc6beeb1671f39a4998218e6da8e33c1ca946
+        contentChangedFromOriginalImport: true
+      - path: docs/147-timefit-native-chat-execution-ticket-catalog-2026-10-16.md
+        currentRevisionSha256: 60b9eb4ab36f3ca19f06b9490110e5ffe24575e0d53b966d483a4af73f5cb330
+        contentChangedFromOriginalImport: true
+    relatedDocumentDigests:
+      - path: docs/chat-003-bootstrap-evidence.md
+        currentRevisionSha256: 05c47755178ae738b9c6b58d610a761925730bf893a106ad1f75a5fb5a917516
+        purpose: clean_checkout_fvm_wrapper_validation
+      - path: docs/evidence/chat-005-ci-gates.md
+        currentRevisionSha256: cec3ec1272e2bb551e2cce12391d51dd43c062fb98bfd4297d3aa26bda25193a
+        purpose: ci_gate_fvm_follow_up_status
+    executionPlanApproval: PENDING
+    releaseApprovalGranted: false
+    technicalGoGranted: false
+    signingCompleted: false
+    storeTargetSelectionGranted: false
+    productionConfigurationChanged: false
+    trelloUpdated: false
