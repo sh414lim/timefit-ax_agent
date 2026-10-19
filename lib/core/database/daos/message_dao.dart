@@ -27,6 +27,15 @@ final class CanonicalLocalMessage {
   final DateTime serverCreatedAt;
 }
 
+final class CanonicalIdentityConflict implements Exception {
+  const CanonicalIdentityConflict(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'Canonical identity conflict: $reason';
+}
+
 @DriftAccessor(tables: [LocalMessages])
 class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
   MessageDao(super.attachedDatabase);
@@ -36,16 +45,54 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
     required String fallbackLocalId,
     required DateTime fallbackClientCreatedAt,
   }) => transaction(() async {
-    final query = select(localMessages)
-      ..where(
-        (message) =>
-            message.serverId.equals(canonical.serverId) |
-            (message.conversationId.equals(canonical.conversationId) &
-                message.clientMessageId.equals(canonical.clientMessageId)) |
-            (message.conversationId.equals(canonical.conversationId) &
-                message.sequence.equals(canonical.sequence)),
+    final serverMatch =
+        await (select(localMessages)
+              ..where((message) => message.serverId.equals(canonical.serverId)))
+            .getSingleOrNull();
+    final clientMatch =
+        await (select(localMessages)..where(
+              (message) =>
+                  message.conversationId.equals(canonical.conversationId) &
+                  message.clientMessageId.equals(canonical.clientMessageId),
+            ))
+            .getSingleOrNull();
+    final sequenceMatch =
+        await (select(localMessages)..where(
+              (message) =>
+                  message.conversationId.equals(canonical.conversationId) &
+                  message.sequence.equals(canonical.sequence),
+            ))
+            .getSingleOrNull();
+    final fallbackMatch =
+        await (select(localMessages)
+              ..where((message) => message.localId.equals(fallbackLocalId)))
+            .getSingleOrNull();
+
+    final identityMatches = <LocalMessage>{
+      if (serverMatch != null) serverMatch,
+      if (clientMatch != null) clientMatch,
+      if (sequenceMatch != null) sequenceMatch,
+    };
+    final identityLocalIds = identityMatches.map((row) => row.localId).toSet();
+    if (identityLocalIds.length > 1) {
+      throw const CanonicalIdentityConflict(
+        'server, client, and sequence keys resolve to different rows',
       );
-    final existing = await query.getSingleOrNull();
+    }
+
+    final existing = identityMatches.isEmpty
+        ? fallbackMatch
+        : identityMatches.first;
+    if (existing != null &&
+        fallbackMatch != null &&
+        existing.localId != fallbackMatch.localId) {
+      throw const CanonicalIdentityConflict(
+        'fallback local id belongs to a different row',
+      );
+    }
+    if (existing != null) {
+      _validateImmutableIdentity(existing, canonical);
+    }
     final localId = existing?.localId ?? fallbackLocalId;
     final deliveryState = existing?.deliveryState ?? 'sent';
     final clientCreatedAt =
@@ -71,4 +118,20 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
   });
 
   Future<List<LocalMessage>> getAll() => select(localMessages).get();
+
+  void _validateImmutableIdentity(
+    LocalMessage existing,
+    CanonicalLocalMessage canonical,
+  ) {
+    if (existing.conversationId != canonical.conversationId ||
+        existing.clientMessageId != canonical.clientMessageId ||
+        (existing.serverId != null &&
+            existing.serverId != canonical.serverId) ||
+        (existing.sequence != null &&
+            existing.sequence != canonical.sequence)) {
+      throw const CanonicalIdentityConflict(
+        'canonical input would rewrite an existing identity',
+      );
+    }
+  }
 }

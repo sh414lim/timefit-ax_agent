@@ -36,6 +36,8 @@ class LocalMessages extends Table {
   @override
   List<String> get customConstraints => [
     "CHECK (delivery_state IN ('pending', 'uploading', 'sending', 'sent', 'failed'))",
-    'CHECK (sequence IS NULL OR sequence >= 0)',
+    'CHECK (sequence IS NULL OR sequence > 0)',
+    "CHECK (sender_kind IN ('user', 'system'))",
+    "CHECK (message_kind IN ('text', 'attachment', 'mixed', 'system'))",
   ];
 }
