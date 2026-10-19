@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:timefit_native/app/app.dart';
 import 'package:timefit_native/app/bootstrap.dart';
 import 'package:timefit_native/app/theme/app_theme.dart';
 import 'package:timefit_native/app/theme/tokens.dart';
@@ -184,16 +185,51 @@ void main() {
       final Widget recovery = ErrorWidget.builder(
         FlutterErrorDetails(exception: StateError('redacted_render_failure')),
       );
-      await tester.pumpWidget(
-        MaterialApp(theme: AppTheme.light(), home: recovery),
-      );
+      await tester.pumpWidget(recovery);
 
+      expect(tester.takeException(), isNull);
+      expect(find.byType(MaterialApp), findsOneWidget);
+      expect(find.byType(BootstrapFailureScreen), findsOneWidget);
       expect(
         tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
         isNotNull,
       );
       await tester.tap(find.text('다시 시도'));
       expect(appRuns, hasLength(2));
+    } finally {
+      ErrorWidget.builder = originalErrorBuilder;
+    }
+  });
+
+  testWidgets('framework retry replaces the existing app state', (
+    WidgetTester tester,
+  ) async {
+    final List<Widget> appRuns = <Widget>[];
+    final ErrorWidgetBuilder originalErrorBuilder = ErrorWidget.builder;
+    try {
+      runTimeFitApp(AppEnvironment.dev, appRunner: appRuns.add);
+      await tester.pumpWidget(appRuns.single);
+      final State<StatefulWidget> firstState = tester.state(
+        find.byType(TimeFitApp),
+      );
+
+      final MaterialApp recovery =
+          ErrorWidget.builder(
+                FlutterErrorDetails(
+                  exception: StateError('redacted_render_failure'),
+                ),
+              )
+              as MaterialApp;
+      final BootstrapFailureScreen failure =
+          recovery.home! as BootstrapFailureScreen;
+      failure.onRetry();
+      expect(appRuns, hasLength(2));
+
+      await tester.pumpWidget(appRuns.last);
+      final State<StatefulWidget> secondState = tester.state(
+        find.byType(TimeFitApp),
+      );
+      expect(identical(firstState, secondState), isFalse);
     } finally {
       ErrorWidget.builder = originalErrorBuilder;
     }

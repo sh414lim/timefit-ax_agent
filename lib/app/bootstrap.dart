@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../src/app_environment.dart';
 import 'app.dart';
+import 'theme/app_theme.dart';
 import 'theme/tokens.dart';
 
 typedef TimeFitAppRunner = void Function(Widget app);
@@ -13,12 +14,18 @@ void runTimeFitApp(
   void retry() => runTimeFitApp(environment, appRunner: appRunner);
 
   ErrorWidget.builder = (FlutterErrorDetails details) {
-    return BootstrapFailureScreen(onRetry: retry);
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system,
+      home: BootstrapFailureScreen(onRetry: retry),
+    );
   };
   appRunner(
     TimeFitErrorBoundary(
       onRetry: retry,
-      child: TimeFitApp(environment: environment),
+      child: TimeFitApp(key: UniqueKey(), environment: environment),
     ),
   );
 }

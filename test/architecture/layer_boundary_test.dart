@@ -60,6 +60,12 @@ void main() {
 
     expect(forbiddenPresentationImports(source), contains('package:supabase/'));
   });
+
+  test('presentation cannot import its feature data implementation', () {
+    const String source = "import '../data/layer.dart';";
+
+    expect(forbiddenPresentationImports(source), contains('/data/'));
+  });
 }
 
 Set<String> forbiddenPresentationImports(String source) {
@@ -76,6 +82,9 @@ Set<String> forbiddenPresentationImports(String source) {
   }
   if (source.contains('/database/')) {
     violations.add('/database/');
+  }
+  if (source.contains('/data/')) {
+    violations.add('/data/');
   }
   return violations;
 }
