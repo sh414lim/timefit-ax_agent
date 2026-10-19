@@ -33,6 +33,7 @@ class ConversationListController {
 
   ConversationListState _state = const ConversationListState.loading();
   bool _isDisposed = false;
+  int _requestEpoch = 0;
 
   ConversationListState get state => _state;
 
@@ -49,22 +50,36 @@ class ConversationListController {
   Future<void> refresh() => _synchronize(showInitialLoading: false);
 
   Future<void> _synchronize({required bool showInitialLoading}) async {
+    final int requestEpoch = ++_requestEpoch;
+    List<ConversationSummary> retained = _state.conversations;
     if (showInitialLoading) {
       _emit(const ConversationListState.loading());
     }
 
-    List<ConversationSummary> cached = _state.conversations;
     try {
-      cached = _sorted(await _repository.readCachedConversations());
+      final List<ConversationSummary> cached = _sorted(
+        await _repository.readCachedConversations(),
+      );
+      if (!_isCurrent(requestEpoch)) {
+        return;
+      }
+      // An empty cache is not proof that the server-side list is empty. Keep
+      // the in-memory result until a successful refresh confirms that state.
+      if (cached.isNotEmpty) {
+        retained = cached;
+      }
     } on Object {
       // A cache read failure must not prevent a remote recovery attempt.
     }
+    if (!_isCurrent(requestEpoch)) {
+      return;
+    }
 
-    if (cached.isNotEmpty) {
+    if (retained.isNotEmpty) {
       _emit(
         ConversationListState(
           phase: ConversationListPhase.stale,
-          conversations: cached,
+          conversations: retained,
           isRefreshing: true,
         ),
       );
@@ -76,6 +91,9 @@ class ConversationListController {
       final List<ConversationSummary> refreshed = _sorted(
         await _repository.refreshConversations(),
       );
+      if (!_isCurrent(requestEpoch)) {
+        return;
+      }
       _emit(
         refreshed.isEmpty
             ? const ConversationListState(phase: ConversationListPhase.empty)
@@ -85,12 +103,18 @@ class ConversationListController {
               ),
       );
     } on ConversationRepositoryException catch (error) {
+      if (!_isCurrent(requestEpoch)) {
+        return;
+      }
       _emitRefreshFailure(
-        cached,
+        retained,
         isOffline: error.kind == ConversationRepositoryFailureKind.offline,
       );
     } on Object {
-      _emitRefreshFailure(cached, isOffline: false);
+      if (!_isCurrent(requestEpoch)) {
+        return;
+      }
+      _emitRefreshFailure(retained, isOffline: false);
     }
   }
 
@@ -114,10 +138,10 @@ class ConversationListController {
     final List<ConversationSummary> result = List<ConversationSummary>.of(
       source,
     );
-    result.sort(
-      (ConversationSummary a, ConversationSummary b) =>
-          b.updatedAt.compareTo(a.updatedAt),
-    );
+    result.sort((ConversationSummary a, ConversationSummary b) {
+      final int updatedAtOrder = b.updatedAt.compareTo(a.updatedAt);
+      return updatedAtOrder != 0 ? updatedAtOrder : b.id.compareTo(a.id);
+    });
     return List<ConversationSummary>.unmodifiable(result);
   }
 
@@ -131,8 +155,13 @@ class ConversationListController {
     }
   }
 
+  bool _isCurrent(int requestEpoch) {
+    return !_isDisposed && requestEpoch == _requestEpoch;
+  }
+
   void dispose() {
     _isDisposed = true;
+    _requestEpoch += 1;
     _listeners.clear();
   }
 }

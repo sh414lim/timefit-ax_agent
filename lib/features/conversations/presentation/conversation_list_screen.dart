@@ -109,6 +109,8 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
           message: '새 대화를 시작하면 이곳에서 다시 확인할 수 있습니다.',
           actionLabel: '새 대화 시작',
           onAction: widget.onNewConversation,
+          secondaryActionLabel: '보관된 대화',
+          onSecondaryAction: widget.onOpenArchive,
         ),
       ),
       ConversationListPhase.error => RefreshIndicator(

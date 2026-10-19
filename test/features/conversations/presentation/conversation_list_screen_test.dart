@@ -25,7 +25,7 @@ void main() {
   });
 
   test(
-    'controller orders conversations by updatedAt and limits preview',
+    'controller orders by updatedAt then id descending and limits preview',
     () async {
       final String longPreview = List<String>.filled(170, '가').join();
       final _FakeConversationRepository repository =
@@ -33,6 +33,7 @@ void main() {
             refreshed: <ConversationSummary>[
               _conversation('older', minutesAgo: 20),
               _conversation('newer', minutesAgo: 1, preview: longPreview),
+              _conversation('z-tie', minutesAgo: 1),
             ],
           );
       final ConversationListController controller = ConversationListController(
@@ -42,9 +43,13 @@ void main() {
       await controller.load();
 
       expect(controller.state.phase, ConversationListPhase.ready);
-      expect(controller.state.conversations.first.id, 'newer');
+      expect(controller.state.conversations.map((item) => item.id), <String>[
+        'z-tie',
+        'newer',
+        'older',
+      ]);
       expect(
-        controller.state.conversations.first.displayPreview.runes.length,
+        controller.state.conversations[1].displayPreview.runes.length,
         ConversationSummary.maximumPreviewCharacters,
       );
     },
@@ -69,6 +74,100 @@ void main() {
     expect(controller.state.isOffline, isTrue);
   });
 
+  test('latest refresh wins when an older request completes last', () async {
+    final Completer<List<ConversationSummary>> older =
+        Completer<List<ConversationSummary>>();
+    final Completer<List<ConversationSummary>> latest =
+        Completer<List<ConversationSummary>>();
+    final _SequencedConversationRepository repository =
+        _SequencedConversationRepository(<Completer<List<ConversationSummary>>>[
+          older,
+          latest,
+        ]);
+    final ConversationListController controller = ConversationListController(
+      repository: repository,
+    );
+
+    final Future<void> olderRequest = controller.refresh();
+    await Future<void>.delayed(Duration.zero);
+    final Future<void> latestRequest = controller.refresh();
+    await Future<void>.delayed(Duration.zero);
+    latest.complete(<ConversationSummary>[
+      _conversation('latest', minutesAgo: 1),
+    ]);
+    await latestRequest;
+    older.complete(<ConversationSummary>[
+      _conversation('older', minutesAgo: 2),
+    ]);
+    await olderRequest;
+
+    expect(controller.state.conversations.single.id, 'latest');
+  });
+
+  test('dispose ignores an in-flight refresh completion', () async {
+    final Completer<List<ConversationSummary>> refresh =
+        Completer<List<ConversationSummary>>();
+    final ConversationListController controller = ConversationListController(
+      repository: _FakeConversationRepository(refreshCompleter: refresh),
+    );
+    var notificationCount = 0;
+    controller.addListener((_) => notificationCount += 1);
+
+    final Future<void> request = controller.refresh();
+    await Future<void>.delayed(Duration.zero);
+    final int countAtDispose = notificationCount;
+    controller.dispose();
+    refresh.complete(<ConversationSummary>[
+      _conversation('late', minutesAgo: 1),
+    ]);
+    await request;
+
+    expect(notificationCount, countAtDispose);
+    expect(controller.state.conversations, isEmpty);
+  });
+
+  test('empty cache preserves memory list when reload fails', () async {
+    final _MutableConversationRepository repository =
+        _MutableConversationRepository(
+          refreshed: <ConversationSummary>[
+            _conversation('memory', minutesAgo: 1),
+          ],
+        );
+    final ConversationListController controller = ConversationListController(
+      repository: repository,
+    );
+    await controller.load();
+    repository.refreshed = const <ConversationSummary>[];
+    repository.refreshError = const ConversationRepositoryException(
+      ConversationRepositoryFailureKind.unavailable,
+    );
+
+    await controller.load();
+
+    expect(controller.state.phase, ConversationListPhase.stale);
+    expect(controller.state.conversations.single.id, 'memory');
+    expect(controller.state.lastRefreshFailed, isTrue);
+  });
+
+  test('successful remote empty response confirms the empty state', () async {
+    final _MutableConversationRepository repository =
+        _MutableConversationRepository(
+          refreshed: <ConversationSummary>[
+            _conversation('memory', minutesAgo: 1),
+          ],
+        );
+    final ConversationListController controller = ConversationListController(
+      repository: repository,
+    );
+    await controller.load();
+    repository.refreshed = const <ConversationSummary>[];
+
+    await controller.refresh();
+
+    expect(controller.state.phase, ConversationListPhase.empty);
+    expect(controller.state.conversations, isEmpty);
+  });
+
   testWidgets('normal empty response shows an explicit new conversation CTA', (
     WidgetTester tester,
   ) async {
@@ -85,8 +184,37 @@ void main() {
 
     expect(find.text('아직 대화가 없습니다'), findsOneWidget);
     expect(find.text('새 대화 시작'), findsOneWidget);
+    expect(find.text('보관된 대화'), findsOneWidget);
     await tester.tap(find.text('새 대화 시작'));
     expect(newConversationCount, 1);
+  });
+
+  testWidgets('settings, archive, and conversation rows invoke callbacks', (
+    WidgetTester tester,
+  ) async {
+    var settingsCount = 0;
+    var archiveCount = 0;
+    String? openedConversation;
+    final ConversationListController controller = await _loadedController(
+      _FakeConversationRepository(
+        refreshed: <ConversationSummary>[_conversation('tap', minutesAgo: 1)],
+      ),
+    );
+
+    await _pumpScreen(
+      tester,
+      controller,
+      onOpenSettings: () => settingsCount += 1,
+      onOpenArchive: () => archiveCount += 1,
+      onOpenConversation: (String id) => openedConversation = id,
+    );
+    await tester.tap(find.text('설정'));
+    await tester.tap(find.text('대화 tap'));
+    await tester.tap(find.text('보관된 대화'));
+
+    expect(settingsCount, 1);
+    expect(archiveCount, 1);
+    expect(openedConversation, 'tap');
   });
 
   testWidgets('cached list and refresh error are shown together', (
@@ -339,6 +467,41 @@ class _FakeConversationRepository implements ConversationRepository {
   }
 }
 
+class _SequencedConversationRepository implements ConversationRepository {
+  _SequencedConversationRepository(this.refreshes);
+
+  final List<Completer<List<ConversationSummary>>> refreshes;
+  var _refreshIndex = 0;
+
+  @override
+  Future<List<ConversationSummary>> readCachedConversations() async =>
+      const <ConversationSummary>[];
+
+  @override
+  Future<List<ConversationSummary>> refreshConversations() {
+    return refreshes[_refreshIndex++].future;
+  }
+}
+
+class _MutableConversationRepository implements ConversationRepository {
+  _MutableConversationRepository({required this.refreshed});
+
+  List<ConversationSummary> refreshed;
+  Object? refreshError;
+
+  @override
+  Future<List<ConversationSummary>> readCachedConversations() async =>
+      const <ConversationSummary>[];
+
+  @override
+  Future<List<ConversationSummary>> refreshConversations() async {
+    if (refreshError case final Object error) {
+      throw error;
+    }
+    return refreshed;
+  }
+}
+
 Future<ConversationListController> _loadedController(
   ConversationRepository repository,
 ) async {
@@ -353,6 +516,9 @@ Future<void> _pumpScreen(
   WidgetTester tester,
   ConversationListController controller, {
   VoidCallback? onNewConversation,
+  VoidCallback? onOpenSettings,
+  VoidCallback? onOpenArchive,
+  ValueChanged<String>? onOpenConversation,
   double textScale = 1,
   Brightness brightness = Brightness.light,
 }) async {
@@ -369,9 +535,9 @@ Future<void> _pumpScreen(
           loadOnMount: false,
           currentTime: () => _now,
           onNewConversation: onNewConversation ?? () {},
-          onOpenSettings: () {},
-          onOpenArchive: () {},
-          onOpenConversation: (_) {},
+          onOpenSettings: onOpenSettings ?? () {},
+          onOpenArchive: onOpenArchive ?? () {},
+          onOpenConversation: onOpenConversation ?? (_) {},
         ),
       ),
     ),

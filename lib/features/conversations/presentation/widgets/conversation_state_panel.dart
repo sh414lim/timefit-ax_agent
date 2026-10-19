@@ -6,6 +6,8 @@ class ConversationStatePanel extends StatelessWidget {
     required this.message,
     required this.actionLabel,
     required this.onAction,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
     super.key,
   });
 
@@ -13,6 +15,8 @@ class ConversationStatePanel extends StatelessWidget {
   final String message;
   final String actionLabel;
   final VoidCallback onAction;
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +42,14 @@ class ConversationStatePanel extends StatelessWidget {
                     Text(message, textAlign: TextAlign.center),
                     const SizedBox(height: 24),
                     FilledButton(onPressed: onAction, child: Text(actionLabel)),
+                    if (secondaryActionLabel
+                        case final String label) ...<Widget>[
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: onSecondaryAction,
+                        child: Text(label),
+                      ),
+                    ],
                   ],
                 ),
               ),
