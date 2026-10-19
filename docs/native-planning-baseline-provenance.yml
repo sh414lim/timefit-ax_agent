@@ -448,3 +448,81 @@ revisions:
     storeTargetSelectionGranted: false
     productionConfigurationChanged: false
     trelloUpdated: false
+
+  - revisionId: native-planning-chat003-release-gate-transfer-2026-10-19
+    status: DRAFT_REVIEW_PENDING
+    basedOnCommit: 501337c283ee2c1eb054b1c78484068794f5ed92
+    supersedesRevisionId: native-planning-flavor-aware-bootstrap-command-erratum-2026-10-19
+    basis:
+      - 'user decision: CHAT-005 and CHAT-006 owner completion accepted; CHAT-003 DevGym OS and update-impact verification moved without waiver to the pre-release gate'
+      - 'Trello CHAT-003: https://trello.com/c/IAwjbaEa'
+      - 'Trello REL-003: https://trello.com/c/5hCM0Z9l'
+      - 'Trello REL-001: https://trello.com/c/xFoln3Kq'
+      - 'Trello REL-007: https://trello.com/c/zx4CHOxa'
+      - docs/145-timefit-native-app-repository-migration-plan-2026-10-16.md
+      - docs/147-timefit-native-chat-execution-ticket-catalog-2026-10-16.md
+    scope: >-
+      Separate CHAT-003's already-verified unsigned development bootstrap from
+      the still-unverified DevGym supported-OS and actual store update-impact
+      checks. Move those checks, without waiver, to REL-003's pre-release
+      Technical Continuity Gate and reuse the existing REL-001 and REL-007
+      evidence requirements. Preserve product scope, production identity,
+      signing deferral, release blocks and all prior provenance. This documentation
+      revision is not a release approval, technical GO or update-success claim.
+    correctionType: CHAT003_PRE_RELEASE_GATE_TRANSFER
+    developmentStage:
+      ticket: CHAT-003
+      evidenceStatus: VERIFIED
+      evidence:
+        pinnedFlutterAndDart: PASS
+        exactDependenciesAndLockfile: PASS
+        cleanCheckoutFvmReproduction: PASS
+        androidDevAndStagingUnsignedBuilds: PASS
+        iosDevAndStagingNoCodesignBuilds: PASS
+        requiredCi: PASS
+      completionScope: UNSIGNED_DEVELOPMENT_BOOTSTRAP_ONLY
+    preReleaseGateTransfer:
+      masterGateTicket: REL-003
+      masterGateName: Technical Continuity Gate
+      existingEvidenceTickets:
+        - REL-001
+        - REL-007
+      duplicateTicketCreated: false
+      verificationStatus: UNVERIFIED_REQUIRED_BEFORE_RELEASE
+      requiredEvidence:
+        - actual_devgym_supported_os_range_per_platform
+        - existing_store_install_to_approved_timefit_candidate_update
+        - post_update_launch_and_crash_free_result
+        - decision_specific_session_and_local_state_impact
+      waived: false
+      blocksProductionPromotion: true
+      blocksStoreUpload: true
+    ownerDecision:
+      chat005CompletionAccepted: true
+      chat006CompletionAccepted: true
+      chat003GateTransferAccepted: true
+      independentHumanReviewClaimed: false
+      releaseApprovalGranted: false
+    originalImportReference:
+      mergedRevision: 237268ef73efddafb12a902b9da99bad870066c2
+      digestsPreservedUnder: originalImport.documents
+    previousRevisionReference:
+      revisionId: native-planning-flavor-aware-bootstrap-command-erratum-2026-10-19
+      digestsPreservedUnder: revisions[5].currentRevisionDocuments
+    currentRevisionDocuments:
+      - path: docs/145-timefit-native-app-repository-migration-plan-2026-10-16.md
+        currentRevisionSha256: ca1f2dd367ffba79513836966b09643ab6167c909fba29d145a0198b8197b8b8
+        contentChangedFromOriginalImport: true
+      - path: docs/146-timefit-native-chat-architecture-2026-10-16.md
+        currentRevisionSha256: 3a209555e28fc5729575e531929bc6beeb1671f39a4998218e6da8e33c1ca946
+        contentChangedFromOriginalImport: true
+      - path: docs/147-timefit-native-chat-execution-ticket-catalog-2026-10-16.md
+        currentRevisionSha256: 5957d68fc1eb54c72ca212a1d193c24e877375d56d5274146009269279b36c89
+        contentChangedFromOriginalImport: true
+    executionPlanApproval: PENDING
+    releaseApprovalGranted: false
+    technicalGoGranted: false
+    signingCompleted: false
+    storeTargetSelectionGranted: false
+    productionConfigurationChanged: false
+    trelloUpdated: true

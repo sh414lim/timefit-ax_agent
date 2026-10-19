@@ -433,14 +433,14 @@ flowchart TD
 
 ### CHAT-003 — `timefit-mobile` 저장소와 고정 Flutter toolchain bootstrap
 
-**상태:** 비서명 bootstrap gap 착수 가능 — merge·Done 및 REL/CHAT 전체 완료는 별도
+**상태:** 개발단계 비서명 bootstrap 증거 충족 — DevGym 지원 OS·실제 update 설치 영향은 REL-003 출시 전 필수 Gate로 미검증 유지; 카드 Done과 REL/CHAT 전체 완료는 별도
 **예상:** 2일
 **대상 저장소:** `timefit-mobile`
 **선행:** 1장의 비서명 개발 착수 Gate와 현재 저장소 경계. CHAT-000의 production identity/signing 최종 동결은 출시 전 별도
 
 **목표:** Flutter 3.38.5/Dart 3.10.4와 고정 dependency로 재현 가능한 새 앱 기반을 만든다.
 
-현재 최소 scaffold·dev/staging smoke가 존재해도 CHAT-003은 완료되지 않았다. `.fvmrc`, 2.1의 exact dependency 집합과 갱신된 lockfile, README clean-checkout 재현 명령·결과가 모두 없으면 후속 카드의 선행조건으로 사용할 수 없다. signing·provider production 설정과 실제 update 검증은 이 카드 범위가 아니다.
+CHAT-003 개발단계 완료는 `.fvmrc`, 2.1의 exact dependency 집합과 lockfile, README clean-checkout FVM 재현, dev/staging Android·iOS 비서명 build 증거로 판정한다. 기존 DevGym 지원 OS 범위와 실제 store install→update 영향 검증은 면제하지 않고 REL-003의 출시 전 `Technical Continuity Gate`로 이관한다. signing·provider production 설정과 실제 update 검증은 개발단계 완료 증거가 아니며 현재 그 출시 증거는 미검증이다.
 
 **대상 경로:**
 
@@ -454,7 +454,7 @@ flowchart TD
 2. Dart SDK를 `>=3.10.0 <3.11.0`으로 제한한다.
 3. 이 문서 2.1의 package를 exact version으로 추가하고 lockfile을 커밋한다.
 4. 앱 시작 화면에는 임시 `TimeFit` text만 두며 채팅 mock UI는 만들지 않는다.
-5. Android/iOS 최소 OS는 제품 지원 정책과 package 호환성으로 정하고, 두 플랫폼 모두 DevGym 기존 지원 범위와 실제 update 설치 영향을 검증한다.
+5. 개발단계에서는 Android/iOS 최소 OS와 package 호환성을 dev/staging 비서명 build로 확인한다. 기존 DevGym 지원 OS 범위와 실제 store install→update 영향은 REL-003 출시 전 필수 Gate로 이관하고, REL-001·REL-007의 기존 증거 요구를 재사용한다.
 6. README에 SDK 설치와 검증 명령을 기록한다.
 
 **테스트 명령·케이스:**
@@ -476,6 +476,13 @@ dev/staging scheme을 사용하는 현재 프로젝트에서는 `--flavor`와 �
 - Given `pubspec.lock`, When dependency를 검사하면, Then floating constraint나 미승인 package가 없다.
 
 **완료 증거:** version 출력, dependency 목록, Android/iOS build log, PR.
+
+**출시 전 필수 Gate — CHAT-003 개발단계 완료와 별도:**
+
+- REL-003 `Technical Continuity Gate`가 상위 decision record다.
+- REL-001의 플랫폼별 store identity·지원 범위·update 경로 감사와 REL-007의 실제 store 설치→업데이트 Keychain/Keystore·crash 없음 검증을 중복 없이 재사용한다.
+- 플랫폼별 DevGym 기존 배포본의 실제 지원 OS 범위, 동일 승인 identity/signing의 TimeFit 후보 update 설치, update 후 실행 및 decision별 session/local-state 영향을 검증하기 전에는 production promotion과 store upload를 차단한다.
+- 사용자 승인으로 Gate 위치를 이관했을 뿐 검증을 면제하거나 기술 `GO`, signing·release 승인을 부여하지 않는다.
 
 **금지:** 최신 버전 자동 선택, caret 사용, 기존 `tablet_app` 복사, PWA target 생성, package 임의 추가.
 
