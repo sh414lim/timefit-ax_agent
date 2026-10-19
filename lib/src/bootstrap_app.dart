@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../app/app.dart';
+import '../app/bootstrap.dart';
 import 'app_environment.dart';
 
 void runTimeFitBootstrap(AppEnvironment environment) {
@@ -7,7 +9,7 @@ void runTimeFitBootstrap(AppEnvironment environment) {
     throw StateError('production_configuration_unavailable');
   }
 
-  runApp(TimeFitBootstrapApp(environment: environment));
+  runTimeFitApp(environment);
 }
 
 class TimeFitBootstrapApp extends StatelessWidget {
@@ -17,10 +19,6 @@ class TimeFitBootstrapApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: environment == AppEnvironment.dev,
-      home: Scaffold(body: Center(child: Text(environment.displayName))),
-      title: environment.displayName,
-    );
+    return TimeFitApp(environment: environment);
   }
 }
