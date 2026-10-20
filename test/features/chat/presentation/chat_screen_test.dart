@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +9,7 @@ import 'package:timefit_native/app/theme/app_theme.dart';
 import 'package:timefit_native/features/chat/domain/chat_message.dart';
 import 'package:timefit_native/features/chat/presentation/chat_screen.dart';
 import 'package:timefit_native/features/chat/presentation/widgets/message_bubble.dart';
+import 'package:timefit_native/features/chat/presentation/widgets/message_list.dart';
 
 void main() {
   setUpAll(() async {
@@ -323,6 +325,39 @@ void main() {
     expect(find.text('대화에 접근할 수 없습니다'), findsOneWidget);
   });
 
+  test('golden comparator rejects dimensions and non-text pixels', () {
+    final ByteData expected = ByteData(4 * 4 * 4);
+    final ByteData movedMarker = ByteData(4 * 4 * 4)
+      ..setUint32((1 * 4 + 2) * 4, 0xff000000);
+
+    expect(
+      () => _verifyGoldenPixels(
+        golden: Uri.parse('expected.png'),
+        actualWidth: 4,
+        actualHeight: 4,
+        actualBytes: movedMarker,
+        expectedWidth: 4,
+        expectedHeight: 4,
+        expectedBytes: expected,
+        textRegions: const <Rect>[Rect.fromLTWH(0, 0, 1, 1)],
+      ),
+      throwsA(isA<FlutterError>()),
+    );
+    expect(
+      () => _verifyGoldenPixels(
+        golden: Uri.parse('expected.png'),
+        actualWidth: 5,
+        actualHeight: 4,
+        actualBytes: ByteData(5 * 4 * 4),
+        expectedWidth: 4,
+        expectedHeight: 4,
+        expectedBytes: expected,
+        textRegions: const <Rect>[],
+      ),
+      throwsA(isA<FlutterError>()),
+    );
+  });
+
   group('goldens', () {
     testWidgets('timeline light', (WidgetTester tester) async {
       await _golden(tester, 'light');
@@ -425,10 +460,158 @@ Future<void> _golden(
     textScale: textScale,
   );
   await tester.pumpAndSettle();
+  _expectGoldenContentAndLayout(tester);
+  _installTextRasterizationComparator(tester);
   await expectLater(
     find.byType(ChatScreen),
     matchesGoldenFile('goldens/chat_timeline_$name.png'),
   );
+}
+
+void _expectGoldenContentAndLayout(WidgetTester tester) {
+  const List<String> expectedBodies = <String>[
+    '이번 주 운동 계획을 확인해 주세요.',
+    '월요일과 수요일 저녁이 좋아요.',
+    '좋습니다. 두 일정으로 정리했습니다.',
+    '메시지 4',
+    '메시지 5',
+  ];
+  final MessageList timeline = tester.widget<MessageList>(
+    find.byType(MessageList),
+  );
+  expect(
+    timeline.messages.map((ChatMessage message) => message.body).toList(),
+    expectedBodies,
+  );
+  final List<MessageBubble> visibleBubbles = tester
+      .widgetList<MessageBubble>(find.byType(MessageBubble))
+      .toList(growable: false);
+  expect(find.text('전송 중'), findsOneWidget);
+  expect(find.text('전송 실패, 재시도 필요'), findsOneWidget);
+
+  final Rect screen = tester.getRect(find.byType(ChatScreen));
+  double previousBottom = -double.infinity;
+  for (final MessageBubble visible in visibleBubbles) {
+    final Rect bubble = tester.getRect(
+      find.ancestor(
+        of: find.text(visible.message.body),
+        matching: find.byType(MessageBubble),
+      ),
+    );
+    expect(bubble.height, greaterThanOrEqualTo(44));
+    expect(bubble.left, greaterThanOrEqualTo(screen.left));
+    expect(bubble.right, lessThanOrEqualTo(screen.right));
+    expect(bubble.bottom, greaterThan(screen.top));
+    expect(bubble.top, lessThan(screen.bottom));
+    expect(bubble.top, greaterThanOrEqualTo(previousBottom));
+    previousBottom = bubble.bottom;
+  }
+  expect(tester.takeException(), isNull);
+}
+
+void _installTextRasterizationComparator(WidgetTester tester) {
+  final List<Rect> textRegions = find
+      .byType(Text)
+      .evaluate()
+      .map((Element element) {
+        final RenderBox box = element.renderObject! as RenderBox;
+        return box.localToGlobal(Offset.zero) & box.size;
+      })
+      .map((Rect region) => region.inflate(1))
+      .toList(growable: false);
+  final GoldenFileComparator previous = goldenFileComparator;
+  goldenFileComparator = _TextRasterizationComparator(
+    Uri.parse('test/features/chat/presentation/chat_screen_test.dart'),
+    textRegions: textRegions,
+  );
+  addTearDown(() => goldenFileComparator = previous);
+}
+
+/// Ignores platform-specific glyph rasterization while keeping dimensions,
+/// layout, spacing, surfaces, and every pixel outside measured text strict.
+class _TextRasterizationComparator extends LocalFileComparator {
+  _TextRasterizationComparator(super.testFile, {required this.textRegions});
+
+  final List<Rect> textRegions;
+
+  @override
+  Future<bool> compare(Uint8List imageBytes, Uri golden) async {
+    final _DecodedImage actual = await _decode(imageBytes);
+    final _DecodedImage expected = await _decode(
+      Uint8List.fromList(await getGoldenBytes(golden)),
+    );
+    try {
+      _verifyGoldenPixels(
+        golden: golden,
+        actualWidth: actual.width,
+        actualHeight: actual.height,
+        actualBytes: actual.bytes,
+        expectedWidth: expected.width,
+        expectedHeight: expected.height,
+        expectedBytes: expected.bytes,
+        textRegions: textRegions,
+      );
+      return true;
+    } finally {
+      actual.dispose();
+      expected.dispose();
+    }
+  }
+}
+
+void _verifyGoldenPixels({
+  required Uri golden,
+  required int actualWidth,
+  required int actualHeight,
+  required ByteData actualBytes,
+  required int expectedWidth,
+  required int expectedHeight,
+  required ByteData expectedBytes,
+  required List<Rect> textRegions,
+}) {
+  if (actualWidth != expectedWidth || actualHeight != expectedHeight) {
+    throw FlutterError('Golden image dimensions changed for $golden.');
+  }
+  var differences = 0;
+  for (var y = 0; y < actualHeight; y += 1) {
+    for (var x = 0; x < actualWidth; x += 1) {
+      final Offset center = Offset(x + 0.5, y + 0.5);
+      if (textRegions.any((Rect region) => region.contains(center))) continue;
+      final int offset = (y * actualWidth + x) * 4;
+      if (actualBytes.getUint32(offset) != expectedBytes.getUint32(offset)) {
+        differences += 1;
+      }
+    }
+  }
+  if (differences != 0) {
+    throw FlutterError(
+      '$golden differs by $differences pixels outside text regions.',
+    );
+  }
+}
+
+class _DecodedImage {
+  const _DecodedImage(this.image, this.bytes);
+
+  final ui.Image image;
+  final ByteData bytes;
+  int get width => image.width;
+  int get height => image.height;
+  void dispose() => image.dispose();
+}
+
+Future<_DecodedImage> _decode(Uint8List pngBytes) async {
+  final ui.Codec codec = await ui.instantiateImageCodec(pngBytes);
+  final ui.FrameInfo frame = await codec.getNextFrame();
+  codec.dispose();
+  final ByteData? bytes = await frame.image.toByteData(
+    format: ui.ImageByteFormat.rawRgba,
+  );
+  if (bytes == null) {
+    frame.image.dispose();
+    throw FlutterError('Unable to decode golden pixels.');
+  }
+  return _DecodedImage(frame.image, bytes);
 }
 
 const String _fontFamily = 'NanumGothicChatGolden';
