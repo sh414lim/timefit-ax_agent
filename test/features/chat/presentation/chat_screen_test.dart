@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -461,6 +462,20 @@ Future<void> _golden(
   );
   await tester.pumpAndSettle();
   _expectGoldenContentAndLayout(tester);
+  if (Platform.isLinux) {
+    final ui.Image rendered = await captureImage(
+      find.byType(ChatScreen).evaluate().single,
+    );
+    final ByteData? png = await rendered.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
+    rendered.dispose();
+    if (png == null) throw FlutterError('Unable to encode Linux golden.');
+    printOnFailure(
+      'CHAT042_LINUX_GOLDEN_$name='
+      '${base64Encode(png.buffer.asUint8List())}',
+    );
+  }
   _installTextRasterizationComparator(tester);
   await expectLater(
     find.byType(ChatScreen),
