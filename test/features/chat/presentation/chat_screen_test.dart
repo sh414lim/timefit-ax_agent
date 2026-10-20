@@ -541,9 +541,7 @@ class _TextRasterizationComparator extends LocalFileComparator {
       final String name = golden.pathSegments.last
           .replaceFirst('chat_timeline_', '')
           .replaceFirst('.png', '');
-      printOnFailure(
-        'CHAT042_LINUX_GOLDEN_$name=${base64Encode(imageBytes)}',
-      );
+      printOnFailure('CHAT042_LINUX_GOLDEN_$name=${base64Encode(imageBytes)}');
     }
     final _DecodedImage actual = await _decode(imageBytes);
     final _DecodedImage expected = await _decode(
