@@ -82,7 +82,19 @@ final class LocalRepositorySession {
       },
       onCancel: stop,
     );
-    return controller.stream;
+    // A paused listener can retain events already queued by the controller.
+    // Transform at delivery time as well as checking when enqueueing: after
+    // disposal neither buffered values nor buffered errors cross the session.
+    return controller.stream.transform(
+      StreamTransformer<T, T>.fromHandlers(
+        handleData: (value, sink) {
+          if (!_closed) sink.add(value);
+        },
+        handleError: (Object error, StackTrace stack, EventSink<T> sink) {
+          if (!_closed) sink.addError(error, stack);
+        },
+      ),
+    );
   }
 
   Future<void> dispose() async {
