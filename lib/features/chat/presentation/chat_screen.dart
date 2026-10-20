@@ -1,47 +1,84 @@
 import 'package:flutter/material.dart';
 
 import '../domain/chat_message.dart';
+import '../domain/repositories/message_repository.dart';
 import 'widgets/message_list.dart';
 
 enum ChatScreenStatus { ready, error, accessRevoked }
 
-class ChatScreen extends StatelessWidget {
+class ChatScreen extends StatefulWidget {
   const ChatScreen({
     required this.title,
     required this.messages,
     this.status = ChatScreenStatus.ready,
     this.scrollController,
     super.key,
-  });
+  }) : repository = null,
+       conversationId = null;
+
+  const ChatScreen.repository({
+    required this.title,
+    required MessageRepository this.repository,
+    required String this.conversationId,
+    this.status = ChatScreenStatus.ready,
+    this.scrollController,
+    super.key,
+  }) : messages = null;
 
   final String title;
-  final Stream<List<ChatMessage>> messages;
+  final Stream<List<ChatMessage>>? messages;
+  final MessageRepository? repository;
+  final String? conversationId;
   final ChatScreenStatus status;
   final ScrollController? scrollController;
 
   @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  late Stream<List<ChatMessage>> _messages = _resolveMessages();
+
+  @override
+  void didUpdateWidget(ChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.messages != widget.messages ||
+        oldWidget.repository != widget.repository ||
+        oldWidget.conversationId != widget.conversationId) {
+      _messages = _resolveMessages();
+    }
+  }
+
+  Stream<List<ChatMessage>> _resolveMessages() {
+    if (widget.messages case final Stream<List<ChatMessage>> messages) {
+      return messages;
+    }
+    return widget.repository!.watchCachedMessages(widget.conversationId!);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(title: Text(widget.title)),
       body: SafeArea(child: _buildBody()),
     );
   }
 
   Widget _buildBody() {
-    if (status == ChatScreenStatus.accessRevoked) {
+    if (widget.status == ChatScreenStatus.accessRevoked) {
       return const _ChatState(
         title: '대화에 접근할 수 없습니다',
         message: '대화 접근 권한이 변경되었습니다.',
       );
     }
-    if (status == ChatScreenStatus.error) {
+    if (widget.status == ChatScreenStatus.error) {
       return const _ChatState(
         title: '메시지를 표시하지 못했습니다',
         message: '잠시 후 다시 시도해 주세요.',
       );
     }
     return StreamBuilder<List<ChatMessage>>(
-      stream: messages,
+      stream: _messages,
       builder:
           (BuildContext context, AsyncSnapshot<List<ChatMessage>> snapshot) {
             if (snapshot.hasError) {
@@ -62,7 +99,7 @@ class ChatScreen extends StatelessWidget {
             }
             return MessageList(
               messages: ordered,
-              scrollController: scrollController,
+              scrollController: widget.scrollController,
             );
           },
     );

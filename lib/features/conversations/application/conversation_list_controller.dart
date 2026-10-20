@@ -1,5 +1,7 @@
-import '../domain/conversation_repository.dart';
+import 'dart:async';
+
 import '../domain/conversation_summary.dart';
+import '../domain/repositories/conversation_repository.dart';
 
 enum ConversationListPhase { loading, empty, ready, stale, error }
 
@@ -28,12 +30,16 @@ class ConversationListController {
   ConversationListController({required ConversationRepository repository})
     : _repository = repository;
 
+  // Injected repositories are owned by the session/composition scope. This
+  // controller only owns and cancels its subscription.
   final ConversationRepository _repository;
   final Set<ConversationListListener> _listeners = <ConversationListListener>{};
 
   ConversationListState _state = const ConversationListState.loading();
   bool _isDisposed = false;
   int _requestEpoch = 0;
+  int _cacheRevision = 0;
+  StreamSubscription<List<ConversationSummary>>? _cacheSubscription;
 
   ConversationListState get state => _state;
 
@@ -45,9 +51,38 @@ class ConversationListController {
     _listeners.remove(listener);
   }
 
-  Future<void> load() => _synchronize(showInitialLoading: true);
+  Future<void> load() async {
+    _subscribeToCache();
+    await _synchronize(showInitialLoading: true);
+  }
 
   Future<void> refresh() => _synchronize(showInitialLoading: false);
+
+  void _subscribeToCache() {
+    if (_cacheSubscription != null ||
+        _repository is! LocalConversationRepository) {
+      return;
+    }
+    final LocalConversationRepository localRepository = _repository;
+    _cacheSubscription = localRepository.watchCachedConversations().listen(
+      (List<ConversationSummary> conversations) {
+        _cacheRevision += 1;
+        final List<ConversationSummary> sorted = _sorted(conversations);
+        _emit(
+          sorted.isEmpty
+              ? const ConversationListState(phase: ConversationListPhase.empty)
+              : ConversationListState(
+                  phase: ConversationListPhase.ready,
+                  conversations: sorted,
+                ),
+        );
+      },
+      onError: (Object _) {
+        _cacheRevision += 1;
+        _emitRefreshFailure(_state.conversations, isOffline: false);
+      },
+    );
+  }
 
   Future<void> _synchronize({required bool showInitialLoading}) async {
     final int requestEpoch = ++_requestEpoch;
@@ -63,9 +98,13 @@ class ConversationListController {
       if (!_isCurrent(requestEpoch)) {
         return;
       }
-      // An empty cache is not proof that the server-side list is empty. Keep
-      // the in-memory result until a successful refresh confirms that state.
-      if (cached.isNotEmpty) {
+      // Once the watch has emitted it is the authoritative cache snapshot.
+      // A slower point-in-time read must never replace that newer state.
+      if (_repository is LocalConversationRepository && _cacheRevision > 0) {
+        retained = _state.conversations;
+      } else if (cached.isNotEmpty) {
+        // An empty cache is not proof that the server-side list is empty. Keep
+        // the in-memory result until a successful refresh confirms that state.
         retained = cached;
       }
     } on Object {
@@ -159,9 +198,11 @@ class ConversationListController {
     return !_isDisposed && requestEpoch == _requestEpoch;
   }
 
-  void dispose() {
+  Future<void> dispose() async {
     _isDisposed = true;
     _requestEpoch += 1;
     _listeners.clear();
+    await _cacheSubscription?.cancel();
+    _cacheSubscription = null;
   }
 }

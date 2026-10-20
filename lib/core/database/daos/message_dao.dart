@@ -119,6 +119,17 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
 
   Future<List<LocalMessage>> getAll() => select(localMessages).get();
 
+  Selectable<LocalMessage> _timeline(String conversationId) => customSelect(
+    'SELECT * FROM local_messages WHERE conversation_id = ? ORDER BY sequence IS NULL, sequence ASC, rowid ASC',
+    variables: [Variable(conversationId)],
+    readsFrom: {localMessages},
+  ).map((row) => localMessages.map(row.data));
+
+  Future<List<LocalMessage>> readTimeline(String conversationId) =>
+      _timeline(conversationId).get();
+  Stream<List<LocalMessage>> watchTimeline(String conversationId) =>
+      _timeline(conversationId).watch();
+
   void _validateImmutableIdentity(
     LocalMessage existing,
     CanonicalLocalMessage canonical,
