@@ -40,9 +40,26 @@ final class AttachmentMessageSendExecutor implements CommandExecutor {
   final DateTime Function() _clock;
   final LocalRepositorySession _session;
   final LocalMessageSendPort sender;
+  final Map<String, Future<CommandExecutionResult>> _active = {};
 
   @override
-  Future<CommandExecutionResult> execute(OutboxExecutionCommand command) async {
+  Future<CommandExecutionResult> execute(OutboxExecutionCommand command) {
+    if (_active[command.id] case final Future<CommandExecutionResult> active) {
+      return active;
+    }
+    late final Future<CommandExecutionResult> operation;
+    operation = _execute(command).whenComplete(() {
+      if (identical(_active[command.id], operation)) {
+        _active.remove(command.id);
+      }
+    });
+    _active[command.id] = operation;
+    return operation;
+  }
+
+  Future<CommandExecutionResult> _execute(
+    OutboxExecutionCommand command,
+  ) async {
     try {
       if (command.commandType != 'local_send_message_v2' ||
           command.id != command.clientRequestId ||
@@ -109,13 +126,13 @@ final class AttachmentMessageSendExecutor implements CommandExecutor {
       }
       if (attachments.any((row) => row.uploadState == 'failed')) {
         return const CommandExecutionResult(
-          ExecutionDisposition.permanent,
+          ExecutionDisposition.deferred,
           errorCode: 'attachment_failed',
         );
       }
       if (attachments.any((row) => row.uploadState != 'ready')) {
         return const CommandExecutionResult(
-          ExecutionDisposition.retryable,
+          ExecutionDisposition.deferred,
           errorCode: 'attachments_not_ready',
         );
       }

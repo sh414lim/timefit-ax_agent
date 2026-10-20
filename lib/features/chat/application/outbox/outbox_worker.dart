@@ -80,6 +80,9 @@ final class OutboxWorker {
                 : 'retry_wait';
             if (state == 'retry_wait')
               next = now.add(retryPolicy.delay(failures));
+          case ExecutionDisposition.deferred:
+            state = 'retry_wait';
+            next = now.add(retryPolicy.delay(1));
         }
         final applied = await dao.finish(
           lease,

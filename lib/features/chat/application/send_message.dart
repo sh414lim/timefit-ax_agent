@@ -136,7 +136,8 @@ final class SendMessage
     required String bodyText,
     required List<String> localAttachmentIds,
   }) => _session.write(_database, () async {
-    final normalized = normalizeLocalTextBody(bodyText);
+    final normalizedInput = normalizeLocalTextBody(bodyText);
+    final normalized = normalizedInput.trim().isEmpty ? '' : normalizedInput;
     final ids = List<String>.unmodifiable(localAttachmentIds);
     if (clientMessageId.isEmpty ||
         conversationId.isEmpty ||
@@ -154,7 +155,8 @@ final class SendMessage
         attachments.any(
           (row) =>
               row.conversationId != conversationId ||
-              row.clientMessageId != clientMessageId,
+              row.clientMessageId != clientMessageId ||
+              row.composerExcluded,
         )) {
       throw ArgumentError('Attachment aggregate identity mismatch');
     }

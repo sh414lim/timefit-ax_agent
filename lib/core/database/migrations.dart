@@ -27,3 +27,17 @@ MigrationStrategy schemaV2MigrationStrategy(
     await upgrade(migrator);
   },
 );
+
+MigrationStrategy schemaV3MigrationStrategy({
+  required Future<void> Function(Migrator) upgradeV1ToV2,
+  required Future<void> Function(Migrator) upgradeV2ToV3,
+}) => MigrationStrategy(
+  onCreate: (migrator) => migrator.createAll(),
+  onUpgrade: (migrator, from, to) async {
+    if (to != 3 || (from != 1 && from != 2)) {
+      throw UnsupportedSchemaMigration(from, to);
+    }
+    if (from == 1) await upgradeV1ToV2(migrator);
+    await upgradeV2ToV3(migrator);
+  },
+);

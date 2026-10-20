@@ -26,6 +26,11 @@ class LocalAttachments extends Table {
   IntColumn get verificationFailures =>
       integer().withDefault(const Constant(0))();
 
+  /// Local-only composer membership. Exclusion never deletes the private copy
+  /// and has no server/RPC meaning.
+  BoolColumn get composerExcluded =>
+      boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column<Object>> get primaryKey => {localId};
 

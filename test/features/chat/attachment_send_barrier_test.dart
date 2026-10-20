@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/core/database/app_database.dart';
 import 'package:timefit_native/core/database/local_repository_session.dart';
 import 'package:timefit_native/features/chat/application/composer_controller.dart';
+import 'package:timefit_native/features/chat/application/drift_attachment_composer_source.dart';
 import 'package:timefit_native/features/chat/application/outbox/attachment_message_send_executor.dart';
 import 'package:timefit_native/features/chat/application/outbox/command_executor.dart';
 import 'package:timefit_native/features/chat/application/outbox/outbox_worker.dart';
@@ -97,7 +98,7 @@ void main() {
 
     final command = await claimedCommand();
     final first = await executor.execute(command);
-    expect(first.disposition, ExecutionDisposition.retryable);
+    expect(first.disposition, ExecutionDisposition.deferred);
     expect(first.errorCode, 'attachments_not_ready');
     expect(sender.calls, isEmpty);
 
@@ -126,6 +127,62 @@ void main() {
     );
   });
 
+  test('whitespace file-only body uses one canonical empty value', () async {
+    await insertAttachment(
+      'ready',
+      state: 'ready',
+      attachmentId: 'server-ready',
+    );
+    await submitter().submitWithAttachments(
+      clientMessageId: 'message-1',
+      conversationId: 'conversation',
+      bodyText: ' \n ',
+      localAttachmentIds: const <String>['ready'],
+    );
+    final sender = _FakeMessageSender();
+    final result = await AttachmentMessageSendExecutor(
+      database: database,
+      sender: sender,
+      clock: () => now,
+    ).execute(await claimedCommand());
+
+    expect(result.disposition, ExecutionDisposition.completed);
+    expect(sender.calls.single.bodyText, isEmpty);
+    expect((await database.messageDao.getAll()).single.bodyText, isNull);
+  });
+
+  test('concurrent execution shares one in-flight fake send', () async {
+    await insertAttachment(
+      'ready',
+      state: 'ready',
+      attachmentId: 'server-ready',
+    );
+    await submitter().submitWithAttachments(
+      clientMessageId: 'message-1',
+      conversationId: 'conversation',
+      bodyText: 'body',
+      localAttachmentIds: const <String>['ready'],
+    );
+    final sender = _DelayedMessageSender();
+    final executor = AttachmentMessageSendExecutor(
+      database: database,
+      sender: sender,
+      clock: () => now,
+    );
+    final command = await claimedCommand();
+
+    final first = executor.execute(command);
+    final second = executor.execute(command);
+    await sender.started.future;
+    expect(identical(first, second), isTrue);
+    expect(sender.calls, 1);
+    sender.result.complete(
+      const CommandExecutionResult(ExecutionDisposition.completed),
+    );
+    expect(await first, await second);
+    expect(sender.calls, 1);
+  });
+
   test('failed and cancelled aggregates never reach fake send', () async {
     await insertAttachment(
       'failed',
@@ -147,7 +204,7 @@ void main() {
 
     final command = await claimedCommand();
     final failed = await executor.execute(command);
-    expect(failed.disposition, ExecutionDisposition.permanent);
+    expect(failed.disposition, ExecutionDisposition.deferred);
     expect(failed.errorCode, 'attachment_failed');
     expect(sender.calls, isEmpty);
     expect(await database.outboxDao.cancel('message-1', now), isTrue);
@@ -241,6 +298,143 @@ void main() {
       };
       expect(states['message-1'], 'completed');
       expect(states['message-2'], 'cancelled');
+    },
+  );
+
+  test('readiness deferral never consumes the eight-failure budget', () async {
+    await insertAttachment(
+      'slow',
+      state: 'uploading',
+      attachmentId: 'server-slow',
+    );
+    await submitter().submitWithAttachments(
+      clientMessageId: 'message-1',
+      conversationId: 'conversation',
+      bodyText: 'body',
+      localAttachmentIds: const <String>['slow'],
+    );
+    final sender = _FakeMessageSender();
+    final worker = OutboxWorker(
+      dao: database.outboxDao,
+      executor: AttachmentMessageSendExecutor(
+        database: database,
+        sender: sender,
+        clock: () => now,
+      ),
+      clock: () => now,
+      retryPolicy: const RetryPolicy(_middleJitter),
+      scope: 'chat-052-deferred',
+      leaseToken: () => 'deferred-${now.microsecondsSinceEpoch}',
+    );
+
+    for (var wake = 0; wake < 8; wake++) {
+      await worker.wake();
+      final row = (await database.outboxDao.getAll()).single;
+      expect(row.state, 'retry_wait');
+      expect(row.attemptCount, 0);
+      now = row.nextAttemptAt;
+    }
+    expect(sender.calls, isEmpty);
+    await (database.update(
+      database.localAttachments,
+    )..where((row) => row.localId.equals('slow'))).write(
+      const LocalAttachmentsCompanion(
+        uploadState: Value('ready'),
+        bytesSent: Value(10),
+      ),
+    );
+    await worker.wake();
+
+    expect(sender.calls, hasLength(1));
+    expect((await database.outboxDao.getAll()).single.state, 'completed');
+  });
+
+  test(
+    'failed exclusion persists and revises the aggregate after restart',
+    () async {
+      final sandbox = await Directory.systemTemp.createTemp(
+        'timefit-chat-052-',
+      );
+      final file = File('${sandbox.path}/local.db');
+      await database.close();
+      database = AppDatabase(NativeDatabase(file));
+      await insertAttachment('failed', state: 'uploading');
+      await insertAttachment(
+        'ready',
+        state: 'ready',
+        attachmentId: 'server-ready',
+      );
+      await submitter().submitWithAttachments(
+        clientMessageId: 'message-1',
+        conversationId: 'conversation',
+        bodyText: 'body',
+        localAttachmentIds: const <String>['failed', 'ready'],
+      );
+      final waitingWorker = OutboxWorker(
+        dao: database.outboxDao,
+        executor: AttachmentMessageSendExecutor(
+          database: database,
+          sender: _FakeMessageSender(),
+          clock: () => now,
+        ),
+        clock: () => now,
+        retryPolicy: const RetryPolicy(_middleJitter),
+        scope: 'chat-052-waiting-removal',
+      );
+      await waitingWorker.wake();
+      expect((await database.outboxDao.getAll()).single.state, 'retry_wait');
+      await (database.update(database.localAttachments)
+            ..where((row) => row.localId.equals('failed')))
+          .write(const LocalAttachmentsCompanion(uploadState: Value('failed')));
+      final source = DriftAttachmentComposerSource(
+        database: database,
+        clock: () => now,
+      );
+      await source.removeFailed(
+        conversationId: 'conversation',
+        clientMessageId: 'message-1',
+        localId: 'failed',
+      );
+      await database.close();
+      database = AppDatabase(NativeDatabase(file));
+      final restored =
+          await DriftAttachmentComposerSource(
+                database: database,
+                clock: () => now,
+              )
+              .watch(
+                conversationId: 'conversation',
+                clientMessageId: 'message-1',
+              )
+              .first;
+      final rows = await database.select(database.localAttachments).get();
+      final command = LocalAttachmentMessageCommand.decode(
+        (await database.outboxDao.getAll()).single.payloadJson,
+      );
+
+      expect(restored.map((item) => item.localId), <String>['ready']);
+      expect(
+        rows.singleWhere((row) => row.localId == 'failed').composerExcluded,
+        isTrue,
+      );
+      expect(command.localAttachmentIds, <String>['ready']);
+      final sender = _FakeMessageSender();
+      final worker = OutboxWorker(
+        dao: database.outboxDao,
+        executor: AttachmentMessageSendExecutor(
+          database: database,
+          sender: sender,
+          clock: () => now,
+        ),
+        clock: () => now,
+        retryPolicy: const RetryPolicy(_middleJitter),
+        scope: 'chat-052-restored-removal',
+      );
+      await worker.wake();
+      expect(sender.calls.single.attachmentIds, <String>['server-ready']);
+      await database.close();
+      database = AppDatabase(NativeDatabase.memory());
+      await sandbox.delete(recursive: true);
     },
   );
 
@@ -381,7 +575,7 @@ void main() {
       );
       await first;
       await tester.pump();
-      expect(controller.attachments, isEmpty);
+      expect(controller.attachments, hasLength(1));
       expect(controller.canSubmit, isFalse);
     },
   );
@@ -435,6 +629,19 @@ final class _FakeMessageSender implements LocalMessageSendPort {
   Future<CommandExecutionResult> send(LocalMessageSendRequest request) async {
     calls.add(request);
     return const CommandExecutionResult(ExecutionDisposition.completed);
+  }
+}
+
+final class _DelayedMessageSender implements LocalMessageSendPort {
+  final started = Completer<void>();
+  final result = Completer<CommandExecutionResult>();
+  int calls = 0;
+
+  @override
+  Future<CommandExecutionResult> send(LocalMessageSendRequest request) {
+    calls += 1;
+    if (!started.isCompleted) started.complete();
+    return result.future;
   }
 }
 

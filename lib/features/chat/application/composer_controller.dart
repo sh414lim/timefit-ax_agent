@@ -69,8 +69,7 @@ final class ComposerController extends ChangeNotifier {
   bool get showCounter => characterCount >= counterThreshold;
   bool get isSubmitting => _activeSubmit != null;
   Object? get lastError => _lastError;
-  List<ComposerAttachment> get attachments =>
-      _aggregateSubmitted ? const <ComposerAttachment>[] : _attachments;
+  List<ComposerAttachment> get attachments => _attachments;
   bool get hasFailedAttachment => attachments.any(
     (attachment) => attachment.state == ComposerAttachmentState.failed,
   );
@@ -131,9 +130,6 @@ final class ComposerController extends ChangeNotifier {
                 }
                 if (attachmentClientMessageId != null) {
                   _aggregateSubmitted = true;
-                  _attachments = const <ComposerAttachment>[];
-                  unawaited(_attachmentSubscription?.cancel());
-                  _attachmentSubscription = null;
                 }
               },
               onError: (Object error, StackTrace stack) {
@@ -154,7 +150,7 @@ final class ComposerController extends ChangeNotifier {
   }
 
   Future<void> removeFailedAttachment(String localId) async {
-    if (_disposed || _aggregateSubmitted) return;
+    if (_disposed) return;
     final attachment = attachments
         .where((item) => item.localId == localId)
         .firstOrNull;
