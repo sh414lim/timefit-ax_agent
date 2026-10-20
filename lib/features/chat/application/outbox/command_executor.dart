@@ -6,12 +6,14 @@ final class OutboxExecutionCommand {
     required this.commandType,
     required this.aggregateId,
     required this.payloadJson,
+    this.leaseToken,
   });
   final String id;
   final String clientRequestId;
   final String commandType;
   final String aggregateId;
   final String payloadJson;
+  final String? leaseToken;
 }
 
 enum ExecutionDisposition { completed, retryable, permanent, authRequired }

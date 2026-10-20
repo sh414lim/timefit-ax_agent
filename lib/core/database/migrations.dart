@@ -17,3 +17,13 @@ MigrationStrategy schemaV1MigrationStrategy() => MigrationStrategy(
     throw UnsupportedSchemaMigration(from, to);
   },
 );
+
+MigrationStrategy schemaV2MigrationStrategy(
+  Future<void> Function(Migrator) upgrade,
+) => MigrationStrategy(
+  onCreate: (migrator) => migrator.createAll(),
+  onUpgrade: (migrator, from, to) async {
+    if (from != 1 || to != 2) throw UnsupportedSchemaMigration(from, to);
+    await upgrade(migrator);
+  },
+);

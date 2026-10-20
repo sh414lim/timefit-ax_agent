@@ -49,6 +49,7 @@ final class OutboxWorker {
               commandType: lease.commandType,
               aggregateId: lease.aggregateId,
               payloadJson: lease.payloadJson,
+              leaseToken: lease.leaseOwner,
             ),
           );
         } on Object {
