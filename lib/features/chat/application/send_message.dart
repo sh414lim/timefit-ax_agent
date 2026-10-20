@@ -26,7 +26,16 @@ final class LocalTextCommand {
   });
 }
 
-final class SendMessage {
+abstract interface class TextMessageSubmitter {
+  Future<LocalTextCommand> submit({
+    required String conversationId,
+    required String bodyText,
+  });
+
+  Future<bool> retry(String commandId);
+}
+
+final class SendMessage implements TextMessageSubmitter {
   SendMessage({
     required AppDatabase database,
     required DateTime Function() clock,

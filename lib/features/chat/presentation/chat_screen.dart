@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../application/composer_controller.dart';
 import '../domain/chat_message.dart';
 import '../domain/repositories/message_repository.dart';
+import 'widgets/chat_composer.dart';
 import 'widgets/message_list.dart';
 
 enum ChatScreenStatus { ready, error, accessRevoked }
@@ -12,6 +14,7 @@ class ChatScreen extends StatefulWidget {
     required this.messages,
     this.status = ChatScreenStatus.ready,
     this.scrollController,
+    this.composerController,
     super.key,
   }) : repository = null,
        conversationId = null;
@@ -22,6 +25,7 @@ class ChatScreen extends StatefulWidget {
     required String this.conversationId,
     this.status = ChatScreenStatus.ready,
     this.scrollController,
+    this.composerController,
     super.key,
   }) : messages = null;
 
@@ -31,6 +35,7 @@ class ChatScreen extends StatefulWidget {
   final String? conversationId;
   final ChatScreenStatus status;
   final ScrollController? scrollController;
+  final ComposerController? composerController;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -60,7 +65,16 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: SafeArea(child: _buildBody()),
+      body: SafeArea(
+        child: Column(
+          children: <Widget>[
+            Expanded(child: _buildBody()),
+            if (widget.status == ChatScreenStatus.ready)
+              if (widget.composerController case final ComposerController value)
+                ChatComposer(controller: value),
+          ],
+        ),
+      ),
     );
   }
 
@@ -100,6 +114,7 @@ class _ChatScreenState extends State<ChatScreen> {
             return MessageList(
               messages: ordered,
               scrollController: widget.scrollController,
+              onRetry: widget.composerController?.retry,
             );
           },
     );

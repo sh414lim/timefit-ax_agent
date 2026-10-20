@@ -1,22 +1,28 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../domain/chat_message.dart';
 import 'delivery_badge.dart';
 
 class MessageBubble extends StatelessWidget {
-  const MessageBubble({required this.message, super.key});
+  const MessageBubble({required this.message, this.onRetry, super.key});
 
   final ChatMessage message;
+  final Future<bool> Function(String clientMessageId)? onRetry;
 
   @override
   Widget build(BuildContext context) {
+    final bool canRetry =
+        message.deliveryState == MessageDeliveryState.failed && onRetry != null;
     final ColorScheme colors = Theme.of(context).colorScheme;
     final Color background = message.isMine
         ? colors.primaryContainer
         : colors.surfaceContainerHighest;
     return Semantics(
       container: true,
-      excludeSemantics: true,
+      excludeSemantics: !canRetry,
+      explicitChildNodes: canRetry,
       label:
           '${message.isMine ? '내 메시지' : '받은 메시지'}, '
           '${message.body}, ${DeliveryBadge(state: message.deliveryState).label}',
@@ -41,6 +47,17 @@ class MessageBubble extends StatelessWidget {
               ExcludeSemantics(
                 child: DeliveryBadge(state: message.deliveryState),
               ),
+              if (canRetry)
+                TextButton(
+                  onPressed: () {
+                    unawaited(
+                      onRetry!(
+                        message.clientMessageId,
+                      ).catchError((Object _) => false),
+                    );
+                  },
+                  child: const Text('재시도'),
+                ),
             ],
           ),
         ),
