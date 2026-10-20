@@ -15,7 +15,27 @@ final class AttachmentException implements Exception {
 
 final class AttachmentCancellation {
   bool _cancelled = false;
-  void cancel() => _cancelled = true;
+  final _listeners = <void Function()>{};
+  void cancel() {
+    if (_cancelled) return;
+    _cancelled = true;
+    final listeners = _listeners.toList();
+    _listeners.clear();
+    for (final listener in listeners) {
+      listener();
+    }
+  }
+
+  /// Returns a remover so streaming work keeps only one pending listener.
+  void Function() onCancel(void Function() listener) {
+    if (_cancelled) {
+      listener();
+    } else {
+      _listeners.add(listener);
+    }
+    return () => _listeners.remove(listener);
+  }
+
   void check() {
     if (_cancelled)
       throw const AttachmentException(AttachmentFailure.cancelled);

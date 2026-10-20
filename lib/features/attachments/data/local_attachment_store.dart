@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -58,6 +59,7 @@ final class LocalAttachmentStore implements AttachmentStore {
       throw const AttachmentException(AttachmentFailure.unsafePath);
     }
     RandomAccessFile? output;
+    StreamIterator<List<int>>? inputStream;
     var created = false;
     try {
       await file.create(exclusive: true);
@@ -67,7 +69,10 @@ final class LocalAttachmentStore implements AttachmentStore {
       final hash = sha256.startChunkedConversion(result);
       final header = <int>[];
       var count = 0;
-      await for (final chunk in input.openRead()) {
+      cancellation.check();
+      inputStream = StreamIterator(input.openRead());
+      while (await _nextChunk(inputStream, cancellation)) {
+        final chunk = inputStream.current;
         cancellation.check();
         count += chunk.length;
         if (count > AttachmentPolicy.maximumBytes)
@@ -101,6 +106,45 @@ final class LocalAttachmentStore implements AttachmentStore {
         throw AttachmentCleanupException(error, [file.uri]);
       }
       rethrow;
+    } finally {
+      // Request upstream cancellation immediately. A stalled source may itself
+      // return a non-terminating cancel future; it must not hold our output
+      // handle or private-file cleanup hostage. Consume cancellation errors.
+      if (inputStream != null) {
+        unawaited(inputStream.cancel().catchError((Object _) {}));
+      }
+    }
+  }
+
+  Future<bool> _nextChunk(
+    StreamIterator<List<int>> stream,
+    AttachmentCancellation cancellation,
+  ) async {
+    cancellation.check();
+    final result = Completer<bool>();
+    final remove = cancellation.onCancel(() {
+      if (!result.isCompleted)
+        result.completeError(
+          const AttachmentException(AttachmentFailure.cancelled),
+        );
+      unawaited(stream.cancel().catchError((Object _) {}));
+    });
+    try {
+      if (!result.isCompleted) {
+        unawaited(
+          stream.moveNext().then(
+            (value) {
+              if (!result.isCompleted) result.complete(value);
+            },
+            onError: (Object error, StackTrace stack) {
+              if (!result.isCompleted) result.completeError(error, stack);
+            },
+          ),
+        );
+      }
+      return await result.future;
+    } finally {
+      remove();
     }
   }
 

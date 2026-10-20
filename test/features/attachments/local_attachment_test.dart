@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -242,6 +243,49 @@ void main() {
       expect(await root.list().toList(), isEmpty);
     },
   );
+  test(
+    'cancel stalled source without next chunk or source close cleans partial copy',
+    () async {
+      final token = AttachmentCancellation();
+      final source = StreamController<List<int>>();
+      final delivered = Completer<void>();
+      var cancelled = false;
+      source.onCancel = () {
+        cancelled = true;
+      };
+      final running = select.select([
+        AttachmentInput(
+          name: 'stalled.pdf',
+          openRead: () {
+            scheduleMicrotask(() {
+              source.add(signatures['pdf']!);
+              delivered.complete();
+            });
+            return source.stream;
+          },
+        ),
+      ], cancellation: token);
+      final rejected = expectLater(
+        running,
+        throwsA(
+          isA<AttachmentException>().having(
+            (e) => e.failure,
+            'failure',
+            AttachmentFailure.cancelled,
+          ),
+        ),
+      );
+      await delivered.future;
+      // Give the header write time to finish, then leave the source open forever.
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      token.cancel();
+      await rejected.timeout(const Duration(seconds: 2));
+      expect(cancelled, isTrue);
+      expect(await root.list().toList(), isEmpty);
+      await source.close();
+    },
+  );
+
   test('mid-stream cancellation cleans the entire batch', () async {
     final token = AttachmentCancellation();
     Stream<List<int>> cancelled() async* {
