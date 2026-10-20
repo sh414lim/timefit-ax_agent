@@ -462,20 +462,6 @@ Future<void> _golden(
   );
   await tester.pumpAndSettle();
   _expectGoldenContentAndLayout(tester);
-  if (Platform.isLinux) {
-    final ui.Image rendered = await captureImage(
-      find.byType(ChatScreen).evaluate().single,
-    );
-    final ByteData? png = await rendered.toByteData(
-      format: ui.ImageByteFormat.png,
-    );
-    rendered.dispose();
-    if (png == null) throw FlutterError('Unable to encode Linux golden.');
-    printOnFailure(
-      'CHAT042_LINUX_GOLDEN_$name='
-      '${base64Encode(png.buffer.asUint8List())}',
-    );
-  }
   _installTextRasterizationComparator(tester);
   await expectLater(
     find.byType(ChatScreen),
@@ -551,6 +537,14 @@ class _TextRasterizationComparator extends LocalFileComparator {
 
   @override
   Future<bool> compare(Uint8List imageBytes, Uri golden) async {
+    if (Platform.isLinux) {
+      final String name = golden.pathSegments.last
+          .replaceFirst('chat_timeline_', '')
+          .replaceFirst('.png', '');
+      printOnFailure(
+        'CHAT042_LINUX_GOLDEN_$name=${base64Encode(imageBytes)}',
+      );
+    }
     final _DecodedImage actual = await _decode(imageBytes);
     final _DecodedImage expected = await _decode(
       Uint8List.fromList(await getGoldenBytes(golden)),
