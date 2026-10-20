@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../application/composer_controller.dart';
 import '../domain/chat_message.dart';
 import '../domain/repositories/message_repository.dart';
+import 'widgets/chat_composer.dart';
 import 'widgets/message_list.dart';
 
 enum ChatScreenStatus { ready, error, accessRevoked }
@@ -10,11 +12,12 @@ class ChatScreen extends StatefulWidget {
   const ChatScreen({
     required this.title,
     required this.messages,
+    this.conversationId,
     this.status = ChatScreenStatus.ready,
     this.scrollController,
+    this.composerController,
     super.key,
-  }) : repository = null,
-       conversationId = null;
+  }) : repository = null;
 
   const ChatScreen.repository({
     required this.title,
@@ -22,6 +25,7 @@ class ChatScreen extends StatefulWidget {
     required String this.conversationId,
     this.status = ChatScreenStatus.ready,
     this.scrollController,
+    this.composerController,
     super.key,
   }) : messages = null;
 
@@ -31,6 +35,7 @@ class ChatScreen extends StatefulWidget {
   final String? conversationId;
   final ChatScreenStatus status;
   final ScrollController? scrollController;
+  final ComposerController? composerController;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -58,9 +63,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ComposerController? composer = _matchingComposer;
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: SafeArea(child: _buildBody()),
+      body: SafeArea(
+        child: Column(
+          children: <Widget>[
+            Expanded(child: _buildBody()),
+            if (widget.status == ChatScreenStatus.ready && composer != null)
+              ChatComposer(controller: composer),
+          ],
+        ),
+      ),
     );
   }
 
@@ -100,9 +114,17 @@ class _ChatScreenState extends State<ChatScreen> {
             return MessageList(
               messages: ordered,
               scrollController: widget.scrollController,
+              onRetry: _matchingComposer?.retry,
             );
           },
     );
+  }
+
+  ComposerController? get _matchingComposer {
+    final ComposerController? composer = widget.composerController;
+    return composer != null && widget.conversationId == composer.conversationId
+        ? composer
+        : null;
   }
 }
 

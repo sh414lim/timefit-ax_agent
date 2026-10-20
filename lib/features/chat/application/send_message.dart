@@ -6,6 +6,27 @@ import 'package:uuid/uuid.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/local_repository_session.dart';
 
+String normalizeLocalTextBody(String value) => value.replaceAll('\r\n', '\n');
+
+int normalizedLocalTextLength(String value) =>
+    normalizeLocalTextBody(value).runes.length;
+
+String truncateLocalTextBody(String value, int maximumLength) {
+  if (normalizedLocalTextLength(value) <= maximumLength) return value;
+  final List<int> runes = value.runes.toList(growable: false);
+  final StringBuffer result = StringBuffer();
+  var length = 0;
+  for (var index = 0; index < runes.length && length < maximumLength; index++) {
+    final int rune = runes[index];
+    result.writeCharCode(rune);
+    if (rune == 13 && index + 1 < runes.length && runes[index + 1] == 10) {
+      result.writeCharCode(runes[++index]);
+    }
+    length += 1;
+  }
+  return result.toString();
+}
+
 /// Persisted local command format only; this is not an RPC DTO.
 final class LocalTextCommand {
   const LocalTextCommand({
@@ -26,7 +47,16 @@ final class LocalTextCommand {
   });
 }
 
-final class SendMessage {
+abstract interface class TextMessageSubmitter {
+  Future<LocalTextCommand> submit({
+    required String conversationId,
+    required String bodyText,
+  });
+
+  Future<bool> retry(String commandId);
+}
+
+final class SendMessage implements TextMessageSubmitter {
   SendMessage({
     required AppDatabase database,
     required DateTime Function() clock,
@@ -45,10 +75,10 @@ final class SendMessage {
     required String conversationId,
     required String bodyText,
   }) => _session.write(_database, () async {
-    final normalized = bodyText.replaceAll('\r\n', '\n');
+    final normalized = normalizeLocalTextBody(bodyText);
     if (conversationId.isEmpty ||
         normalized.trim().isEmpty ||
-        normalized.runes.length > 12000) {
+        normalizedLocalTextLength(bodyText) > 12000) {
       throw ArgumentError('Invalid local text submission');
     }
     final command = LocalTextCommand(

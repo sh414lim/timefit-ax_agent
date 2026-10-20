@@ -5,10 +5,16 @@ import '../../domain/chat_message.dart';
 import 'message_bubble.dart';
 
 class MessageList extends StatefulWidget {
-  const MessageList({required this.messages, this.scrollController, super.key});
+  const MessageList({
+    required this.messages,
+    this.scrollController,
+    this.onRetry,
+    super.key,
+  });
 
   final List<ChatMessage> messages;
   final ScrollController? scrollController;
+  final Future<bool> Function(String clientMessageId)? onRetry;
 
   @override
   State<MessageList> createState() => _MessageListState();
@@ -160,7 +166,7 @@ class _MessageListState extends State<MessageList> {
                 ),
                 children: <Widget>[
                   if (showDate) _DateDivider(date: message.displayedAt),
-                  MessageBubble(message: message),
+                  MessageBubble(message: message, onRetry: widget.onRetry),
                 ],
               );
             },
