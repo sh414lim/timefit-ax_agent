@@ -542,6 +542,7 @@ class _TextRasterizationComparator extends LocalFileComparator {
           .replaceFirst('chat_timeline_', '')
           .replaceFirst('.png', '');
       printOnFailure('CHAT042_LINUX_GOLDEN_$name=${base64Encode(imageBytes)}');
+      throw FlutterError('Captured Linux golden: $name');
     }
     final _DecodedImage actual = await _decode(imageBytes);
     final _DecodedImage expected = await _decode(
