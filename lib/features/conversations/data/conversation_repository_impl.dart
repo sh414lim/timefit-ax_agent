@@ -8,10 +8,13 @@ export '../../../core/database/local_repository_session.dart'
     show LocalRepositoryException, LocalRepositoryFailure;
 
 final class ConversationRepositoryImpl implements LocalConversationRepository {
-  ConversationRepositoryImpl({required AppDatabase database})
-    : _database = database;
+  ConversationRepositoryImpl({
+    required AppDatabase database,
+    LocalRepositorySession? session,
+  }) : _database = database,
+       _session = session ?? LocalRepositorySession.forDatabase(database);
   final AppDatabase _database;
-  final _session = LocalRepositorySession();
+  final LocalRepositorySession _session;
 
   List<ConversationSummary> _map(List<CachedConversationRow> rows) =>
       List.unmodifiable(

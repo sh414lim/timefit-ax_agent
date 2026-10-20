@@ -7,9 +7,13 @@ export '../../../core/database/local_repository_session.dart'
     show LocalRepositoryException, LocalRepositoryFailure;
 
 final class MessageRepositoryImpl implements MessageRepository {
-  MessageRepositoryImpl({required AppDatabase database}) : _database = database;
+  MessageRepositoryImpl({
+    required AppDatabase database,
+    LocalRepositorySession? session,
+  }) : _database = database,
+       _session = session ?? LocalRepositorySession.forDatabase(database);
   final AppDatabase _database;
-  final _session = LocalRepositorySession();
+  final LocalRepositorySession _session;
 
   List<ChatMessage> _map(List<LocalMessage> rows) => List.unmodifiable(
     rows.map(

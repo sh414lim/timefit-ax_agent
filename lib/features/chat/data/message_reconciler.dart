@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/daos/message_dao.dart';
+import '../../../core/database/local_repository_session.dart';
 import '../application/send_message.dart';
 
 /// Domain input seam for synthetic/local canonical fixtures. No wire decoder.
@@ -28,15 +29,18 @@ final class MessageReconciler {
   MessageReconciler({
     required AppDatabase database,
     required DateTime Function() clock,
+    LocalRepositorySession? session,
   }) : _database = database,
+       _session = session ?? LocalRepositorySession.forDatabase(database),
        _clock = clock;
   final AppDatabase _database;
+  final LocalRepositorySession _session;
   final DateTime Function() _clock;
 
   Future<ReconciliationResult> reconcile({
     required String commandId,
     required CanonicalTextMessage canonical,
-  }) => _database.transaction(() async {
+  }) => _session.write(_database, () async {
     final command = await (_database.select(
       _database.outboxCommands,
     )..where((row) => row.id.equals(commandId))).getSingle();

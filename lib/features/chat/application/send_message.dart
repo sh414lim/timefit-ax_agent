@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/database/local_repository_session.dart';
 
 /// Persisted local command format only; this is not an RPC DTO.
 final class LocalTextCommand {
@@ -30,17 +31,20 @@ final class SendMessage {
     required AppDatabase database,
     required DateTime Function() clock,
     String Function()? clientMessageId,
+    LocalRepositorySession? session,
   }) : _database = database,
+       _session = session ?? LocalRepositorySession.forDatabase(database),
        _clock = clock,
        _clientMessageId = clientMessageId ?? (() => const Uuid().v4());
   final AppDatabase _database;
+  final LocalRepositorySession _session;
   final DateTime Function() _clock;
   final String Function() _clientMessageId;
 
   Future<LocalTextCommand> submit({
     required String conversationId,
     required String bodyText,
-  }) async {
+  }) => _session.write(_database, () async {
     final normalized = bodyText.replaceAll('\r\n', '\n');
     if (conversationId.isEmpty ||
         normalized.trim().isEmpty ||
@@ -75,10 +79,10 @@ final class SendMessage {
       ),
     );
     return command;
-  }
+  });
 
   /// Requeues the stored command without replacing its identity or payload.
-  Future<bool> retry(String commandId) => _database.transaction(() async {
+  Future<bool> retry(String commandId) => _session.write(_database, () async {
     final command = await (_database.select(
       _database.outboxCommands,
     )..where((row) => row.id.equals(commandId))).getSingleOrNull();

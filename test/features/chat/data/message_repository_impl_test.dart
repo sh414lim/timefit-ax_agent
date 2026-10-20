@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/core/database/app_database.dart';
+import 'package:timefit_native/core/database/local_repository_session.dart';
 import 'package:timefit_native/features/chat/data/message_repository_impl.dart';
 
 class ReadProbe extends QueryInterceptor {
@@ -135,7 +136,10 @@ void main() {
           ),
         ),
       );
-      final fresh = MessageRepositoryImpl(database: db);
+      final fresh = MessageRepositoryImpl(
+        database: db,
+        session: LocalRepositorySession(),
+      );
       addTearDown(fresh.dispose);
       expect(await fresh.readCachedMessages('two'), isEmpty);
     },
