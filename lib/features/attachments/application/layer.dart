@@ -1,2 +1,2 @@
-/// Application boundary marker. Feature use cases are intentionally absent.
+/// Application boundary marker for local attachment workflows.
 abstract final class AttachmentsApplicationLayer {}

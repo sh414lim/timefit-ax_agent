@@ -1,2 +1,2 @@
-/// Presentation boundary marker. Feature UI is intentionally not implemented.
+/// Presentation boundary marker for attachment selection and preview UI.
 abstract final class AttachmentsPresentationLayer {}
