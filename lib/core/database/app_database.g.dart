@@ -1492,6 +1492,21 @@ class $LocalAttachmentsTable extends LocalAttachments
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _composerExcludedMeta = const VerificationMeta(
+    'composerExcluded',
+  );
+  @override
+  late final GeneratedColumn<bool> composerExcluded = GeneratedColumn<bool>(
+    'composer_excluded',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("composer_excluded" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     localId,
@@ -1507,6 +1522,7 @@ class $LocalAttachmentsTable extends LocalAttachments
     failureCode,
     uploadObjectPath,
     verificationFailures,
+    composerExcluded,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1635,6 +1651,15 @@ class $LocalAttachmentsTable extends LocalAttachments
         ),
       );
     }
+    if (data.containsKey('composer_excluded')) {
+      context.handle(
+        _composerExcludedMeta,
+        composerExcluded.isAcceptableOrUnknown(
+          data['composer_excluded']!,
+          _composerExcludedMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1696,6 +1721,10 @@ class $LocalAttachmentsTable extends LocalAttachments
         DriftSqlType.int,
         data['${effectivePrefix}verification_failures'],
       )!,
+      composerExcluded: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}composer_excluded'],
+      )!,
     );
   }
 
@@ -1719,6 +1748,10 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
   final String? failureCode;
   final String? uploadObjectPath;
   final int verificationFailures;
+
+  /// Local-only composer membership. Exclusion never deletes the private copy
+  /// and has no server/RPC meaning.
+  final bool composerExcluded;
   const LocalAttachment({
     required this.localId,
     this.attachmentId,
@@ -1733,6 +1766,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     this.failureCode,
     this.uploadObjectPath,
     required this.verificationFailures,
+    required this.composerExcluded,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1758,6 +1792,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
       map['upload_object_path'] = Variable<String>(uploadObjectPath);
     }
     map['verification_failures'] = Variable<int>(verificationFailures);
+    map['composer_excluded'] = Variable<bool>(composerExcluded);
     return map;
   }
 
@@ -1784,6 +1819,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
           ? const Value.absent()
           : Value(uploadObjectPath),
       verificationFailures: Value(verificationFailures),
+      composerExcluded: Value(composerExcluded),
     );
   }
 
@@ -1808,6 +1844,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
       verificationFailures: serializer.fromJson<int>(
         json['verificationFailures'],
       ),
+      composerExcluded: serializer.fromJson<bool>(json['composerExcluded']),
     );
   }
   @override
@@ -1827,6 +1864,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
       'failureCode': serializer.toJson<String?>(failureCode),
       'uploadObjectPath': serializer.toJson<String?>(uploadObjectPath),
       'verificationFailures': serializer.toJson<int>(verificationFailures),
+      'composerExcluded': serializer.toJson<bool>(composerExcluded),
     };
   }
 
@@ -1844,6 +1882,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     Value<String?> failureCode = const Value.absent(),
     Value<String?> uploadObjectPath = const Value.absent(),
     int? verificationFailures,
+    bool? composerExcluded,
   }) => LocalAttachment(
     localId: localId ?? this.localId,
     attachmentId: attachmentId.present ? attachmentId.value : this.attachmentId,
@@ -1860,6 +1899,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
         ? uploadObjectPath.value
         : this.uploadObjectPath,
     verificationFailures: verificationFailures ?? this.verificationFailures,
+    composerExcluded: composerExcluded ?? this.composerExcluded,
   );
   LocalAttachment copyWithCompanion(LocalAttachmentsCompanion data) {
     return LocalAttachment(
@@ -1896,6 +1936,9 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
       verificationFailures: data.verificationFailures.present
           ? data.verificationFailures.value
           : this.verificationFailures,
+      composerExcluded: data.composerExcluded.present
+          ? data.composerExcluded.value
+          : this.composerExcluded,
     );
   }
 
@@ -1914,7 +1957,8 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
           ..write('sha256: $sha256, ')
           ..write('failureCode: $failureCode, ')
           ..write('uploadObjectPath: $uploadObjectPath, ')
-          ..write('verificationFailures: $verificationFailures')
+          ..write('verificationFailures: $verificationFailures, ')
+          ..write('composerExcluded: $composerExcluded')
           ..write(')'))
         .toString();
   }
@@ -1934,6 +1978,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     failureCode,
     uploadObjectPath,
     verificationFailures,
+    composerExcluded,
   );
   @override
   bool operator ==(Object other) =>
@@ -1951,7 +1996,8 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
           other.sha256 == this.sha256 &&
           other.failureCode == this.failureCode &&
           other.uploadObjectPath == this.uploadObjectPath &&
-          other.verificationFailures == this.verificationFailures);
+          other.verificationFailures == this.verificationFailures &&
+          other.composerExcluded == this.composerExcluded);
 }
 
 class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
@@ -1968,6 +2014,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
   final Value<String?> failureCode;
   final Value<String?> uploadObjectPath;
   final Value<int> verificationFailures;
+  final Value<bool> composerExcluded;
   final Value<int> rowid;
   const LocalAttachmentsCompanion({
     this.localId = const Value.absent(),
@@ -1983,6 +2030,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     this.failureCode = const Value.absent(),
     this.uploadObjectPath = const Value.absent(),
     this.verificationFailures = const Value.absent(),
+    this.composerExcluded = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   LocalAttachmentsCompanion.insert({
@@ -1999,6 +2047,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     this.failureCode = const Value.absent(),
     this.uploadObjectPath = const Value.absent(),
     this.verificationFailures = const Value.absent(),
+    this.composerExcluded = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : localId = Value(localId),
        conversationId = Value(conversationId),
@@ -2019,6 +2068,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     Expression<String>? failureCode,
     Expression<String>? uploadObjectPath,
     Expression<int>? verificationFailures,
+    Expression<bool>? composerExcluded,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2036,6 +2086,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
       if (uploadObjectPath != null) 'upload_object_path': uploadObjectPath,
       if (verificationFailures != null)
         'verification_failures': verificationFailures,
+      if (composerExcluded != null) 'composer_excluded': composerExcluded,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2054,6 +2105,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     Value<String?>? failureCode,
     Value<String?>? uploadObjectPath,
     Value<int>? verificationFailures,
+    Value<bool>? composerExcluded,
     Value<int>? rowid,
   }) {
     return LocalAttachmentsCompanion(
@@ -2070,6 +2122,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
       failureCode: failureCode ?? this.failureCode,
       uploadObjectPath: uploadObjectPath ?? this.uploadObjectPath,
       verificationFailures: verificationFailures ?? this.verificationFailures,
+      composerExcluded: composerExcluded ?? this.composerExcluded,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2116,6 +2169,9 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     if (verificationFailures.present) {
       map['verification_failures'] = Variable<int>(verificationFailures.value);
     }
+    if (composerExcluded.present) {
+      map['composer_excluded'] = Variable<bool>(composerExcluded.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2138,6 +2194,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
           ..write('failureCode: $failureCode, ')
           ..write('uploadObjectPath: $uploadObjectPath, ')
           ..write('verificationFailures: $verificationFailures, ')
+          ..write('composerExcluded: $composerExcluded, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3626,6 +3683,7 @@ typedef $$LocalAttachmentsTableCreateCompanionBuilder =
       Value<String?> failureCode,
       Value<String?> uploadObjectPath,
       Value<int> verificationFailures,
+      Value<bool> composerExcluded,
       Value<int> rowid,
     });
 typedef $$LocalAttachmentsTableUpdateCompanionBuilder =
@@ -3643,6 +3701,7 @@ typedef $$LocalAttachmentsTableUpdateCompanionBuilder =
       Value<String?> failureCode,
       Value<String?> uploadObjectPath,
       Value<int> verificationFailures,
+      Value<bool> composerExcluded,
       Value<int> rowid,
     });
 
@@ -3717,6 +3776,11 @@ class $$LocalAttachmentsTableFilterComposer
 
   ColumnFilters<int> get verificationFailures => $composableBuilder(
     column: $table.verificationFailures,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get composerExcluded => $composableBuilder(
+    column: $table.composerExcluded,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3794,6 +3858,11 @@ class $$LocalAttachmentsTableOrderingComposer
     column: $table.verificationFailures,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get composerExcluded => $composableBuilder(
+    column: $table.composerExcluded,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$LocalAttachmentsTableAnnotationComposer
@@ -3863,6 +3932,11 @@ class $$LocalAttachmentsTableAnnotationComposer
     column: $table.verificationFailures,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get composerExcluded => $composableBuilder(
+    column: $table.composerExcluded,
+    builder: (column) => column,
+  );
 }
 
 class $$LocalAttachmentsTableTableManager
@@ -3915,6 +3989,7 @@ class $$LocalAttachmentsTableTableManager
                 Value<String?> failureCode = const Value.absent(),
                 Value<String?> uploadObjectPath = const Value.absent(),
                 Value<int> verificationFailures = const Value.absent(),
+                Value<bool> composerExcluded = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalAttachmentsCompanion(
                 localId: localId,
@@ -3930,6 +4005,7 @@ class $$LocalAttachmentsTableTableManager
                 failureCode: failureCode,
                 uploadObjectPath: uploadObjectPath,
                 verificationFailures: verificationFailures,
+                composerExcluded: composerExcluded,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3947,6 +4023,7 @@ class $$LocalAttachmentsTableTableManager
                 Value<String?> failureCode = const Value.absent(),
                 Value<String?> uploadObjectPath = const Value.absent(),
                 Value<int> verificationFailures = const Value.absent(),
+                Value<bool> composerExcluded = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalAttachmentsCompanion.insert(
                 localId: localId,
@@ -3962,6 +4039,7 @@ class $$LocalAttachmentsTableTableManager
                 failureCode: failureCode,
                 uploadObjectPath: uploadObjectPath,
                 verificationFailures: verificationFailures,
+                composerExcluded: composerExcluded,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

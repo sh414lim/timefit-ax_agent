@@ -16,7 +16,16 @@ final class OutboxExecutionCommand {
   final String? leaseToken;
 }
 
-enum ExecutionDisposition { completed, retryable, permanent, authRequired }
+enum ExecutionDisposition {
+  completed,
+  retryable,
+  permanent,
+  authRequired,
+
+  /// A local prerequisite is incomplete. The command remains scheduled but
+  /// this observation does not consume the remote failure budget.
+  deferred,
+}
 
 final class CommandExecutionResult {
   const CommandExecutionResult(this.disposition, {this.errorCode});
