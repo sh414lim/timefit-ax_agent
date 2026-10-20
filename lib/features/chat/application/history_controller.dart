@@ -9,6 +9,14 @@ abstract interface class HistoryPageSource {
   Future<HistoryPage> loadBefore(HistoryRequest request);
 }
 
+abstract interface class HistoryPagePersistence {
+  Future<void> persist(
+    HistoryRequest request,
+    HistoryPage originalPage,
+    List<ChatMessage> acceptedMessages,
+  );
+}
+
 final class HistoryRequest {
   HistoryRequest._(this.conversationId, this.beforeSequence);
   final String conversationId;
@@ -18,7 +26,7 @@ final class HistoryRequest {
   bool get isCancelled => _cancelled;
 }
 
-final class HistoryPage {
+base class HistoryPage {
   HistoryPage({
     required this.conversationId,
     required List<ChatMessage> messages,
@@ -29,7 +37,7 @@ final class HistoryPage {
   final bool hasMoreBefore;
 }
 
-enum HistoryFailure { sourceUnavailable, invalidPage }
+enum HistoryFailure { sourceUnavailable, invalidPage, persistenceFailed }
 
 final class HistoryState {
   const HistoryState({
@@ -51,7 +59,9 @@ final class HistoryController {
     required HistoryPageSource source,
     required String conversationId,
     required int? earliestSequence,
+    HistoryPagePersistence? persistence,
   }) : _source = source,
+       _persistence = persistence,
        _state = HistoryState(
          conversationId: conversationId,
          beforeSequence: earliestSequence,
@@ -59,6 +69,7 @@ final class HistoryController {
     _validateCursor(earliestSequence);
   }
   final HistoryPageSource _source;
+  final HistoryPagePersistence? _persistence;
   HistoryState _state;
   HistoryState get state => _state;
   final _listeners = <void Function(HistoryState)>{};
@@ -162,6 +173,19 @@ final class HistoryController {
       final next = messages.isEmpty
           ? request.beforeSequence
           : messages.first.sequence!;
+      if (_persistence != null) {
+        try {
+          await _persistence.persist(
+            request,
+            page,
+            List.unmodifiable(messages),
+          );
+        } on Object {
+          if (_current(request)) _error(HistoryFailure.persistenceFailed);
+          return;
+        }
+        if (!_current(request)) return;
+      }
       _identities
         ..clear()
         ..addAll(ids);

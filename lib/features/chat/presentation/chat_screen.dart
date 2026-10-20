@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../application/composer_controller.dart';
+import '../application/history_controller.dart';
 import '../domain/chat_message.dart';
 import '../domain/repositories/message_repository.dart';
 import 'widgets/chat_composer.dart';
@@ -16,6 +17,7 @@ class ChatScreen extends StatefulWidget {
     this.status = ChatScreenStatus.ready,
     this.scrollController,
     this.composerController,
+    this.historyController,
     super.key,
   }) : repository = null;
 
@@ -26,6 +28,7 @@ class ChatScreen extends StatefulWidget {
     this.status = ChatScreenStatus.ready,
     this.scrollController,
     this.composerController,
+    this.historyController,
     super.key,
   }) : messages = null;
 
@@ -36,6 +39,7 @@ class ChatScreen extends StatefulWidget {
   final ChatScreenStatus status;
   final ScrollController? scrollController;
   final ComposerController? composerController;
+  final HistoryController? historyController;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -43,6 +47,13 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   late Stream<List<ChatMessage>> _messages = _resolveMessages();
+  HistoryController? _historyController;
+
+  @override
+  void initState() {
+    super.initState();
+    _bindHistoryController();
+  }
 
   @override
   void didUpdateWidget(ChatScreen oldWidget) {
@@ -52,6 +63,25 @@ class _ChatScreenState extends State<ChatScreen> {
         oldWidget.conversationId != widget.conversationId) {
       _messages = _resolveMessages();
     }
+    if (oldWidget.historyController != widget.historyController) {
+      _bindHistoryController();
+    }
+  }
+
+  void _bindHistoryController() {
+    _historyController?.removeListener(_handleHistoryState);
+    _historyController = widget.historyController;
+    _historyController?.addListener(_handleHistoryState);
+  }
+
+  void _handleHistoryState(HistoryState _) {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _historyController?.removeListener(_handleHistoryState);
+    super.dispose();
   }
 
   Stream<List<ChatMessage>> _resolveMessages() {
@@ -112,9 +142,15 @@ class _ChatScreenState extends State<ChatScreen> {
               );
             }
             return MessageList(
+              key: ValueKey<String>(
+                'message-list-${widget.conversationId ?? 'direct'}',
+              ),
               messages: ordered,
               scrollController: widget.scrollController,
               onRetry: _matchingComposer?.retry,
+              historyState: _matchingHistory?.state,
+              onTopDistance: _matchingHistory?.onTopDistance,
+              onHistoryRetry: _matchingHistory?.retry,
             );
           },
     );
@@ -124,6 +160,14 @@ class _ChatScreenState extends State<ChatScreen> {
     final ComposerController? composer = widget.composerController;
     return composer != null && widget.conversationId == composer.conversationId
         ? composer
+        : null;
+  }
+
+  HistoryController? get _matchingHistory {
+    final HistoryController? history = widget.historyController;
+    return history != null &&
+            widget.conversationId == history.state.conversationId
+        ? history
         : null;
   }
 }

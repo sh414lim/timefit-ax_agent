@@ -1,10 +1,17 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/theme/app_theme.dart';
+import 'package:timefit_native/core/database/app_database.dart';
+import 'package:timefit_native/core/database/daos/message_dao.dart';
+import 'package:timefit_native/features/chat/application/history_controller.dart';
+import 'package:timefit_native/features/chat/application/send_message.dart';
+import 'package:timefit_native/features/chat/data/drift_history_page_store.dart';
+import 'package:timefit_native/features/chat/data/message_repository_impl.dart';
 import 'package:timefit_native/features/chat/domain/chat_message.dart';
 import 'package:timefit_native/features/chat/presentation/chat_screen.dart';
 import 'package:timefit_native/features/chat/presentation/widgets/message_bubble.dart';
@@ -214,6 +221,288 @@ void main() {
     expect(find.byType(MessageBubble), findsWidgets);
   });
 
+  testWidgets('top trigger exposes loading error retry and terminal state', (
+    WidgetTester tester,
+  ) async {
+    final _FakeHistorySource source = _FakeHistorySource();
+    final HistoryController history = HistoryController(
+      source: source,
+      conversationId: 'conversation',
+      earliestSequence: 501,
+    );
+    addTearDown(history.dispose);
+    final ScrollController scroll = ScrollController();
+    addTearDown(scroll.dispose);
+    await _pump(
+      tester,
+      Stream<List<ChatMessage>>.value(<ChatMessage>[
+        for (var sequence = 1; sequence <= 500; sequence++)
+          _message(sequence, body: _variableBody(sequence)),
+      ]),
+      conversationId: 'conversation',
+      historyController: history,
+      scrollController: scroll,
+    );
+    await tester.pumpAndSettle();
+    expect(source.requests, isEmpty);
+
+    scroll.jumpTo(250);
+    await tester.pump();
+    expect(source.requests, hasLength(1));
+    expect(
+      find.byKey(const ValueKey<String>('history-loading')),
+      findsOneWidget,
+    );
+
+    source.pending.single.completeError(StateError('offline'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey<String>('history-error')), findsOneWidget);
+    expect(find.text('다시 시도'), findsOneWidget);
+
+    await tester.tap(find.text('다시 시도'));
+    await tester.pump();
+    expect(source.requests, hasLength(2));
+    expect(source.requests.last.beforeSequence, 501);
+    source.pending.last.complete(_historyPage(451, 500, hasMoreBefore: false));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('history-complete')),
+      findsOneWidget,
+    );
+    scroll.jumpTo(0);
+    await tester.pump();
+    expect(source.requests, hasLength(2));
+  });
+
+  testWidgets('remaining near top requests consecutive history pages', (
+    WidgetTester tester,
+  ) async {
+    final _FakeHistorySource source = _FakeHistorySource();
+    final HistoryController history = HistoryController(
+      source: source,
+      conversationId: 'conversation',
+      earliestSequence: 501,
+    );
+    addTearDown(history.dispose);
+    final ScrollController scroll = ScrollController();
+    addTearDown(scroll.dispose);
+    await _pump(
+      tester,
+      Stream<List<ChatMessage>>.value(<ChatMessage>[
+        for (var sequence = 1; sequence <= 500; sequence++)
+          _message(sequence, body: _variableBody(sequence)),
+      ]),
+      conversationId: 'conversation',
+      historyController: history,
+      scrollController: scroll,
+    );
+    await tester.pumpAndSettle();
+
+    scroll.jumpTo(250);
+    await tester.pump();
+    source.pending.single.complete(_historyPage(451, 500));
+    await tester.pump();
+    await tester.pump();
+
+    expect(source.requests.map((request) => request.beforeSequence), <int>[
+      501,
+      451,
+    ]);
+    source.pending.last.complete(_historyPage(401, 450, hasMoreBefore: false));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+    'persistence conflicts leave cached data and expose retry without loading lock',
+    (WidgetTester tester) async {
+      final AppDatabase database = AppDatabase(NativeDatabase.memory());
+      final MessageRepositoryImpl repository = MessageRepositoryImpl(
+        database: database,
+      );
+      final DateTime now = DateTime.utc(2026, 10, 20);
+      await SendMessage(
+        database: database,
+        clock: () => now,
+        clientMessageId: () => 'client-2',
+      ).submit(conversationId: 'conversation', bodyText: 'body');
+      await database.customStatement(
+        "UPDATE outbox_commands SET state = 'cancelled' WHERE id = 'client-2'",
+      );
+      final _ImmediateHistorySource source = _ImmediateHistorySource(
+        CanonicalHistoryPage(
+          conversationId: 'conversation',
+          canonicalMessages: <CanonicalLocalMessage>[
+            for (var sequence = 1; sequence <= 3; sequence++)
+              CanonicalLocalMessage(
+                serverId: 'server-$sequence',
+                conversationId: 'conversation',
+                clientMessageId: 'client-$sequence',
+                sequence: sequence,
+                senderKind: 'user',
+                bodyText: 'body',
+                messageKind: 'text',
+                serverCreatedAt: now,
+              ),
+          ],
+          hasMoreBefore: false,
+        ),
+      );
+      final HistoryController history = HistoryController(
+        source: source,
+        conversationId: 'conversation',
+        earliestSequence: 4,
+        persistence: DriftHistoryPageStore(database: database),
+      );
+      addTearDown(() async {
+        history.dispose();
+        await repository.dispose();
+        await database.close();
+      });
+
+      await _pump(
+        tester,
+        repository.watchCachedMessages('conversation'),
+        conversationId: 'conversation',
+        historyController: history,
+      );
+      await tester.pumpAndSettle();
+
+      expect(history.state.isLoading, isFalse);
+      expect(history.state.failure, HistoryFailure.persistenceFailed);
+      expect(
+        find.byKey(const ValueKey<String>('history-error')),
+        findsOneWidget,
+      );
+      expect(find.text('body'), findsOneWidget);
+      expect(await database.messageDao.getAll(), hasLength(1));
+      expect((await database.outboxDao.getAll()).single.state, 'cancelled');
+
+      source.page = HistoryPage(
+        conversationId: 'conversation',
+        messages: <ChatMessage>[
+          for (var sequence = 1; sequence <= 3; sequence++)
+            _message(sequence, body: 'projection only'),
+        ],
+        hasMoreBefore: false,
+      );
+      await tester.tap(find.text('다시 시도'));
+      await tester.pumpAndSettle();
+
+      expect(source.requests, 2);
+      expect(history.state.isLoading, isFalse);
+      expect(history.state.failure, HistoryFailure.persistenceFailed);
+      expect(
+        find.byKey(const ValueKey<String>('history-error')),
+        findsOneWidget,
+      );
+      expect(find.text('body'), findsOneWidget);
+      expect(await database.messageDao.getAll(), hasLength(1));
+      expect((await database.outboxDao.getAll()).single.state, 'cancelled');
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
+
+  testWidgets('stable visible identity survives resize and keyboard inset', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final ScrollController scroll = ScrollController();
+    addTearDown(scroll.dispose);
+    final Stream<List<ChatMessage>> messages =
+        Stream<List<ChatMessage>>.value(<ChatMessage>[
+          for (var sequence = 1; sequence <= 120; sequence++)
+            _message(sequence, body: _variableBody(sequence)),
+        ]);
+    await _pump(tester, messages, scrollController: scroll);
+    await tester.pumpAndSettle();
+    scroll.jumpTo(scroll.position.maxScrollExtent / 2);
+    await tester.pump();
+    final List<MessageBubble> visible = tester
+        .widgetList<MessageBubble>(find.byType(MessageBubble))
+        .toList();
+    final ChatMessage identity = visible[visible.length ~/ 2].message;
+    final Finder anchor = find.text(identity.body);
+    final double before = tester.getTopLeft(anchor).dy;
+
+    await tester.binding.setSurfaceSize(const Size(390, 520));
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(anchor).dy, closeTo(before, 1));
+
+    final double beforeKeyboard = tester.getTopLeft(anchor).dy;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 180);
+    addTearDown(tester.view.resetViewInsets);
+    await _pump(tester, messages, scrollController: scroll);
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(anchor).dy, closeTo(beforeKeyboard, 1));
+  });
+
+  testWidgets(
+    'conversation switch detaches old history and ignores its late result',
+    (WidgetTester tester) async {
+      final _FakeHistorySource oldSource = _FakeHistorySource();
+      final _FakeHistorySource newSource = _FakeHistorySource();
+      final HistoryController oldHistory = HistoryController(
+        source: oldSource,
+        conversationId: 'old',
+        earliestSequence: 501,
+      );
+      final HistoryController newHistory = HistoryController(
+        source: newSource,
+        conversationId: 'new',
+        earliestSequence: 501,
+      );
+      addTearDown(oldHistory.dispose);
+      addTearDown(newHistory.dispose);
+      final ScrollController scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      final List<ChatMessage> messages = <ChatMessage>[
+        for (var sequence = 1; sequence <= 500; sequence++)
+          _message(sequence, body: _variableBody(sequence)),
+      ];
+      await _pump(
+        tester,
+        Stream<List<ChatMessage>>.value(messages),
+        conversationId: 'old',
+        historyController: oldHistory,
+        scrollController: scroll,
+      );
+      await tester.pumpAndSettle();
+      scroll.jumpTo(250);
+      await tester.pump();
+      expect(oldSource.requests, hasLength(1));
+
+      await _pump(
+        tester,
+        Stream<List<ChatMessage>>.value(messages),
+        conversationId: 'new',
+        historyController: newHistory,
+        scrollController: scroll,
+      );
+      await tester.pumpAndSettle();
+      oldSource.pending.single.completeError(StateError('late old failure'));
+      await tester.pump();
+
+      expect(find.byKey(const ValueKey<String>('history-error')), findsNothing);
+      expect(tester.takeException(), isNull);
+      scroll.jumpTo(250);
+      await tester.pump();
+      expect(newSource.requests, hasLength(1));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      newSource.pending.single.complete(
+        _historyPage(451, 500, conversationId: 'new'),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('active user scroll suppresses auto-scroll inside threshold', (
     WidgetTester tester,
   ) async {
@@ -380,6 +669,8 @@ Future<void> _pump(
   ChatScreenStatus status = ChatScreenStatus.ready,
   Brightness brightness = Brightness.light,
   double textScale = 1,
+  String? conversationId,
+  HistoryController? historyController,
 }) async {
   final ThemeData base = brightness == Brightness.light
       ? AppTheme.light()
@@ -391,12 +682,16 @@ Future<void> _pump(
         primaryTextTheme: base.primaryTextTheme.apply(fontFamily: _fontFamily),
       ),
       home: MediaQuery(
-        data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+        data: MediaQueryData.fromView(
+          tester.view,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
         child: ChatScreen(
           title: '주간 계획',
           messages: messages,
+          conversationId: conversationId,
           status: status,
           scrollController: scrollController,
+          historyController: historyController,
         ),
       ),
     ),
@@ -476,3 +771,42 @@ void _expectGoldenContentAndLayout(WidgetTester tester) {
 }
 
 const String _fontFamily = 'NanumGothicChatGolden';
+
+final class _FakeHistorySource implements HistoryPageSource {
+  final List<HistoryRequest> requests = <HistoryRequest>[];
+  final List<Completer<HistoryPage>> pending = <Completer<HistoryPage>>[];
+
+  @override
+  Future<HistoryPage> loadBefore(HistoryRequest request) {
+    requests.add(request);
+    final Completer<HistoryPage> result = Completer<HistoryPage>();
+    pending.add(result);
+    return result.future;
+  }
+}
+
+final class _ImmediateHistorySource implements HistoryPageSource {
+  _ImmediateHistorySource(this.page);
+
+  HistoryPage page;
+  int requests = 0;
+
+  @override
+  Future<HistoryPage> loadBefore(HistoryRequest request) async {
+    requests += 1;
+    return page;
+  }
+}
+
+HistoryPage _historyPage(
+  int from,
+  int to, {
+  bool hasMoreBefore = true,
+  String conversationId = 'conversation',
+}) => HistoryPage(
+  conversationId: conversationId,
+  messages: <ChatMessage>[
+    for (var sequence = from; sequence <= to; sequence++) _message(sequence),
+  ],
+  hasMoreBefore: hasMoreBefore,
+);
