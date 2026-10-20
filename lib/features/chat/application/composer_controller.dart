@@ -19,17 +19,22 @@ final class ComposerController extends ChangeNotifier {
   String _draft = '';
   int _draftVersion = 0;
   Future<void>? _activeSubmit;
+  final Map<String, Future<bool>> _activeRetries = <String, Future<bool>>{};
   Object? _lastError;
   bool _disposed = false;
 
   String get draft => _draft;
-  int get characterCount => _draft.runes.length;
+  static int characterCountOf(String value) => normalizedLocalTextLength(value);
+  static String truncateDraft(String value) =>
+      truncateLocalTextBody(value, maximumLength);
+
+  int get characterCount => characterCountOf(_draft);
   bool get showCounter => characterCount >= counterThreshold;
   bool get isSubmitting => _activeSubmit != null;
   Object? get lastError => _lastError;
   bool get canSubmit =>
       conversationId.isNotEmpty &&
-      _draft.trim().isNotEmpty &&
+      normalizeLocalTextBody(_draft).trim().isNotEmpty &&
       characterCount <= maximumLength;
 
   void updateDraft(String value) {
@@ -81,8 +86,20 @@ final class ComposerController extends ChangeNotifier {
     return operation;
   }
 
-  Future<bool> retry(String clientMessageId) =>
-      _submitter.retry(clientMessageId);
+  Future<bool> retry(String clientMessageId) {
+    if (_activeRetries[clientMessageId] case final Future<bool> active) {
+      return active;
+    }
+    late final Future<bool> operation;
+    operation = Future<bool>.sync(() => _submitter.retry(clientMessageId))
+        .whenComplete(() {
+          if (identical(_activeRetries[clientMessageId], operation)) {
+            _activeRetries.remove(clientMessageId);
+          }
+        });
+    _activeRetries[clientMessageId] = operation;
+    return operation;
+  }
 
   void _notify() {
     if (!_disposed) notifyListeners();

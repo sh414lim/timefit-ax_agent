@@ -12,12 +12,12 @@ class ChatScreen extends StatefulWidget {
   const ChatScreen({
     required this.title,
     required this.messages,
+    this.conversationId,
     this.status = ChatScreenStatus.ready,
     this.scrollController,
     this.composerController,
     super.key,
-  }) : repository = null,
-       conversationId = null;
+  }) : repository = null;
 
   const ChatScreen.repository({
     required this.title,
@@ -63,15 +63,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ComposerController? composer = _matchingComposer;
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
       body: SafeArea(
         child: Column(
           children: <Widget>[
             Expanded(child: _buildBody()),
-            if (widget.status == ChatScreenStatus.ready)
-              if (widget.composerController case final ComposerController value)
-                ChatComposer(controller: value),
+            if (widget.status == ChatScreenStatus.ready && composer != null)
+              ChatComposer(controller: composer),
           ],
         ),
       ),
@@ -114,10 +114,17 @@ class _ChatScreenState extends State<ChatScreen> {
             return MessageList(
               messages: ordered,
               scrollController: widget.scrollController,
-              onRetry: widget.composerController?.retry,
+              onRetry: _matchingComposer?.retry,
             );
           },
     );
+  }
+
+  ComposerController? get _matchingComposer {
+    final ComposerController? composer = widget.composerController;
+    return composer != null && widget.conversationId == composer.conversationId
+        ? composer
+        : null;
   }
 }
 

@@ -138,13 +138,20 @@ final class _RuneLengthLimitingFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    if (newValue.text.runes.length <= maximumLength) return newValue;
-    final String limited = String.fromCharCodes(
-      newValue.text.runes.take(maximumLength),
+    if (newValue.composing.isValid && !newValue.composing.isCollapsed) {
+      return newValue;
+    }
+    if (ComposerController.characterCountOf(newValue.text) <= maximumLength) {
+      return newValue;
+    }
+    final String limited = ComposerController.truncateDraft(newValue.text);
+    final int selectionOffset = newValue.selection.extentOffset.clamp(
+      0,
+      limited.length,
     );
     return TextEditingValue(
       text: limited,
-      selection: TextSelection.collapsed(offset: limited.length),
+      selection: TextSelection.collapsed(offset: selectionOffset),
     );
   }
 }

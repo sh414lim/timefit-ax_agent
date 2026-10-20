@@ -68,6 +68,59 @@ void main() {
     expect(submitter.submitCalls, 0);
   });
 
+  test('length validation matches CRLF normalization and Unicode runes', () {
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      submitter: _FakeSubmitter(),
+    );
+    addTearDown(controller.dispose);
+
+    controller.updateDraft('${'a' * 11999}\r\n');
+    expect(controller.characterCount, 12000);
+    expect(controller.canSubmit, isTrue);
+
+    controller.updateDraft('${'a' * 11999}\r\n🙂');
+    expect(controller.characterCount, 12001);
+    expect(controller.canSubmit, isFalse);
+  });
+
+  testWidgets('active IME composition is preserved then limited on commit', (
+    WidgetTester tester,
+  ) async {
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      submitter: _FakeSubmitter(),
+    );
+    addTearDown(controller.dispose);
+    await _pumpComposer(tester, controller);
+    await tester.showKeyboard(find.byType(TextField));
+    final String composingText = '${'a' * 12000}한';
+
+    tester.testTextInput.updateEditingValue(
+      TextEditingValue(
+        text: composingText,
+        selection: TextSelection.collapsed(offset: composingText.length),
+        composing: TextRange(
+          start: composingText.length - 1,
+          end: composingText.length,
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(controller.draft, composingText);
+    expect(controller.characterCount, 12001);
+
+    tester.testTextInput.updateEditingValue(
+      TextEditingValue(
+        text: composingText,
+        selection: TextSelection.collapsed(offset: composingText.length),
+      ),
+    );
+    await tester.pump();
+    expect(controller.characterCount, 12000);
+    expect(controller.draft, 'a' * 12000);
+  });
+
   test('double submit shares one future and creates one command', () async {
     final Completer<LocalTextCommand> pending = Completer<LocalTextCommand>();
     final _FakeSubmitter submitter = _FakeSubmitter(pending: pending);
@@ -140,6 +193,31 @@ void main() {
     await controller.submit();
 
     expect(controller.draft, isEmpty);
+    expect(await database.messageDao.getAll(), hasLength(1));
+    expect(await database.outboxDao.getAll(), hasLength(1));
+  });
+
+  test('persistence uses the same normalized CRLF and rune boundary', () async {
+    final AppDatabase database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final SendMessage submitter = SendMessage(
+      database: database,
+      clock: () => DateTime.utc(2026, 10, 20),
+      clientMessageId: () => 'client-1',
+    );
+    final String accepted = '${'a' * 11998}\r\n🙂';
+
+    final LocalTextCommand command = await submitter.submit(
+      conversationId: 'conversation',
+      bodyText: accepted,
+    );
+
+    expect(command.bodyText, '${'a' * 11998}\n🙂');
+    expect(normalizedLocalTextLength(command.bodyText), 12000);
+    await expectLater(
+      submitter.submit(conversationId: 'conversation', bodyText: '$accepted🙂'),
+      throwsArgumentError,
+    );
     expect(await database.messageDao.getAll(), hasLength(1));
     expect(await database.outboxDao.getAll(), hasLength(1));
   });
@@ -219,6 +297,37 @@ void main() {
     expect(submitter.retriedIds, <String>['stable-client-id']);
   });
 
+  test('rapid retry shares one future per command identity', () async {
+    final Completer<bool> pending = Completer<bool>();
+    final _FakeSubmitter submitter = _FakeSubmitter(retryPending: pending);
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      submitter: submitter,
+    );
+    addTearDown(controller.dispose);
+
+    final Future<bool> first = controller.retry('stable-client-id');
+    final Future<bool> second = controller.retry('stable-client-id');
+
+    expect(identical(first, second), isTrue);
+    expect(submitter.retriedIds, <String>['stable-client-id']);
+    pending.complete(true);
+    expect(await first, isTrue);
+  });
+
+  test('failed retry can be attempted again', () async {
+    final _FailOnceRetrySubmitter submitter = _FailOnceRetrySubmitter();
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      submitter: submitter,
+    );
+    addTearDown(controller.dispose);
+
+    await expectLater(controller.retry('stable-client-id'), throwsStateError);
+    expect(await controller.retry('stable-client-id'), isTrue);
+    expect(submitter.retryCalls, 2);
+  });
+
   testWidgets('failed bubble retries its existing client identity', (
     WidgetTester tester,
   ) async {
@@ -232,6 +341,7 @@ void main() {
       MaterialApp(
         home: ChatScreen(
           title: 'retry',
+          conversationId: 'conversation',
           messages: Stream<List<ChatMessage>>.value(<ChatMessage>[
             ChatMessage(
               clientMessageId: 'failed-client-id',
@@ -266,6 +376,7 @@ void main() {
       MaterialApp(
         home: ChatScreen(
           title: 'retry',
+          conversationId: 'conversation',
           messages: Stream<List<ChatMessage>>.value(<ChatMessage>[
             ChatMessage(
               clientMessageId: 'received-id',
@@ -306,6 +417,91 @@ void main() {
     pending.complete(_command(body: 'one command'));
     await tester.pumpAndSettle();
     expect(controller.draft, isEmpty);
+  });
+
+  testWidgets('conversation switch rejects a reused mismatched controller', (
+    WidgetTester tester,
+  ) async {
+    final _FakeSubmitter submitter = _FakeSubmitter();
+    final ComposerController controller = ComposerController(
+      conversationId: 'old-conversation',
+      submitter: submitter,
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatScreen(
+          title: 'old',
+          conversationId: 'old-conversation',
+          messages: Stream<List<ChatMessage>>.value(const <ChatMessage>[]),
+          composerController: controller,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(ChatComposer), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatScreen(
+          title: 'new',
+          conversationId: 'new-conversation',
+          messages: Stream<List<ChatMessage>>.value(const <ChatMessage>[]),
+          composerController: controller,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ChatComposer), findsNothing);
+    expect(find.byTooltip('메시지 보내기'), findsNothing);
+    expect(submitter.submitCalls, 0);
+  });
+
+  testWidgets('late completion from old conversation leaves new draft intact', (
+    WidgetTester tester,
+  ) async {
+    final Completer<LocalTextCommand> oldPending =
+        Completer<LocalTextCommand>();
+    final ComposerController oldController = ComposerController(
+      conversationId: 'old-conversation',
+      submitter: _FakeSubmitter(pending: oldPending),
+    );
+    final ComposerController newController = ComposerController(
+      conversationId: 'new-conversation',
+      submitter: _FakeSubmitter(),
+    );
+    addTearDown(oldController.dispose);
+    addTearDown(newController.dispose);
+    oldController.updateDraft('old message');
+    final Future<void> oldSubmission = oldController.submit();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatScreen(
+          title: 'new',
+          conversationId: 'new-conversation',
+          messages: Stream<List<ChatMessage>>.value(const <ChatMessage>[]),
+          composerController: newController,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'new draft');
+    await tester.pump();
+
+    oldPending.complete(
+      const LocalTextCommand(
+        id: 'old-id',
+        conversationId: 'old-conversation',
+        bodyText: 'old message',
+      ),
+    );
+    await oldSubmission;
+    await tester.pump();
+
+    expect(newController.draft, 'new draft');
+    expect(find.text('new draft'), findsOneWidget);
   });
 
   test('composer retry requeues the existing outbox identity', () async {
@@ -364,16 +560,17 @@ LocalTextCommand _command({required String body}) => LocalTextCommand(
 );
 
 final class _FakeSubmitter implements TextMessageSubmitter {
-  _FakeSubmitter({this.pending});
+  _FakeSubmitter({this.pending, this.retryPending});
 
   final Completer<LocalTextCommand>? pending;
+  final Completer<bool>? retryPending;
   int submitCalls = 0;
   final List<String> retriedIds = <String>[];
 
   @override
   Future<bool> retry(String commandId) async {
     retriedIds.add(commandId);
-    return true;
+    return retryPending?.future ?? true;
   }
 
   @override
@@ -385,4 +582,21 @@ final class _FakeSubmitter implements TextMessageSubmitter {
     return pending?.future ??
         Future<LocalTextCommand>.value(_command(body: bodyText));
   }
+}
+
+final class _FailOnceRetrySubmitter implements TextMessageSubmitter {
+  int retryCalls = 0;
+
+  @override
+  Future<bool> retry(String commandId) async {
+    retryCalls += 1;
+    if (retryCalls == 1) throw StateError('retry failed');
+    return true;
+  }
+
+  @override
+  Future<LocalTextCommand> submit({
+    required String conversationId,
+    required String bodyText,
+  }) => throw UnimplementedError();
 }
