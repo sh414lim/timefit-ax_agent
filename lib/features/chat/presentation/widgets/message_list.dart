@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 
+import '../../application/history_controller.dart';
 import '../../domain/chat_message.dart';
 import 'message_bubble.dart';
 
@@ -9,37 +10,57 @@ class MessageList extends StatefulWidget {
     required this.messages,
     this.scrollController,
     this.onRetry,
+    this.historyState,
+    this.onTopDistance,
+    this.onHistoryRetry,
     super.key,
   });
 
   final List<ChatMessage> messages;
   final ScrollController? scrollController;
   final Future<bool> Function(String clientMessageId)? onRetry;
+  final HistoryState? historyState;
+  final Future<HistoryPage?> Function(double distance)? onTopDistance;
+  final Future<HistoryPage?> Function()? onHistoryRetry;
 
   @override
   State<MessageList> createState() => _MessageListState();
 }
 
-class _MessageListState extends State<MessageList> {
+class _MessageListState extends State<MessageList> with WidgetsBindingObserver {
   static const double _latestThreshold = 80;
   late final ScrollController _controller =
       widget.scrollController ?? ScrollController();
   bool _showNewMessages = false;
   bool _userScrollActive = false;
   final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
+  _VisibleAnchor? _metricAnchor;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller.addListener(_handleScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _jumpToLatest());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _jumpToLatest();
+      _maybeRequestHistory();
+    });
   }
 
   @override
   void didUpdateWidget(MessageList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (identical(widget.messages, oldWidget.messages) ||
-        widget.messages.isEmpty) {
+    final bool messagesChanged =
+        !identical(widget.messages, oldWidget.messages) &&
+        widget.messages.isNotEmpty;
+    final bool historyChanged = widget.historyState != oldWidget.historyState;
+    if (!messagesChanged && !historyChanged) {
+      return;
+    }
+    if (!messagesChanged) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _maybeRequestHistory(),
+      );
       return;
     }
     final Set<String> oldIdentities = oldWidget.messages
@@ -85,11 +106,13 @@ class _MessageListState extends State<MessageList> {
       _messageKeys.removeWhere(
         (String identity, _) => !current.contains(identity),
       );
+      _maybeRequestHistory();
     });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.removeListener(_handleScroll);
     if (widget.scrollController == null) _controller.dispose();
     super.dispose();
@@ -101,6 +124,30 @@ class _MessageListState extends State<MessageList> {
     if (atLatest && _showNewMessages) {
       setState(() => _showNewMessages = false);
     }
+    _maybeRequestHistory();
+  }
+
+  void _maybeRequestHistory() {
+    if (!mounted || !_controller.hasClients) return;
+    final HistoryState? state = widget.historyState;
+    if (state == null ||
+        state.isLoading ||
+        state.failure != null ||
+        !state.hasMoreBefore) {
+      return;
+    }
+    widget.onTopDistance?.call(_controller.position.extentBefore);
+  }
+
+  @override
+  void didChangeMetrics() {
+    _metricAnchor ??= _captureVisibleAnchor();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final _VisibleAnchor? anchor = _metricAnchor;
+      _metricAnchor = null;
+      if (anchor != null && _controller.hasClients) _restoreAnchor(anchor);
+    });
   }
 
   void _jumpToLatest() {
@@ -149,7 +196,12 @@ class _MessageListState extends State<MessageList> {
           child: ListView.builder(
             key: const ValueKey<String>('message-timeline'),
             controller: _controller,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              widget.historyState == null ? 12 : 56,
+              16,
+              88,
+            ),
             itemCount: widget.messages.length,
             itemBuilder: (BuildContext context, int index) {
               final ChatMessage message = widget.messages[index];
@@ -172,6 +224,13 @@ class _MessageListState extends State<MessageList> {
             },
           ),
         ),
+        if (widget.historyState case final HistoryState state)
+          Positioned(
+            top: 4,
+            left: 16,
+            right: 16,
+            child: _HistoryStatus(state: state, onRetry: widget.onHistoryRetry),
+          ),
         if (_showNewMessages)
           Positioned(
             left: 0,
@@ -187,6 +246,74 @@ class _MessageListState extends State<MessageList> {
       ],
     );
   }
+}
+
+class _HistoryStatus extends StatelessWidget {
+  const _HistoryStatus({required this.state, required this.onRetry});
+
+  final HistoryState state;
+  final Future<HistoryPage?> Function()? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    if (state.isLoading) {
+      return const _HistoryStatusSurface(
+        key: ValueKey<String>('history-loading'),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            SizedBox.square(
+              dimension: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 8),
+            Text('이전 메시지를 불러오는 중'),
+          ],
+        ),
+      );
+    }
+    if (state.failure != null) {
+      return _HistoryStatusSurface(
+        key: const ValueKey<String>('history-error'),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Flexible(child: Text('이전 메시지를 불러오지 못했습니다')),
+            TextButton(
+              onPressed: onRetry == null ? null : () => onRetry!.call(),
+              child: const Text('다시 시도'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (!state.hasMoreBefore) {
+      return const _HistoryStatusSurface(
+        key: ValueKey<String>('history-complete'),
+        child: Text('가장 오래된 메시지입니다'),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+}
+
+class _HistoryStatusSurface extends StatelessWidget {
+  const _HistoryStatusSurface({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(20),
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: child,
+      ),
+    ),
+  );
 }
 
 class _VisibleAnchor {
