@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../application/composer_controller.dart';
+import 'attachment_chip.dart';
 
 class ChatComposer extends StatefulWidget {
   const ChatComposer({required this.controller, super.key});
@@ -72,53 +73,77 @@ class _ChatComposerState extends State<ChatComposer> {
         color: Theme.of(context).colorScheme.surface,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Expanded(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 144),
-                  child: TextField(
-                    controller: _textController,
-                    focusNode: _focusNode,
-                    minLines: 1,
-                    maxLines: 5,
-                    inputFormatters: const <TextInputFormatter>[
-                      _RuneLengthLimitingFormatter(
-                        ComposerController.maximumLength,
+              if (controller.attachments.isNotEmpty) ...<Widget>[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: <Widget>[
+                    for (final attachment in controller.attachments)
+                      ComposerAttachmentChip(
+                        attachment: attachment,
+                        onRemoveFailed: () => unawaited(
+                          controller
+                              .removeFailedAttachment(attachment.localId)
+                              .catchError((Object _) {}),
+                        ),
                       ),
-                    ],
-                    textCapitalization: TextCapitalization.sentences,
-                    keyboardType: TextInputType.multiline,
-                    textInputAction: TextInputAction.newline,
-                    onChanged: controller.updateDraft,
-                    decoration: InputDecoration(
-                      hintText: '메시지 입력',
-                      border: const OutlineInputBorder(),
-                      counterText: controller.showCounter
-                          ? '${controller.characterCount}/${ComposerController.maximumLength}'
-                          : '',
-                      errorText: controller.lastError == null
-                          ? null
-                          : '메시지를 저장하지 못했습니다. 다시 시도해 주세요.',
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: <Widget>[
+                  Expanded(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 144),
+                      child: TextField(
+                        controller: _textController,
+                        focusNode: _focusNode,
+                        minLines: 1,
+                        maxLines: 5,
+                        inputFormatters: const <TextInputFormatter>[
+                          _RuneLengthLimitingFormatter(
+                            ComposerController.maximumLength,
+                          ),
+                        ],
+                        textCapitalization: TextCapitalization.sentences,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        onChanged: controller.updateDraft,
+                        decoration: InputDecoration(
+                          hintText: '메시지 입력',
+                          border: const OutlineInputBorder(),
+                          counterText: controller.showCounter
+                              ? '${controller.characterCount}/${ComposerController.maximumLength}'
+                              : '',
+                          errorText: controller.lastError == null
+                              ? null
+                              : '메시지를 저장하지 못했습니다. 다시 시도해 주세요.',
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Semantics(
-                button: true,
-                label: controller.isSubmitting ? '메시지 저장 중' : '메시지 보내기',
-                child: IconButton.filled(
-                  tooltip: '메시지 보내기',
-                  onPressed: controller.canSubmit ? _submit : null,
-                  icon: controller.isSubmitting
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send),
-                ),
+                  const SizedBox(width: 8),
+                  Semantics(
+                    button: true,
+                    label: controller.isSubmitting ? '메시지 저장 중' : '메시지 보내기',
+                    child: IconButton.filled(
+                      tooltip: '메시지 보내기',
+                      onPressed: controller.canSubmit ? _submit : null,
+                      icon: controller.isSubmitting
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

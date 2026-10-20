@@ -47,6 +47,63 @@ final class LocalTextCommand {
   });
 }
 
+/// Persisted local aggregate for CHAT-052. Attachment identifiers are local
+/// row identities, never server/RPC identifiers.
+final class LocalAttachmentMessageCommand {
+  LocalAttachmentMessageCommand({
+    required this.id,
+    required this.conversationId,
+    required this.bodyText,
+    required List<String> localAttachmentIds,
+  }) : localAttachmentIds = List.unmodifiable(localAttachmentIds);
+
+  final String id;
+  final String conversationId;
+  final String bodyText;
+  final List<String> localAttachmentIds;
+
+  String encode() => jsonEncode({
+    'localVersion': 1,
+    'localMessageId': id,
+    'clientMessageId': id,
+    'conversationId': conversationId,
+    'bodyText': bodyText,
+    'localAttachmentIds': localAttachmentIds,
+  });
+
+  static LocalAttachmentMessageCommand decode(String value) {
+    final Object? decoded = jsonDecode(value);
+    if (decoded is! Map<String, Object?> ||
+        decoded['localVersion'] != 1 ||
+        decoded['localMessageId'] is! String ||
+        decoded['clientMessageId'] != decoded['localMessageId'] ||
+        decoded['conversationId'] is! String ||
+        decoded['bodyText'] is! String ||
+        decoded['localAttachmentIds'] is! List<Object?>) {
+      throw const FormatException('Invalid local attachment message payload');
+    }
+    final ids = decoded['localAttachmentIds']! as List<Object?>;
+    if (ids.any((id) => id is! String)) {
+      throw const FormatException('Invalid local attachment identities');
+    }
+    return LocalAttachmentMessageCommand(
+      id: decoded['localMessageId']! as String,
+      conversationId: decoded['conversationId']! as String,
+      bodyText: decoded['bodyText']! as String,
+      localAttachmentIds: ids.cast<String>(),
+    );
+  }
+}
+
+abstract interface class AttachmentMessageSubmitter {
+  Future<LocalAttachmentMessageCommand> submitWithAttachments({
+    required String clientMessageId,
+    required String conversationId,
+    required String bodyText,
+    required List<String> localAttachmentIds,
+  });
+}
+
 abstract interface class TextMessageSubmitter {
   Future<LocalTextCommand> submit({
     required String conversationId,
@@ -56,7 +113,8 @@ abstract interface class TextMessageSubmitter {
   Future<bool> retry(String commandId);
 }
 
-final class SendMessage implements TextMessageSubmitter {
+final class SendMessage
+    implements TextMessageSubmitter, AttachmentMessageSubmitter {
   SendMessage({
     required AppDatabase database,
     required DateTime Function() clock,
@@ -70,6 +128,87 @@ final class SendMessage implements TextMessageSubmitter {
   final LocalRepositorySession _session;
   final DateTime Function() _clock;
   final String Function() _clientMessageId;
+
+  @override
+  Future<LocalAttachmentMessageCommand> submitWithAttachments({
+    required String clientMessageId,
+    required String conversationId,
+    required String bodyText,
+    required List<String> localAttachmentIds,
+  }) => _session.write(_database, () async {
+    final normalized = normalizeLocalTextBody(bodyText);
+    final ids = List<String>.unmodifiable(localAttachmentIds);
+    if (clientMessageId.isEmpty ||
+        conversationId.isEmpty ||
+        ids.isEmpty ||
+        ids.length > 5 ||
+        ids.toSet().length != ids.length ||
+        ids.any((id) => id.isEmpty) ||
+        normalizedLocalTextLength(bodyText) > 12000) {
+      throw ArgumentError('Invalid local attachment submission');
+    }
+    final attachments = await (_database.select(
+      _database.localAttachments,
+    )..where((row) => row.localId.isIn(ids))).get();
+    if (attachments.length != ids.length ||
+        attachments.any(
+          (row) =>
+              row.conversationId != conversationId ||
+              row.clientMessageId != clientMessageId,
+        )) {
+      throw ArgumentError('Attachment aggregate identity mismatch');
+    }
+    final command = LocalAttachmentMessageCommand(
+      id: clientMessageId,
+      conversationId: conversationId,
+      bodyText: normalized,
+      localAttachmentIds: ids,
+    );
+    final existingMessage = await (_database.select(
+      _database.localMessages,
+    )..where((row) => row.localId.equals(clientMessageId))).getSingleOrNull();
+    final existingCommand = await (_database.select(
+      _database.outboxCommands,
+    )..where((row) => row.id.equals(clientMessageId))).getSingleOrNull();
+    if (existingMessage != null || existingCommand != null) {
+      if (existingMessage == null ||
+          existingCommand == null ||
+          existingMessage.conversationId != conversationId ||
+          existingMessage.clientMessageId != clientMessageId ||
+          (existingMessage.bodyText ?? '') != normalized ||
+          existingCommand.commandType != 'local_send_message_v2' ||
+          existingCommand.aggregateId != conversationId ||
+          existingCommand.clientRequestId != clientMessageId ||
+          existingCommand.payloadJson != command.encode()) {
+        throw ArgumentError('Conflicting local message aggregate');
+      }
+      return command;
+    }
+    final now = _clock();
+    await _database.outboxDao.enqueueMessage(
+      LocalMessagesCompanion.insert(
+        localId: clientMessageId,
+        conversationId: conversationId,
+        clientMessageId: clientMessageId,
+        senderKind: 'user',
+        bodyText: Value(normalized.trim().isEmpty ? null : normalized),
+        messageKind: normalized.trim().isEmpty ? 'attachment' : 'mixed',
+        clientCreatedAt: now,
+        deliveryState: const Value('uploading'),
+      ),
+      OutboxCommandsCompanion.insert(
+        id: clientMessageId,
+        commandType: 'local_send_message_v2',
+        aggregateId: conversationId,
+        clientRequestId: clientMessageId,
+        payloadJson: command.encode(),
+        nextAttemptAt: now,
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+    return command;
+  });
 
   Future<LocalTextCommand> submit({
     required String conversationId,

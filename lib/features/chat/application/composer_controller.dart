@@ -8,13 +8,47 @@ final class ComposerController extends ChangeNotifier {
   ComposerController({
     required this.conversationId,
     required TextMessageSubmitter submitter,
-  }) : _submitter = submitter;
+    this.attachmentClientMessageId,
+    AttachmentComposerSource? attachmentSource,
+  }) : _submitter = submitter,
+       _attachmentSource = attachmentSource {
+    if ((attachmentClientMessageId == null) != (attachmentSource == null)) {
+      throw ArgumentError(
+        'attachmentClientMessageId and attachmentSource must be paired',
+      );
+    }
+    if (attachmentSource != null) {
+      _attachmentSubscription = attachmentSource
+          .watch(
+            conversationId: conversationId,
+            clientMessageId: attachmentClientMessageId!,
+          )
+          .listen(
+            (items) {
+              if (_disposed || _aggregateSubmitted) return;
+              _attachments = List.unmodifiable(items);
+              _attachmentsLoaded = true;
+              _lastError = null;
+              _notify();
+            },
+            onError: (Object error) {
+              if (_disposed) return;
+              _attachmentsLoaded = false;
+              _lastError = error;
+              _notify();
+            },
+          );
+    }
+  }
 
   static const int counterThreshold = 10000;
   static const int maximumLength = 12000;
 
   final String conversationId;
   final TextMessageSubmitter _submitter;
+  final String? attachmentClientMessageId;
+  final AttachmentComposerSource? _attachmentSource;
+  StreamSubscription<List<ComposerAttachment>>? _attachmentSubscription;
 
   String _draft = '';
   int _draftVersion = 0;
@@ -22,6 +56,9 @@ final class ComposerController extends ChangeNotifier {
   final Map<String, Future<bool>> _activeRetries = <String, Future<bool>>{};
   Object? _lastError;
   bool _disposed = false;
+  bool _attachmentsLoaded = false;
+  bool _aggregateSubmitted = false;
+  List<ComposerAttachment> _attachments = const <ComposerAttachment>[];
 
   String get draft => _draft;
   static int characterCountOf(String value) => normalizedLocalTextLength(value);
@@ -32,10 +69,19 @@ final class ComposerController extends ChangeNotifier {
   bool get showCounter => characterCount >= counterThreshold;
   bool get isSubmitting => _activeSubmit != null;
   Object? get lastError => _lastError;
+  List<ComposerAttachment> get attachments =>
+      _aggregateSubmitted ? const <ComposerAttachment>[] : _attachments;
+  bool get hasFailedAttachment => attachments.any(
+    (attachment) => attachment.state == ComposerAttachmentState.failed,
+  );
   bool get canSubmit =>
       conversationId.isNotEmpty &&
-      normalizeLocalTextBody(_draft).trim().isNotEmpty &&
-      characterCount <= maximumLength;
+      characterCount <= maximumLength &&
+      !_aggregateSubmitted &&
+      (attachmentClientMessageId == null || _attachmentsLoaded) &&
+      !hasFailedAttachment &&
+      (normalizeLocalTextBody(_draft).trim().isNotEmpty ||
+          attachments.isNotEmpty);
 
   void updateDraft(String value) {
     if (_draft == value) return;
@@ -55,18 +101,39 @@ final class ComposerController extends ChangeNotifier {
 
     late final Future<void> operation;
     operation =
-        Future<LocalTextCommand>.sync(
-              () => _submitter.submit(
-                conversationId: conversationId,
-                bodyText: submittedDraft,
-              ),
-            )
+        Future<Object>.sync(() {
+              if (attachments.isEmpty) {
+                return _submitter.submit(
+                  conversationId: conversationId,
+                  bodyText: submittedDraft,
+                );
+              }
+              final submitter = _submitter;
+              if (submitter is! AttachmentMessageSubmitter) {
+                throw StateError('Attachment submission is unavailable');
+              }
+              return (submitter as AttachmentMessageSubmitter)
+                  .submitWithAttachments(
+                    clientMessageId: attachmentClientMessageId!,
+                    conversationId: conversationId,
+                    bodyText: submittedDraft,
+                    localAttachmentIds: attachments
+                        .map((attachment) => attachment.localId)
+                        .toList(growable: false),
+                  );
+            })
             .then<void>(
               (_) {
                 if (_draftVersion == submittedVersion &&
                     _draft == submittedDraft) {
                   _draft = '';
                   _draftVersion += 1;
+                }
+                if (attachmentClientMessageId != null) {
+                  _aggregateSubmitted = true;
+                  _attachments = const <ComposerAttachment>[];
+                  unawaited(_attachmentSubscription?.cancel());
+                  _attachmentSubscription = null;
                 }
               },
               onError: (Object error, StackTrace stack) {
@@ -84,6 +151,19 @@ final class ComposerController extends ChangeNotifier {
     _activeSubmit = operation;
     _notify();
     return operation;
+  }
+
+  Future<void> removeFailedAttachment(String localId) async {
+    if (_disposed || _aggregateSubmitted) return;
+    final attachment = attachments
+        .where((item) => item.localId == localId)
+        .firstOrNull;
+    if (attachment?.state != ComposerAttachmentState.failed) return;
+    await _attachmentSource!.removeFailed(
+      conversationId: conversationId,
+      clientMessageId: attachmentClientMessageId!,
+      localId: localId,
+    );
   }
 
   Future<bool> retry(String clientMessageId) {
@@ -108,6 +188,38 @@ final class ComposerController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    unawaited(_attachmentSubscription?.cancel());
     super.dispose();
   }
+}
+
+enum ComposerAttachmentState { queued, uploading, failed, ready }
+
+final class ComposerAttachment {
+  const ComposerAttachment({
+    required this.localId,
+    required this.contentType,
+    required this.state,
+    required this.bytesSent,
+    required this.bytesTotal,
+  });
+
+  final String localId;
+  final String contentType;
+  final ComposerAttachmentState state;
+  final int bytesSent;
+  final int bytesTotal;
+}
+
+abstract interface class AttachmentComposerSource {
+  Stream<List<ComposerAttachment>> watch({
+    required String conversationId,
+    required String clientMessageId,
+  });
+
+  Future<void> removeFailed({
+    required String conversationId,
+    required String clientMessageId,
+    required String localId,
+  });
 }
