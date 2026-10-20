@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/core/database/app_database.dart';
 import 'package:timefit_native/core/database/daos/message_dao.dart';
 import 'package:timefit_native/features/chat/data/message_repository_impl.dart';
+import 'package:timefit_native/features/chat/domain/chat_message.dart';
+import 'package:timefit_native/features/chat/domain/repositories/message_repository.dart';
 import 'package:timefit_native/features/chat/presentation/chat_screen.dart';
 import 'package:timefit_native/features/conversations/application/conversation_list_controller.dart';
 import 'package:timefit_native/features/conversations/data/conversation_repository_impl.dart';
@@ -48,6 +50,11 @@ void main() {
     expect(find.text('two'), findsOneWidget);
     expect(find.text('one'), findsOneWidget);
     expect(probe.conversationSelects, lessThanOrEqualTo(readsAfterInitial + 1));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.runAsync(controller.dispose);
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.runAsync(database.close);
   });
 
   testWidgets(
@@ -98,8 +105,25 @@ void main() {
       await tester.pump();
       expect(probe.messageSelects, readsBeforeRebuild);
       expect(probe.messageSelects, greaterThan(readsAfterInitial));
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.runAsync(repository.dispose);
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.runAsync(database.close);
     },
   );
+
+  testWidgets('repository failure is distinct from an empty timeline', (
+    WidgetTester tester,
+  ) async {
+    final _ErrorMessageRepository repository = _ErrorMessageRepository();
+
+    await _pumpRepositoryChat(tester, repository, conversationId: 'one');
+    await tester.pump();
+
+    expect(find.text('메시지를 표시하지 못했습니다'), findsOneWidget);
+    expect(find.text('아직 메시지가 없습니다'), findsNothing);
+  });
 
   testWidgets('awaited session switch drops old events and revoked data', (
     WidgetTester tester,
@@ -130,7 +154,7 @@ void main() {
     expect(find.text('old data'), findsNothing);
     expect(find.text('대화에 접근할 수 없습니다'), findsOneWidget);
 
-    await oldRepository.dispose();
+    await tester.runAsync(oldRepository.dispose);
     await _pumpRepositoryChat(tester, newRepository, conversationId: 'one');
     await _insertCanonical(oldDatabase, 'late old event', 'one', 2, now);
     await _insertCanonical(newDatabase, 'new namespace', 'one', 1, now);
@@ -139,7 +163,11 @@ void main() {
     expect(find.text('new namespace'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
-    await newRepository.dispose();
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.runAsync(newRepository.dispose);
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.runAsync(oldDatabase.close);
+    await tester.runAsync(newDatabase.close);
     expect(tester.takeException(), isNull);
   });
 }
@@ -183,7 +211,7 @@ Future<void> _pumpConversationList(
 
 Future<void> _pumpRepositoryChat(
   WidgetTester tester,
-  MessageRepositoryImpl repository, {
+  MessageRepository repository, {
   required String conversationId,
   ChatScreenStatus status = ChatScreenStatus.ready,
 }) {
@@ -197,6 +225,21 @@ Future<void> _pumpRepositoryChat(
       ),
     ),
   );
+}
+
+final class _ErrorMessageRepository implements MessageRepository {
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<List<ChatMessage>> readCachedMessages(String conversationId) async =>
+      throw const LocalRepositoryException(LocalRepositoryFailure.readFailed);
+
+  @override
+  Stream<List<ChatMessage>> watchCachedMessages(String conversationId) =>
+      Stream<List<ChatMessage>>.error(
+        const LocalRepositoryException(LocalRepositoryFailure.readFailed),
+      );
 }
 
 Future<void> _insertConversation(
