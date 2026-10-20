@@ -21,6 +21,8 @@ void main() {
   AttachmentDownloadController controller({
     String name = 'private.png',
     String contentType = 'image/png',
+    AttachmentRefreshScheduler scheduler =
+        const TimerAttachmentRefreshScheduler(),
   }) => AttachmentDownloadController(
     metadata: AttachmentPreviewMetadata(
       attachmentId: 'attachment-1',
@@ -31,6 +33,7 @@ void main() {
     clock: () => now,
     memoryCache: cache,
     telemetry: telemetry,
+    scheduler: scheduler,
   );
 
   SignedAttachmentUrl signed(String token, Duration lifetime) =>
@@ -44,7 +47,7 @@ void main() {
       Future.value(signed('first-secret', const Duration(minutes: 2))),
     );
     provider.results.add(
-      Future.value(signed('second-secret', const Duration(minutes: 2))),
+      Future.value(signed('second-secret', const Duration(minutes: 5))),
     );
     final subject = controller();
     addTearDown(subject.dispose);
@@ -64,6 +67,109 @@ void main() {
     expect(cache.length, 1);
     expect(telemetry.events.join(), isNot(contains('secret')));
     expect(telemetry.events, contains('attachment_url_cache_hit'));
+  });
+
+  test(
+    'visible preview refreshes automatically thirty seconds early',
+    () async {
+      final scheduler = _FakeScheduler();
+      provider.results.add(
+        Future.value(signed('first', const Duration(seconds: 60))),
+      );
+      provider.results.add(
+        Future.value(signed('second', const Duration(minutes: 2))),
+      );
+      final subject = controller(scheduler: scheduler);
+      addTearDown(subject.dispose);
+      await subject.open();
+
+      expect(scheduler.pendingDelays, <Duration>[const Duration(seconds: 30)]);
+      now = now.add(const Duration(seconds: 30));
+      scheduler.fireNext();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(provider.calls, 2);
+      expect(
+        (subject.state as AttachmentPreviewReady).url.queryParameters['token'],
+        'second',
+      );
+      expect(scheduler.pendingDelays, <Duration>[const Duration(seconds: 60)]);
+    },
+  );
+
+  test('short or unchanged TTL fails once without a refresh loop', () async {
+    final shortScheduler = _FakeScheduler();
+    provider.results.add(
+      Future.value(signed('short', const Duration(seconds: 20))),
+    );
+    final short = controller(scheduler: shortScheduler);
+    addTearDown(short.dispose);
+    await short.open();
+    expect(
+      (short.state as AttachmentPreviewFailed).error,
+      AttachmentPreviewError.expired,
+    );
+    expect(shortScheduler.pendingDelays, isEmpty);
+    expect(provider.calls, 1);
+
+    provider = _FakeUrlProvider();
+    final sameScheduler = _FakeScheduler();
+    final fixedExpiry = now.add(const Duration(seconds: 60));
+    provider.results.add(
+      Future.value(
+        SignedAttachmentUrl(
+          url: Uri.parse('https://private.invalid/?token=first'),
+          expiresAt: fixedExpiry,
+        ),
+      ),
+    );
+    provider.results.add(
+      Future.value(
+        SignedAttachmentUrl(
+          url: Uri.parse('https://private.invalid/?token=same-expiry'),
+          expiresAt: fixedExpiry,
+        ),
+      ),
+    );
+    final same = controller(scheduler: sameScheduler);
+    addTearDown(same.dispose);
+    await same.open();
+    now = now.add(const Duration(seconds: 30));
+    sameScheduler.fireNext();
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      (same.state as AttachmentPreviewFailed).error,
+      AttachmentPreviewError.expired,
+    );
+    expect(sameScheduler.pendingDelays, isEmpty);
+    expect(provider.calls, 2);
+  });
+
+  test('automatic refresh failure does not busy-loop', () async {
+    final scheduler = _FakeScheduler();
+    provider.results.add(
+      Future.value(signed('first', const Duration(seconds: 60))),
+    );
+    provider.results.add(
+      Future.error(const AttachmentUrlException(AttachmentUrlFailure.offline)),
+    );
+    final subject = controller(scheduler: scheduler);
+    addTearDown(subject.dispose);
+    await subject.open();
+    now = now.add(const Duration(seconds: 30));
+    scheduler.fireNext();
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      (subject.state as AttachmentPreviewFailed).error,
+      AttachmentPreviewError.offline,
+    );
+    expect(scheduler.pendingDelays, isEmpty);
+    expect(provider.calls, 2);
   });
 
   test('expired provider result is rejected and never cached', () async {
@@ -102,6 +208,9 @@ void main() {
       AttachmentPreviewError.accessRevoked,
     );
     expect(cache.length, 0);
+    expect(provider.calls, 2);
+    await subject.open();
+    await subject.refreshAfterForbidden();
     expect(provider.calls, 2);
   });
 
@@ -199,6 +308,22 @@ void main() {
       AttachmentPreviewError.accessRevoked,
     );
     expect(cache.length, 0);
+  });
+
+  test('cancel releases the scheduled refresh', () async {
+    final scheduler = _FakeScheduler();
+    provider.results.add(
+      Future.value(signed('scheduled', const Duration(seconds: 60))),
+    );
+    final subject = controller(scheduler: scheduler);
+    addTearDown(subject.dispose);
+    await subject.open();
+    expect(scheduler.pendingDelays, hasLength(1));
+
+    subject.cancel();
+
+    expect(scheduler.pendingDelays, isEmpty);
+    expect(subject.state, isA<AttachmentPreviewIdle>());
   });
 
   testWidgets('unsupported MIME never invokes a renderer or provider', (
@@ -336,6 +461,56 @@ void main() {
     expect(cache.length, 0);
     subject.dispose();
   });
+
+  testWidgets('replacing the controller invalidates its pending result', (
+    tester,
+  ) async {
+    final pending = Completer<SignedAttachmentUrl>();
+    provider.results.add(pending.future);
+    final oldCache = cache;
+    final old = controller(scheduler: _FakeScheduler());
+    final replacementProvider = _FakeUrlProvider();
+    final replacement = AttachmentDownloadController(
+      metadata: const AttachmentPreviewMetadata(
+        attachmentId: 'attachment-2',
+        displayName: 'next.pdf',
+        contentType: 'application/pdf',
+      ),
+      provider: replacementProvider,
+      clock: () => now,
+      memoryCache: AttachmentUrlMemoryCache(),
+      scheduler: _FakeScheduler(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AttachmentPreviewScreen(
+          controller: old,
+          imageRenderer: (_, _) => const Text('old image'),
+          pdfRenderer: (_, _) => const Text('old pdf'),
+        ),
+      ),
+    );
+    final load = old.open();
+    await tester.pump();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AttachmentPreviewScreen(
+          controller: replacement,
+          imageRenderer: (_, _) => const Text('next image'),
+          pdfRenderer: (_, _) => const Text('next pdf'),
+        ),
+      ),
+    );
+    pending.complete(signed('stale', const Duration(minutes: 2)));
+    await load;
+    await tester.pump();
+
+    expect(oldCache.length, 0);
+    expect(old.state, isA<AttachmentPreviewIdle>());
+    await tester.pumpWidget(const SizedBox());
+    old.dispose();
+    replacement.dispose();
+  });
 }
 
 final class _FakeUrlProvider implements AttachmentUrlProvider {
@@ -354,4 +529,36 @@ final class _Telemetry implements AttachmentPreviewTelemetry {
 
   @override
   void record(String eventCode) => events.add(eventCode);
+}
+
+final class _FakeScheduler implements AttachmentRefreshScheduler {
+  final List<_FakeScheduledTask> _tasks = <_FakeScheduledTask>[];
+
+  List<Duration> get pendingDelays => _tasks
+      .where((task) => !task.cancelled)
+      .map((task) => task.delay)
+      .toList(growable: false);
+
+  @override
+  AttachmentRefreshHandle schedule(Duration delay, void Function() callback) {
+    final task = _FakeScheduledTask(delay, callback);
+    _tasks.add(task);
+    return task;
+  }
+
+  void fireNext() {
+    final task = _tasks.firstWhere((candidate) => !candidate.cancelled);
+    task.cancelled = true;
+    task.callback();
+  }
+}
+
+final class _FakeScheduledTask implements AttachmentRefreshHandle {
+  _FakeScheduledTask(this.delay, this.callback);
+  final Duration delay;
+  final void Function() callback;
+  bool cancelled = false;
+
+  @override
+  void cancel() => cancelled = true;
 }

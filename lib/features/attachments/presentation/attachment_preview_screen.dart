@@ -35,6 +35,7 @@ final class _AttachmentPreviewScreenState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller == widget.controller) return;
     oldWidget.controller.removeListener(_changed);
+    oldWidget.controller.cancel();
     widget.controller.addListener(_changed);
   }
 
@@ -58,7 +59,7 @@ final class _AttachmentPreviewScreenState
         children: <Widget>[
           AttachmentTile(
             metadata: controller.metadata,
-            onOpen: controller.isBusy ? null : controller.open,
+            onOpen: controller.canOpen ? controller.open : null,
           ),
           Expanded(child: Center(child: _body(controller))),
         ],

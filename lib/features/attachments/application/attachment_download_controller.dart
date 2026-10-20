@@ -55,6 +55,31 @@ abstract interface class AttachmentPreviewTelemetry {
   void record(String eventCode);
 }
 
+abstract interface class AttachmentRefreshHandle {
+  void cancel();
+}
+
+abstract interface class AttachmentRefreshScheduler {
+  AttachmentRefreshHandle schedule(Duration delay, void Function() callback);
+}
+
+final class TimerAttachmentRefreshScheduler
+    implements AttachmentRefreshScheduler {
+  const TimerAttachmentRefreshScheduler();
+
+  @override
+  AttachmentRefreshHandle schedule(Duration delay, void Function() callback) =>
+      _TimerRefreshHandle(Timer(delay, callback));
+}
+
+final class _TimerRefreshHandle implements AttachmentRefreshHandle {
+  _TimerRefreshHandle(this._timer);
+  final Timer _timer;
+
+  @override
+  void cancel() => _timer.cancel();
+}
+
 final class AttachmentUrlMemoryCache {
   final Map<String, SignedAttachmentUrl> _entries = {};
 
@@ -114,28 +139,44 @@ final class AttachmentDownloadController extends ChangeNotifier {
     required DateTime Function() clock,
     required this.memoryCache,
     AttachmentPreviewTelemetry? telemetry,
+    AttachmentRefreshScheduler scheduler =
+        const TimerAttachmentRefreshScheduler(),
   }) : _provider = provider,
        _clock = clock,
-       _telemetry = telemetry;
+       _telemetry = telemetry,
+       _scheduler = scheduler;
 
   final AttachmentPreviewMetadata metadata;
   final AttachmentUrlProvider _provider;
   final DateTime Function() _clock;
   final AttachmentUrlMemoryCache memoryCache;
   final AttachmentPreviewTelemetry? _telemetry;
+  final AttachmentRefreshScheduler _scheduler;
 
   AttachmentPreviewState _state = const AttachmentPreviewIdle();
   Future<void>? _active;
+  AttachmentRefreshHandle? _refreshHandle;
   int _generation = 0;
   bool _sessionClosed = false;
+  bool _accessRevoked = false;
   bool _disposed = false;
 
   AttachmentPreviewState get state => _state;
   bool get isBusy => _active != null;
+  bool get canOpen =>
+      !_disposed &&
+      !_sessionClosed &&
+      !_accessRevoked &&
+      _active == null &&
+      metadata.previewKind != null;
 
   Future<void> open() => _load(forceRefresh: false);
 
   Future<void> refreshAfterForbidden() {
+    if (_accessRevoked || _sessionClosed || _disposed) {
+      return Future<void>.value();
+    }
+    _cancelRefresh();
     memoryCache.remove(metadata.attachmentId);
     _telemetry?.record('attachment_url_forbidden_refresh');
     return _load(forceRefresh: true);
@@ -143,7 +184,9 @@ final class AttachmentDownloadController extends ChangeNotifier {
 
   Future<void> _load({required bool forceRefresh}) {
     if (_active case final Future<void> active) return active;
-    if (_disposed || _sessionClosed) return Future<void>.value();
+    if (_disposed || _sessionClosed || _accessRevoked) {
+      return Future<void>.value();
+    }
     final kind = metadata.previewKind;
     if (kind == null) {
       _setState(
@@ -154,6 +197,7 @@ final class AttachmentDownloadController extends ChangeNotifier {
     }
 
     final generation = ++_generation;
+    _cancelRefresh();
     _setState(const AttachmentPreviewLoading());
     late final Future<void> operation;
     operation =
@@ -170,12 +214,15 @@ final class AttachmentDownloadController extends ChangeNotifier {
               if (!_isCurrent(generation)) return;
               if (signed.url.scheme != 'https' ||
                   signed.url.host.isEmpty ||
-                  !signed.expiresAt.isAfter(_clock())) {
+                  !signed.expiresAt.isAfter(
+                    _clock().add(const Duration(seconds: 30)),
+                  )) {
                 throw const _PreviewExpired();
               }
               memoryCache.put(metadata.attachmentId, signed);
               _telemetry?.record('attachment_url_ready');
               _setState(AttachmentPreviewReady(kind: kind, url: signed.url));
+              _scheduleRefresh(signed);
             })
             .catchError((Object error, StackTrace stack) {
               if (!_isCurrent(generation)) return;
@@ -190,6 +237,10 @@ final class AttachmentDownloadController extends ChangeNotifier {
                 _PreviewExpired() => AttachmentPreviewError.expired,
                 _ => AttachmentPreviewError.unavailable,
               };
+              if (mapped == AttachmentPreviewError.accessRevoked) {
+                _accessRevoked = true;
+              }
+              _cancelRefresh();
               _telemetry?.record('attachment_preview_${mapped.name}');
               _setState(AttachmentPreviewFailed(mapped));
             })
@@ -204,6 +255,7 @@ final class AttachmentDownloadController extends ChangeNotifier {
 
   void cancel() {
     if (_disposed) return;
+    _cancelRefresh();
     _generation += 1;
     _active = null;
     _setState(const AttachmentPreviewIdle());
@@ -213,6 +265,8 @@ final class AttachmentDownloadController extends ChangeNotifier {
   void closeSession() {
     if (_disposed || _sessionClosed) return;
     _sessionClosed = true;
+    _accessRevoked = true;
+    _cancelRefresh();
     _generation += 1;
     _active = null;
     memoryCache.clear();
@@ -224,6 +278,28 @@ final class AttachmentDownloadController extends ChangeNotifier {
   bool _isCurrent(int generation) =>
       !_disposed && !_sessionClosed && generation == _generation;
 
+  void _scheduleRefresh(SignedAttachmentUrl signed) {
+    _cancelRefresh();
+    final delay = signed.expiresAt
+        .subtract(const Duration(seconds: 30))
+        .difference(_clock());
+    if (delay <= Duration.zero) return;
+    _refreshHandle = _scheduler.schedule(delay, () {
+      _refreshHandle = null;
+      if (_disposed || _sessionClosed || _accessRevoked) return;
+      final current = _state;
+      if (current is! AttachmentPreviewReady || current.url != signed.url) {
+        return;
+      }
+      unawaited(_load(forceRefresh: true));
+    });
+  }
+
+  void _cancelRefresh() {
+    _refreshHandle?.cancel();
+    _refreshHandle = null;
+  }
+
   void _setState(AttachmentPreviewState value) {
     _state = value;
     if (!_disposed) notifyListeners();
@@ -232,6 +308,7 @@ final class AttachmentDownloadController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _cancelRefresh();
     _generation += 1;
     _active = null;
     super.dispose();
