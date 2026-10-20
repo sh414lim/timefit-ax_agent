@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:drift/drift.dart' show TransactionExecutor;
+
 import 'app_database.dart';
 
 enum LocalRepositoryFailure { readFailed, sessionClosed }
@@ -7,6 +9,10 @@ enum LocalRepositoryFailure { readFailed, sessionClosed }
 final class LocalRepositoryException implements Exception {
   const LocalRepositoryException(this.kind);
   final LocalRepositoryFailure kind;
+}
+
+final class ExternalSessionTransactionException implements Exception {
+  const ExternalSessionTransactionException();
 }
 
 /// One instance per authenticated DB namespace. Dispose before switching users;
@@ -17,12 +23,16 @@ final class LocalRepositorySession {
   /// Default shared scope for all local handles on one DB namespace. A closed
   /// scope is never silently replaced; a new user must get a fresh namespace
   /// or an explicitly injected session after the old scope drained and purged.
-  static LocalRepositorySession forDatabase(AppDatabase database) =>
-      _databaseScopes[database] ??= LocalRepositorySession();
+  static LocalRepositorySession forDatabase(AppDatabase database) {
+    final session = _databaseScopes[database] ??= LocalRepositorySession();
+    session._databases.add(database);
+    return session;
+  }
 
   bool _closed = false;
   final _stops = <Future<void> Function()>{};
   final _writes = <Future<void>>{};
+  final _databases = <AppDatabase>{};
 
   void _checkOpen() {
     if (_closed)
@@ -36,6 +46,15 @@ final class LocalRepositorySession {
     Future<T> Function() operation,
   ) async {
     _checkOpen();
+    _databases.add(database);
+    // Drift 2.27 exposes transaction context through this internal getter but
+    // has no public equivalent. Keep this compatibility seam isolated here:
+    // write() must own the top-level commit tracked by dispose(), never join
+    // an external transaction whose commit outlives the guarded operation.
+    // ignore: invalid_use_of_internal_member
+    if (database.resolvedEngine.executor is TransactionExecutor) {
+      throw const ExternalSessionTransactionException();
+    }
     final drained = Completer<void>();
     _writes.add(drained.future);
     try {
@@ -139,6 +158,15 @@ final class LocalRepositorySession {
 
   Future<void> dispose() async {
     _closed = true;
+    // Waiting here from an outer transaction could block a queued guarded
+    // transaction that needs that same outer transaction to release its lock.
+    // Close admission immediately, but require draining outside its context.
+    for (final database in _databases) {
+      // ignore: invalid_use_of_internal_member
+      if (database.resolvedEngine.executor is TransactionExecutor) {
+        throw const ExternalSessionTransactionException();
+      }
+    }
     await Future.wait([
       ..._stops.toList().map((stop) => stop()),
       ..._writes.toList(),

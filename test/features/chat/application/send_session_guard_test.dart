@@ -4,6 +4,8 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/core/database/app_database.dart';
+import 'package:timefit_native/core/database/local_repository_session.dart'
+    show ExternalSessionTransactionException;
 import 'package:timefit_native/features/chat/application/send_message.dart';
 import 'package:timefit_native/features/chat/data/message_reconciler.dart';
 import 'package:timefit_native/features/chat/data/message_repository_impl.dart';
@@ -143,6 +145,78 @@ void main() {
     expect((await db.outboxDao.getAll()).single.state, 'failed_permanent');
     expect((await db.outboxDao.getAll()).single.attemptCount, 8);
   });
+
+  test(
+    'external transaction rejects submit retry and reconcile before writing',
+    () async {
+      await submit();
+      await db.transaction(() async {
+        await expectLater(
+          submit(),
+          throwsA(isA<ExternalSessionTransactionException>()),
+        );
+        await expectLater(
+          send.retry('client'),
+          throwsA(isA<ExternalSessionTransactionException>()),
+        );
+        await expectLater(
+          reconciler.reconcile(commandId: 'client', canonical: canonical()),
+          throwsA(isA<ExternalSessionTransactionException>()),
+        );
+      });
+      expect((await db.messageDao.getAll()).single.serverId, equals(null));
+      expect((await db.outboxDao.getAll()).single.state, 'queued');
+    },
+  );
+
+  test(
+    'external transaction can dispose after rejected write without deadlock',
+    () async {
+      await db.transaction(() async {
+        await expectLater(
+          submit(),
+          throwsA(isA<ExternalSessionTransactionException>()),
+        );
+        await expectLater(
+          repository.dispose().timeout(const Duration(seconds: 2)),
+          throwsA(isA<ExternalSessionTransactionException>()),
+        );
+      });
+      await repository.dispose();
+      await db.purgeChatData();
+      expect(await db.messageDao.getAll(), isEmpty);
+      expect(await db.outboxDao.getAll(), isEmpty);
+      await expectLater(submit(), throwsA(isA<LocalRepositoryException>()));
+    },
+  );
+
+  test(
+    'external dispose cannot deadlock a guarded write queued behind it',
+    () async {
+      final entered = Completer<void>();
+      final disposeInside = Completer<void>();
+      final outer = db.transaction(() async {
+        entered.complete();
+        await disposeInside.future;
+        await expectLater(
+          repository.dispose().timeout(const Duration(seconds: 2)),
+          throwsA(isA<ExternalSessionTransactionException>()),
+        );
+      });
+      await entered.future;
+      final rejected = expectLater(
+        submit(),
+        throwsA(isA<LocalRepositoryException>()),
+      );
+      disposeInside.complete();
+      await outer;
+      await rejected;
+      await repository.dispose();
+      await db.purgeChatData();
+      expect(await db.messageDao.getAll(), isEmpty);
+      expect(await db.outboxDao.getAll(), isEmpty);
+    },
+  );
 
   test(
     'dispose during canonical update rolls back promotion then allows purge',
