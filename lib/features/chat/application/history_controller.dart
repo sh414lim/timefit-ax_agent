@@ -147,6 +147,16 @@ final class HistoryController {
       }
       final messages = unique.values.toList()
         ..sort((a, b) => a.sequence!.compareTo(b.sequence!));
+      if (messages.isNotEmpty) {
+        if (messages.last.sequence != request.beforeSequence - 1) {
+          throw const FormatException('Page does not reach requested boundary');
+        }
+        for (var i = 1; i < messages.length; i++) {
+          if (messages[i].sequence != messages[i - 1].sequence! + 1) {
+            throw const FormatException('Page contains a sequence gap');
+          }
+        }
+      }
       if (messages.isEmpty && page.hasMoreBefore)
         throw const FormatException('Page makes no progress');
       final next = messages.isEmpty
@@ -240,7 +250,9 @@ final class HistoryController {
       throw ArgumentError.value(cursor, 'earliestSequence');
   }
 
-  /// UI may measure these extents around the guarded Drift prepend/layout.
+  /// Pure-prepend-only helper: UI may measure these extents around the guarded
+  /// Drift prepend/layout. Concurrent append, resize, or reflow changes cannot
+  /// be distinguished by extent delta and require an identity-based UI anchor.
   /// The controller owns no ScrollController or rendering dependencies.
   static double prependAnchorOffset({
     required double previousPixels,

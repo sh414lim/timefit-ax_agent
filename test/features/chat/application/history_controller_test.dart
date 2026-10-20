@@ -89,6 +89,87 @@ void main() {
     expect((await next)!.messages.map((m) => m.sequence), [69, 70]);
     expect(controller.state.beforeSequence, 69);
   });
+  for (final sequences in <List<int>>[
+    [1, 120],
+    [71, 72, 74, 75, 120],
+    [1, 2, 3],
+  ]) {
+    test(
+      'gap $sequences preserves cursor and all tentative identities',
+      () async {
+        final invalid = controller.loadMore();
+        source.pending.last.complete(
+          HistoryPage(
+            conversationId: 'one',
+            messages: sequences
+                .map((s) => message(s, id: 'invalid-$s'))
+                .toList(),
+            hasMoreBefore: true,
+          ),
+        );
+        expect(await invalid, equals(null));
+        expect(controller.state.failure, HistoryFailure.invalidPage);
+        expect(controller.state.beforeSequence, 121);
+        expect(controller.state.hasMoreBefore, isTrue);
+        // Different identities for every sequence prove rejected pages did not
+        // leak tentative identity entries into any later successful page.
+        for (final bounds in [
+          (71, 120, true),
+          (21, 70, true),
+          (1, 20, false),
+        ]) {
+          final retry = controller.loadMore();
+          source.pending.last.complete(
+            HistoryPage(
+              conversationId: 'one',
+              messages: [
+                for (var i = bounds.$1; i <= bounds.$2; i++)
+                  message(i, id: 'valid-$i'),
+              ],
+              hasMoreBefore: bounds.$3,
+            ),
+          );
+          expect(await retry, isNotNull);
+        }
+        expect(controller.state.beforeSequence, 1);
+      },
+    );
+  }
+  test(
+    'gap rejection also preserves previously accepted identity entries',
+    () async {
+      final first = controller.loadMore();
+      source.pending.last.complete(page(71, 120));
+      await first;
+      final invalid = controller.loadMore();
+      source.pending.last.complete(
+        HistoryPage(
+          conversationId: 'one',
+          messages: [message(1), message(70)],
+          hasMoreBefore: true,
+        ),
+      );
+      expect(await invalid, equals(null));
+      expect(controller.state.beforeSequence, 71);
+      final conflictingBoundary = controller.retry();
+      source.pending.last.complete(
+        HistoryPage(
+          conversationId: 'one',
+          messages: [
+            message(71, id: 'changed'),
+            message(70),
+          ],
+          hasMoreBefore: true,
+        ),
+      );
+      expect(await conflictingBoundary, equals(null));
+      expect(controller.state.failure, HistoryFailure.invalidPage);
+      final valid = controller.retry();
+      source.pending.last.complete(page(21, 70));
+      expect(await valid, isNotNull);
+      expect(controller.state.beforeSequence, 21);
+    },
+  );
   test('error preserves cursor and retry requests the same key', () async {
     final first = controller.loadMore();
     source.pending.last.completeError(StateError('private source failure'));
