@@ -1,5 +1,7 @@
-import '../domain/conversation_repository.dart';
+import 'dart:async';
+
 import '../domain/conversation_summary.dart';
+import '../domain/repositories/conversation_repository.dart';
 
 enum ConversationListPhase { loading, empty, ready, stale, error }
 
@@ -34,6 +36,7 @@ class ConversationListController {
   ConversationListState _state = const ConversationListState.loading();
   bool _isDisposed = false;
   int _requestEpoch = 0;
+  StreamSubscription<List<ConversationSummary>>? _cacheSubscription;
 
   ConversationListState get state => _state;
 
@@ -45,9 +48,36 @@ class ConversationListController {
     _listeners.remove(listener);
   }
 
-  Future<void> load() => _synchronize(showInitialLoading: true);
+  Future<void> load() async {
+    _subscribeToCache();
+    await _synchronize(showInitialLoading: true);
+  }
 
   Future<void> refresh() => _synchronize(showInitialLoading: false);
+
+  void _subscribeToCache() {
+    if (_cacheSubscription != null ||
+        _repository is! LocalConversationRepository) {
+      return;
+    }
+    final LocalConversationRepository localRepository = _repository;
+    _cacheSubscription = localRepository.watchCachedConversations().listen(
+      (List<ConversationSummary> conversations) {
+        final List<ConversationSummary> sorted = _sorted(conversations);
+        _emit(
+          sorted.isEmpty
+              ? const ConversationListState(phase: ConversationListPhase.empty)
+              : ConversationListState(
+                  phase: ConversationListPhase.ready,
+                  conversations: sorted,
+                ),
+        );
+      },
+      onError: (Object _) {
+        _emitRefreshFailure(_state.conversations, isOffline: false);
+      },
+    );
+  }
 
   Future<void> _synchronize({required bool showInitialLoading}) async {
     final int requestEpoch = ++_requestEpoch;
@@ -159,9 +189,14 @@ class ConversationListController {
     return !_isDisposed && requestEpoch == _requestEpoch;
   }
 
-  void dispose() {
+  Future<void> dispose() async {
     _isDisposed = true;
     _requestEpoch += 1;
     _listeners.clear();
+    await _cacheSubscription?.cancel();
+    _cacheSubscription = null;
+    if (_repository case final LocalConversationRepository localRepository) {
+      await localRepository.dispose();
+    }
   }
 }
