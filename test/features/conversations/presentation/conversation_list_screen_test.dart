@@ -9,8 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/theme/app_theme.dart';
 import 'package:timefit_native/features/conversations/application/conversation_list_controller.dart';
-import 'package:timefit_native/features/conversations/domain/conversation_repository.dart';
 import 'package:timefit_native/features/conversations/domain/conversation_summary.dart';
+import 'package:timefit_native/features/conversations/domain/repositories/conversation_repository.dart';
 import 'package:timefit_native/features/conversations/presentation/conversation_list_screen.dart';
 import 'package:timefit_native/features/conversations/presentation/widgets/conversation_list_row.dart';
 
@@ -124,6 +124,63 @@ void main() {
 
     expect(notificationCount, countAtDispose);
     expect(controller.state.conversations, isEmpty);
+  });
+
+  test(
+    'disposing one controller keeps a shared local repository alive',
+    () async {
+      final _ControllableLocalConversationRepository repository =
+          _ControllableLocalConversationRepository();
+      final ConversationListController first = ConversationListController(
+        repository: repository,
+      );
+      final ConversationListController second = ConversationListController(
+        repository: repository,
+      );
+      await Future.wait(<Future<void>>[first.load(), second.load()]);
+
+      repository.emit(<ConversationSummary>[
+        _conversation('first', minutesAgo: 2),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+      await first.dispose();
+      repository.emit(<ConversationSummary>[
+        _conversation('second', minutesAgo: 1),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(repository.disposeCalls, 0);
+      expect(second.state.conversations.single.id, 'second');
+
+      await second.dispose();
+      await repository.dispose();
+      expect(repository.disposeCalls, 1);
+    },
+  );
+
+  test('newer watch value wins over a delayed stale cache read', () async {
+    final Completer<List<ConversationSummary>> cacheRead =
+        Completer<List<ConversationSummary>>();
+    final _ControllableLocalConversationRepository repository =
+        _ControllableLocalConversationRepository(cacheRead: cacheRead);
+    final ConversationListController controller = ConversationListController(
+      repository: repository,
+    );
+
+    final Future<void> load = controller.load();
+    await Future<void>.delayed(Duration.zero);
+    repository.emit(<ConversationSummary>[
+      _conversation('new-watch', minutesAgo: 1),
+    ]);
+    cacheRead.complete(<ConversationSummary>[
+      _conversation('old-read', minutesAgo: 10),
+    ]);
+    await load;
+
+    expect(controller.state.conversations.single.id, 'new-watch');
+
+    await controller.dispose();
+    await repository.dispose();
   });
 
   test('empty cache preserves memory list when reload fails', () async {
@@ -499,6 +556,39 @@ class _MutableConversationRepository implements ConversationRepository {
       throw error;
     }
     return refreshed;
+  }
+}
+
+class _ControllableLocalConversationRepository
+    implements LocalConversationRepository {
+  _ControllableLocalConversationRepository({this.cacheRead});
+
+  final Completer<List<ConversationSummary>>? cacheRead;
+  final StreamController<List<ConversationSummary>> _cache =
+      StreamController<List<ConversationSummary>>.broadcast(sync: true);
+  int disposeCalls = 0;
+
+  void emit(List<ConversationSummary> conversations) {
+    _cache.add(conversations);
+  }
+
+  @override
+  Future<List<ConversationSummary>> readCachedConversations() async =>
+      cacheRead?.future ?? const <ConversationSummary>[];
+
+  @override
+  Stream<List<ConversationSummary>> watchCachedConversations() => _cache.stream;
+
+  @override
+  Future<List<ConversationSummary>> refreshConversations() async =>
+      throw const ConversationRepositoryException(
+        ConversationRepositoryFailureKind.unavailable,
+      );
+
+  @override
+  Future<void> dispose() async {
+    disposeCalls += 1;
+    await _cache.close();
   }
 }
 

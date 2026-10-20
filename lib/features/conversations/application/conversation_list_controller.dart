@@ -30,12 +30,15 @@ class ConversationListController {
   ConversationListController({required ConversationRepository repository})
     : _repository = repository;
 
+  // Injected repositories are owned by the session/composition scope. This
+  // controller only owns and cancels its subscription.
   final ConversationRepository _repository;
   final Set<ConversationListListener> _listeners = <ConversationListListener>{};
 
   ConversationListState _state = const ConversationListState.loading();
   bool _isDisposed = false;
   int _requestEpoch = 0;
+  int _cacheRevision = 0;
   StreamSubscription<List<ConversationSummary>>? _cacheSubscription;
 
   ConversationListState get state => _state;
@@ -63,6 +66,7 @@ class ConversationListController {
     final LocalConversationRepository localRepository = _repository;
     _cacheSubscription = localRepository.watchCachedConversations().listen(
       (List<ConversationSummary> conversations) {
+        _cacheRevision += 1;
         final List<ConversationSummary> sorted = _sorted(conversations);
         _emit(
           sorted.isEmpty
@@ -74,6 +78,7 @@ class ConversationListController {
         );
       },
       onError: (Object _) {
+        _cacheRevision += 1;
         _emitRefreshFailure(_state.conversations, isOffline: false);
       },
     );
@@ -93,9 +98,13 @@ class ConversationListController {
       if (!_isCurrent(requestEpoch)) {
         return;
       }
-      // An empty cache is not proof that the server-side list is empty. Keep
-      // the in-memory result until a successful refresh confirms that state.
-      if (cached.isNotEmpty) {
+      // Once the watch has emitted it is the authoritative cache snapshot.
+      // A slower point-in-time read must never replace that newer state.
+      if (_repository is LocalConversationRepository && _cacheRevision > 0) {
+        retained = _state.conversations;
+      } else if (cached.isNotEmpty) {
+        // An empty cache is not proof that the server-side list is empty. Keep
+        // the in-memory result until a successful refresh confirms that state.
         retained = cached;
       }
     } on Object {
@@ -195,8 +204,5 @@ class ConversationListController {
     _listeners.clear();
     await _cacheSubscription?.cancel();
     _cacheSubscription = null;
-    if (_repository case final LocalConversationRepository localRepository) {
-      await localRepository.dispose();
-    }
   }
 }
