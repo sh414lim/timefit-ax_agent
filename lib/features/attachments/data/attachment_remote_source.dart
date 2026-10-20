@@ -42,7 +42,6 @@ abstract interface class AttachmentRemoteSource {
   Future<AttachmentUploadOutcome> upload(
     AttachmentUploadInput input,
     PreparedAttachment target, {
-    required bool replace,
     required AttachmentCancellation cancellation,
     required Future<void> Function(int bytesSent) onProgress,
   });

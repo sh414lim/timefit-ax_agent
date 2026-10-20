@@ -36,7 +36,7 @@ class FakeRemote implements AttachmentRemoteSource {
   ) async {
     trace.add('prepare:${input.localId}');
     check('prepare');
-    if (pause != null) {
+    if (pause != null && !(entered?.isCompleted ?? false)) {
       entered?.complete();
       await pause!.future;
     }
@@ -50,20 +50,21 @@ class FakeRemote implements AttachmentRemoteSource {
   Future<AttachmentUploadOutcome> upload(
     AttachmentUploadInput input,
     PreparedAttachment target, {
-    required bool replace,
     required AttachmentCancellation cancellation,
     required Future<void> Function(int) onProgress,
   }) async {
-    trace.add('upload:${target.attachmentId}:${target.objectPath}:$replace');
+    trace.add('upload:${target.attachmentId}:${target.objectPath}');
     check('upload');
     if (progress != null) {
       await progress!(onProgress);
     } else {
       await onProgress(input.file.bytesTotal);
     }
-    return exists
-        ? AttachmentUploadOutcome.alreadyExists
-        : AttachmentUploadOutcome.uploaded;
+    if (exists) {
+      exists = false;
+      return AttachmentUploadOutcome.alreadyExists;
+    }
+    return AttachmentUploadOutcome.uploaded;
   }
 
   @override
@@ -227,7 +228,7 @@ void main() {
       expect(stored.uploadObjectPath, 'opaque/object-a');
       expect(remote.trace, [
         'prepare:a',
-        'upload:server-a:opaque/object-a:false',
+        'upload:server-a:opaque/object-a',
         'finalize:server-a',
       ]);
       await executor().execute(command());
@@ -266,44 +267,61 @@ void main() {
       },
     );
   }
-  test('already exists is finalized rather than assumed ready', () async {
-    remote.exists = true;
-    remote.failStage = 'finalize';
-    await executor().execute(command());
-    expect((await row()).uploadState, 'finalizing');
-    await restart();
-    await executor().execute(command());
-    expect((await row()).uploadState, 'ready');
-  });
   test(
-    'one metadata mismatch reuploads same object once then succeeds',
+    'already exists preserves object and holds for reprepare contract',
     () async {
-      remote.mismatches = 1;
+      remote.exists = true;
+      expect(
+        (await executor().execute(command())).errorCode,
+        'reprepare_required',
+      );
+      expect((await row()).uploadState, 'failed');
+      final calls = remote.trace.length;
+      await restart();
       await executor().execute(command());
-      expect((await row()).verificationFailures, 1);
-      expect((await row()).uploadState, 'ready');
-      expect(remote.trace.where((s) => s.startsWith('prepare')), hasLength(1));
-      expect(remote.trace.where((s) => s.startsWith('upload')), hasLength(2));
-      expect(remote.trace, contains('upload:server-a:opaque/object-a:true'));
+      expect((await row()).uploadState, 'failed');
+      expect(remote.trace, hasLength(calls));
+      expect((await row()).attachmentId, 'server-a');
+      expect(remote.trace.where((s) => s.startsWith('finalize')), isEmpty);
     },
   );
-  test('second mismatch is permanent and never ready or sent', () async {
-    remote.mismatches = 2;
-    expect(
-      (await executor().execute(command())).disposition,
-      ExecutionDisposition.permanent,
-    );
-    expect((await row()).uploadState, 'failed');
-    expect((await row()).verificationFailures, 2);
-    final calls = remote.trace.length;
-    await restart();
-    expect(
-      (await executor().execute(command())).disposition,
-      ExecutionDisposition.permanent,
-    );
-    expect(remote.trace, hasLength(calls));
-    expect(await db.messageDao.getAll(), isEmpty);
-  });
+  test(
+    'metadata mismatch preserves ID path and requires explicit future reprepare',
+    () async {
+      remote.mismatches = 1;
+      expect(
+        (await executor().execute(command())).errorCode,
+        'reprepare_required',
+      );
+      expect((await row()).verificationFailures, 1);
+      expect((await row()).uploadState, 'failed');
+      expect((await row()).failureCode, 'reprepare_required');
+      expect((await row()).attachmentId, 'server-a');
+      expect((await row()).uploadObjectPath, 'opaque/object-a');
+      expect(remote.trace.where((s) => s.startsWith('prepare')), hasLength(1));
+      expect(remote.trace.where((s) => s.startsWith('upload')), hasLength(1));
+    },
+  );
+  test(
+    'mismatch hold survives restart without automatic upload or prepare',
+    () async {
+      remote.mismatches = 2;
+      expect(
+        (await executor().execute(command())).disposition,
+        ExecutionDisposition.permanent,
+      );
+      expect((await row()).uploadState, 'failed');
+      expect((await row()).verificationFailures, 1);
+      final calls = remote.trace.length;
+      await restart();
+      expect(
+        (await executor().execute(command())).disposition,
+        ExecutionDisposition.permanent,
+      );
+      expect(remote.trace, hasLength(calls));
+      expect(await db.messageDao.getAll(), isEmpty);
+    },
+  );
   test(
     'progress throttles intermediate writes and always commits final count',
     () async {
@@ -369,6 +387,38 @@ void main() {
       );
       expect((await row()).bytesSent, 0);
       expect((await row()).uploadState, 'failed');
+    },
+  );
+  test(
+    'new valid lease replaces stalled old execution and old finally preserves new owner',
+    () async {
+      final subject = executor();
+      final oldGate = Completer<void>();
+      final oldEntered = Completer<void>();
+      remote.pause = oldGate;
+      remote.entered = oldEntered;
+      final old = subject.execute(command());
+      await oldEntered.future;
+      now = now.add(const Duration(seconds: 61));
+      token = 'new-lease';
+      await db.outboxDao.claim(now, token);
+      final newGate = Completer<void>();
+      final newEntered = Completer<void>();
+      remote.pause = newGate;
+      remote.entered = newEntered;
+      final fresh = subject.execute(command());
+      await newEntered.future;
+      oldGate.complete();
+      expect((await old).errorCode, 'inactive_upload_lease');
+      expect(
+        (await subject.execute(command())).errorCode,
+        'upload_in_progress',
+      );
+      newGate.complete();
+      expect((await fresh).disposition, ExecutionDisposition.completed);
+      expect((await row()).uploadState, 'ready');
+      expect(remote.trace.where((s) => s.startsWith('prepare')), hasLength(2));
+      expect(remote.trace.where((s) => s.startsWith('upload')), hasLength(1));
     },
   );
   test('duplicate execution does not call prepare twice', () async {

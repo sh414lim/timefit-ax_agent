@@ -33,7 +33,7 @@ final class AttachmentUploadExecutor implements CommandExecutor {
   final Directory privateRoot;
   final DateTime Function() clock;
   final AttachmentCancellation cancellation;
-  static final _active = Expando<Set<String>>();
+  static final _active = Expando<Map<String, String>>();
   final _snapshots = <String, LocalAttachment>{};
 
   Future<LocalAttachment> _read(OutboxExecutionCommand command) async {
@@ -62,7 +62,7 @@ final class AttachmentUploadExecutor implements CommandExecutor {
       throw const _InactiveUpload();
     if (row.clientMessageId != command.clientRequestId)
       throw const _InactiveUpload();
-    final expected = _snapshots[command.id];
+    final expected = _snapshots['${command.id}:${command.leaseToken}'];
     if (expected != null &&
         (row.conversationId != expected.conversationId ||
             row.localFileUri != expected.localFileUri ||
@@ -113,15 +113,19 @@ final class AttachmentUploadExecutor implements CommandExecutor {
 
   @override
   Future<CommandExecutionResult> execute(OutboxExecutionCommand command) async {
-    final active = _active[_database] ??= <String>{};
-    if (!active.add(command.id))
-      return const CommandExecutionResult(
-        ExecutionDisposition.retryable,
-        errorCode: 'upload_in_progress',
-      );
+    final active = _active[_database] ??= <String, String>{};
+    final snapshotKey = '${command.id}:${command.leaseToken}';
+    var owns = false;
     try {
       var row = await _read(command);
-      _snapshots[command.id] = row;
+      if (active[command.id] == command.leaseToken)
+        return const CommandExecutionResult(
+          ExecutionDisposition.retryable,
+          errorCode: 'upload_in_progress',
+        );
+      active[command.id] = command.leaseToken!;
+      owns = true;
+      _snapshots[snapshotKey] = row;
       if (row.uploadState == 'ready' || row.uploadState == 'bound')
         return const CommandExecutionResult(ExecutionDisposition.completed);
       if (row.uploadState == 'failed')
@@ -151,41 +155,41 @@ final class AttachmentUploadExecutor implements CommandExecutor {
           sha256: row.sha256,
         ),
       );
-      if (row.attachmentId == null) {
-        await _write(
-          command,
-          const LocalAttachmentsCompanion(uploadState: Value('preparing')),
-        );
-        final prepared = await _remoteCall(
-          () => remote.prepare(input, cancellation),
-        );
-        if (prepared.attachmentId.isEmpty ||
-            prepared.objectPath.isEmpty ||
-            prepared.objectPath.startsWith('/') ||
-            prepared.objectPath.split('/').contains('..') ||
-            prepared.objectPath.contains('://'))
+      while (true) {
+        if (row.attachmentId == null) {
+          await _write(
+            command,
+            const LocalAttachmentsCompanion(uploadState: Value('preparing')),
+          );
+          final prepared = await _remoteCall(
+            () => remote.prepare(input, cancellation),
+          );
+          if (prepared.attachmentId.isEmpty ||
+              prepared.objectPath.isEmpty ||
+              prepared.objectPath.startsWith('/') ||
+              prepared.objectPath.split('/').contains('..') ||
+              prepared.objectPath.contains('://'))
+            throw const AttachmentRemoteException(
+              AttachmentRemoteFailure.permanent,
+            );
+          await _write(
+            command,
+            LocalAttachmentsCompanion(
+              attachmentId: Value(prepared.attachmentId),
+              uploadObjectPath: Value(prepared.objectPath),
+              uploadState: const Value('uploading'),
+            ),
+          );
+          row = await _read(command);
+        }
+        if (row.uploadObjectPath == null)
           throw const AttachmentRemoteException(
             AttachmentRemoteFailure.permanent,
           );
-        await _write(
-          command,
-          LocalAttachmentsCompanion(
-            attachmentId: Value(prepared.attachmentId),
-            uploadObjectPath: Value(prepared.objectPath),
-            uploadState: const Value('uploading'),
-          ),
+        final target = PreparedAttachment(
+          attachmentId: row.attachmentId!,
+          objectPath: row.uploadObjectPath!,
         );
-        row = await _read(command);
-      }
-      if (row.uploadObjectPath == null)
-        throw const AttachmentRemoteException(
-          AttachmentRemoteFailure.permanent,
-        );
-      final target = PreparedAttachment(
-        attachmentId: row.attachmentId!,
-        objectPath: row.uploadObjectPath!,
-      );
-      while (true) {
         if (row.uploadState != 'finalizing') {
           await _write(
             command,
@@ -196,11 +200,10 @@ final class AttachmentUploadExecutor implements CommandExecutor {
           );
           var last = clock();
           var bytes = 0;
-          await _remoteCall(
+          final outcome = await _remoteCall(
             () => remote.upload(
               input,
               target,
-              replace: row.verificationFailures > 0,
               cancellation: cancellation,
               onProgress: (sent) async {
                 if (sent < bytes || sent < 0 || sent > row.bytesTotal)
@@ -220,6 +223,19 @@ final class AttachmentUploadExecutor implements CommandExecutor {
               },
             ),
           );
+          if (outcome == AttachmentUploadOutcome.alreadyExists) {
+            await _write(
+              command,
+              const LocalAttachmentsCompanion(
+                uploadState: Value('failed'),
+                failureCode: Value('reprepare_required'),
+              ),
+            );
+            return const CommandExecutionResult(
+              ExecutionDisposition.permanent,
+              errorCode: 'reprepare_required',
+            );
+          }
           await _write(
             command,
             LocalAttachmentsCompanion(
@@ -247,17 +263,17 @@ final class AttachmentUploadExecutor implements CommandExecutor {
           command,
           LocalAttachmentsCompanion(
             verificationFailures: Value(failures),
-            uploadState: Value(failures >= 2 ? 'failed' : 'uploading'),
+            uploadState: const Value('failed'),
             bytesSent: const Value(0),
-            failureCode: const Value('metadata_mismatch'),
+            failureCode: const Value('reprepare_required'),
           ),
         );
-        if (failures >= 2)
-          return const CommandExecutionResult(
-            ExecutionDisposition.permanent,
-            errorCode: 'metadata_mismatch',
-          );
-        row = await _read(command);
+        // Automatic reprepare and old-orphan/identity replacement are deferred
+        // until CHAT-016 defines that contract. Never overwrite this object.
+        return const CommandExecutionResult(
+          ExecutionDisposition.permanent,
+          errorCode: 'reprepare_required',
+        );
       }
     } on AttachmentRemoteException catch (error) {
       if (error.failure == AttachmentRemoteFailure.permanent) {
@@ -306,8 +322,10 @@ final class AttachmentUploadExecutor implements CommandExecutor {
         errorCode: 'attachment_local_failure',
       );
     } finally {
-      _snapshots.remove(command.id);
-      active.remove(command.id);
+      if (owns) {
+        _snapshots.remove(snapshotKey);
+        if (active[command.id] == command.leaseToken) active.remove(command.id);
+      }
     }
   }
 }
