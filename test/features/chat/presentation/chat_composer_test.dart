@@ -105,6 +105,24 @@ void main() {
     expect(controller.draft, 'new draft');
   });
 
+  test('late failure never attaches an error to a newer draft', () async {
+    final Completer<LocalTextCommand> pending = Completer<LocalTextCommand>();
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      submitter: _FakeSubmitter(pending: pending),
+    );
+    addTearDown(controller.dispose);
+    controller.updateDraft('submitted');
+
+    final Future<void> submission = controller.submit();
+    controller.updateDraft('new draft');
+    pending.completeError(StateError('old failure'));
+    await expectLater(submission, throwsStateError);
+
+    expect(controller.draft, 'new draft');
+    expect(controller.lastError, isNull);
+  });
+
   test('local transaction success clears the unchanged draft', () async {
     final AppDatabase database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
@@ -234,6 +252,91 @@ void main() {
     await tester.pump();
 
     expect(submitter.retriedIds, <String>['failed-client-id']);
+  });
+
+  testWidgets('received failed message never exposes retry', (
+    WidgetTester tester,
+  ) async {
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      submitter: _FakeSubmitter(),
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatScreen(
+          title: 'retry',
+          messages: Stream<List<ChatMessage>>.value(<ChatMessage>[
+            ChatMessage(
+              clientMessageId: 'received-id',
+              sequence: null,
+              body: 'system failure',
+              displayedAt: DateTime.utc(2026, 10, 20),
+              isMine: false,
+              deliveryState: MessageDeliveryState.failed,
+            ),
+          ]),
+          composerController: controller,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('재시도'), findsNothing);
+  });
+
+  testWidgets('rapid send button taps create one submission', (
+    WidgetTester tester,
+  ) async {
+    final Completer<LocalTextCommand> pending = Completer<LocalTextCommand>();
+    final _FakeSubmitter submitter = _FakeSubmitter(pending: pending);
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      submitter: submitter,
+    );
+    addTearDown(controller.dispose);
+    await _pumpComposer(tester, controller);
+    await tester.enterText(find.byType(TextField), 'one command');
+    await tester.pump();
+
+    await tester.tap(find.byType(IconButton));
+    await tester.tap(find.byType(IconButton));
+    expect(submitter.submitCalls, 1);
+
+    pending.complete(_command(body: 'one command'));
+    await tester.pumpAndSettle();
+    expect(controller.draft, isEmpty);
+  });
+
+  test('composer retry requeues the existing outbox identity', () async {
+    final DateTime now = DateTime.utc(2026, 10, 20);
+    final AppDatabase database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      submitter: SendMessage(
+        database: database,
+        clock: () => now,
+        clientMessageId: () => 'stable-client-id',
+      ),
+    );
+    addTearDown(controller.dispose);
+    controller.updateDraft('retry me');
+    await controller.submit();
+    final lease = (await database.outboxDao.claim(now, 'lease'))!;
+    await database.outboxDao.finish(
+      lease,
+      now,
+      state: 'failed_permanent',
+      failures: 8,
+      errorCode: 'retry_exhausted',
+    );
+
+    expect(await controller.retry('stable-client-id'), isTrue);
+    final stored = (await database.outboxDao.getAll()).single;
+    expect(stored.id, 'stable-client-id');
+    expect(stored.clientRequestId, 'stable-client-id');
+    expect(stored.state, 'queued');
   });
 }
 

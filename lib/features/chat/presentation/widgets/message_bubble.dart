@@ -14,7 +14,9 @@ class MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool canRetry =
-        message.deliveryState == MessageDeliveryState.failed && onRetry != null;
+        message.isMine &&
+        message.deliveryState == MessageDeliveryState.failed &&
+        onRetry != null;
     final ColorScheme colors = Theme.of(context).colorScheme;
     final Color background = message.isMine
         ? colors.primaryContainer

@@ -65,7 +65,10 @@ final class ComposerController extends ChangeNotifier {
                 }
               },
               onError: (Object error, StackTrace stack) {
-                _lastError = error;
+                if (_draftVersion == submittedVersion &&
+                    _draft == submittedDraft) {
+                  _lastError = error;
+                }
                 Error.throwWithStackTrace(error, stack);
               },
             )
