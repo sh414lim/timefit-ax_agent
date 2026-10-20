@@ -573,6 +573,7 @@ void _verifyGoldenPixels({
     throw FlutterError('Golden image dimensions changed for $golden.');
   }
   var differences = 0;
+  final List<String> samples = <String>[];
   for (var y = 0; y < actualHeight; y += 1) {
     for (var x = 0; x < actualWidth; x += 1) {
       final Offset center = Offset(x + 0.5, y + 0.5);
@@ -580,12 +581,14 @@ void _verifyGoldenPixels({
       final int offset = (y * actualWidth + x) * 4;
       if (actualBytes.getUint32(offset) != expectedBytes.getUint32(offset)) {
         differences += 1;
+        if (samples.length < 20) samples.add('($x,$y)');
       }
     }
   }
   if (differences != 0) {
     throw FlutterError(
-      '$golden differs by $differences pixels outside text regions.',
+      '$golden differs by $differences pixels outside text regions; '
+      'samples=${samples.join(',')}; textRegions=$textRegions',
     );
   }
 }
