@@ -94,6 +94,7 @@ void main() {
       database: database,
       sender: sender,
       clock: () => now,
+      executionScope: 'chat-052-test',
     );
 
     final command = await claimedCommand();
@@ -144,6 +145,7 @@ void main() {
       database: database,
       sender: sender,
       clock: () => now,
+      executionScope: 'chat-052-test',
     ).execute(await claimedCommand());
 
     expect(result.disposition, ExecutionDisposition.completed);
@@ -151,7 +153,51 @@ void main() {
     expect((await database.messageDao.getAll()).single.bodyText, isNull);
   });
 
-  test('concurrent execution shares one in-flight fake send', () async {
+  test(
+    'two executors in one DB scope permit one in-flight fake send',
+    () async {
+      await insertAttachment(
+        'ready',
+        state: 'ready',
+        attachmentId: 'server-ready',
+      );
+      await submitter().submitWithAttachments(
+        clientMessageId: 'message-1',
+        conversationId: 'conversation',
+        bodyText: 'body',
+        localAttachmentIds: const <String>['ready'],
+      );
+      final sender = _DelayedMessageSender();
+      final firstExecutor = AttachmentMessageSendExecutor(
+        database: database,
+        sender: sender,
+        clock: () => now,
+        executionScope: 'chat-052-test',
+      );
+      final duplicateSender = _FakeMessageSender();
+      final secondExecutor = AttachmentMessageSendExecutor(
+        database: database,
+        sender: duplicateSender,
+        clock: () => now,
+        executionScope: 'chat-052-test',
+      );
+      final command = await claimedCommand();
+
+      final first = firstExecutor.execute(command);
+      await sender.started.future;
+      final second = await secondExecutor.execute(command);
+      expect(second.errorCode, 'message_send_in_progress');
+      expect(sender.calls, 1);
+      expect(duplicateSender.calls, isEmpty);
+      sender.result.complete(
+        const CommandExecutionResult(ExecutionDisposition.completed),
+      );
+      expect((await first).disposition, ExecutionDisposition.completed);
+      expect(sender.calls, 1);
+    },
+  );
+
+  test('new lease replaces stalled owner and old finally is fenced', () async {
     await insertAttachment(
       'ready',
       state: 'ready',
@@ -163,25 +209,81 @@ void main() {
       bodyText: 'body',
       localAttachmentIds: const <String>['ready'],
     );
-    final sender = _DelayedMessageSender();
-    final executor = AttachmentMessageSendExecutor(
+    final oldSender = _DelayedMessageSender();
+    final freshSender = _DelayedMessageSender();
+    final oldExecutor = AttachmentMessageSendExecutor(
       database: database,
-      sender: sender,
+      sender: oldSender,
       clock: () => now,
+      executionScope: 'chat-052-new-lease',
     );
-    final command = await claimedCommand();
-
-    final first = executor.execute(command);
-    final second = executor.execute(command);
-    await sender.started.future;
-    expect(identical(first, second), isTrue);
-    expect(sender.calls, 1);
-    sender.result.complete(
+    final freshExecutor = AttachmentMessageSendExecutor(
+      database: database,
+      sender: freshSender,
+      clock: () => now,
+      executionScope: 'chat-052-new-lease',
+    );
+    final oldCommand = await claimedCommand(token: 'old-lease');
+    final oldRun = oldExecutor.execute(oldCommand);
+    await oldSender.started.future;
+    now = now.add(const Duration(seconds: 61));
+    final freshRow = (await database.outboxDao.claim(now, 'fresh-lease'))!;
+    final freshCommand = OutboxExecutionCommand(
+      id: freshRow.id,
+      clientRequestId: freshRow.clientRequestId,
+      commandType: freshRow.commandType,
+      aggregateId: freshRow.aggregateId,
+      payloadJson: freshRow.payloadJson,
+      leaseToken: freshRow.leaseOwner,
+    );
+    final freshRun = freshExecutor.execute(freshCommand);
+    await freshSender.started.future;
+    oldSender.result.complete(
       const CommandExecutionResult(ExecutionDisposition.completed),
     );
-    expect(await first, await second);
-    expect(sender.calls, 1);
+    expect((await oldRun).errorCode, 'inactive_message_lease');
+    expect(
+      (await oldExecutor.execute(freshCommand)).errorCode,
+      'message_send_in_progress',
+    );
+    freshSender.result.complete(
+      const CommandExecutionResult(ExecutionDisposition.completed),
+    );
+    expect((await freshRun).disposition, ExecutionDisposition.completed);
   });
+
+  test(
+    'removing the last failed attachment sends the remaining body',
+    () async {
+      await insertAttachment('failed', state: 'failed');
+      await submitter().submitWithAttachments(
+        clientMessageId: 'message-1',
+        conversationId: 'conversation',
+        bodyText: 'body remains',
+        localAttachmentIds: const <String>['failed'],
+      );
+      await DriftAttachmentComposerSource(
+        database: database,
+        clock: () => now,
+      ).removeFailed(
+        conversationId: 'conversation',
+        clientMessageId: 'message-1',
+        localId: 'failed',
+      );
+      final sender = _FakeMessageSender();
+      final result = await AttachmentMessageSendExecutor(
+        database: database,
+        sender: sender,
+        clock: () => now,
+        executionScope: 'chat-052-body-only',
+      ).execute(await claimedCommand());
+
+      expect(result.disposition, ExecutionDisposition.completed);
+      expect(sender.calls.single.bodyText, 'body remains');
+      expect(sender.calls.single.attachmentIds, isEmpty);
+      expect((await database.messageDao.getAll()).single.messageKind, 'text');
+    },
+  );
 
   test('failed and cancelled aggregates never reach fake send', () async {
     await insertAttachment(
@@ -200,6 +302,7 @@ void main() {
       database: database,
       sender: sender,
       clock: () => now,
+      executionScope: 'chat-052-test',
     );
 
     final command = await claimedCommand();
@@ -280,6 +383,7 @@ void main() {
           database: database,
           sender: sender,
           clock: () => now,
+          executionScope: 'chat-052-worker',
         ),
         clock: () => now,
         retryPolicy: const RetryPolicy(_middleJitter),
@@ -320,6 +424,7 @@ void main() {
         database: database,
         sender: sender,
         clock: () => now,
+        executionScope: 'chat-052-deferred',
       ),
       clock: () => now,
       retryPolicy: const RetryPolicy(_middleJitter),
@@ -376,6 +481,7 @@ void main() {
           database: database,
           sender: _FakeMessageSender(),
           clock: () => now,
+          executionScope: 'chat-052-waiting-removal',
         ),
         clock: () => now,
         retryPolicy: const RetryPolicy(_middleJitter),
@@ -425,6 +531,7 @@ void main() {
           database: database,
           sender: sender,
           clock: () => now,
+          executionScope: 'chat-052-restored-removal',
         ),
         clock: () => now,
         retryPolicy: const RetryPolicy(_middleJitter),
@@ -471,6 +578,7 @@ void main() {
       database: database,
       sender: sender,
       clock: () => now,
+      executionScope: 'chat-052-restart',
     ).execute(await claimedCommand());
 
     expect(result.disposition, ExecutionDisposition.completed);
@@ -506,6 +614,7 @@ void main() {
       database: database,
       sender: sender,
       clock: () => now,
+      executionScope: 'chat-052-session',
       session: session,
     );
     await session.dispose();
@@ -515,6 +624,107 @@ void main() {
     expect(result.disposition, ExecutionDisposition.authRequired);
     expect(result.errorCode, 'message_session_closed');
     expect(sender.calls, isEmpty);
+  });
+
+  test('composer watch drops paused values after session disposal', () async {
+    final session = LocalRepositorySession();
+    final source = DriftAttachmentComposerSource(
+      database: database,
+      clock: () => now,
+      session: session,
+    );
+    final values = <List<ComposerAttachment>>[];
+    final subscription = source
+        .watch(conversationId: 'conversation', clientMessageId: 'message-1')
+        .listen(values.add);
+    subscription.pause();
+    await insertAttachment('queued');
+    await session.dispose();
+    subscription.resume();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(values, isEmpty);
+    await subscription.cancel();
+  });
+
+  test('session disposal fences a stalled fake send result', () async {
+    await insertAttachment(
+      'ready',
+      state: 'ready',
+      attachmentId: 'server-ready',
+    );
+    await submitter().submitWithAttachments(
+      clientMessageId: 'message-1',
+      conversationId: 'conversation',
+      bodyText: 'body',
+      localAttachmentIds: const <String>['ready'],
+    );
+    final session = LocalRepositorySession();
+    final sender = _DelayedMessageSender();
+    final executor = AttachmentMessageSendExecutor(
+      database: database,
+      sender: sender,
+      clock: () => now,
+      executionScope: 'chat-052-disposed-send',
+      session: session,
+    );
+    final running = executor.execute(await claimedCommand());
+    await sender.started.future;
+    await session.dispose();
+    sender.result.complete(
+      const CommandExecutionResult(ExecutionDisposition.completed),
+    );
+
+    final result = await running;
+    expect(result.disposition, ExecutionDisposition.authRequired);
+    expect(result.errorCode, 'message_session_closed');
+  });
+
+  test('shared scope fences two database handles and cancellation', () async {
+    final sandbox = await Directory.systemTemp.createTemp('timefit-chat-052-');
+    final file = File('${sandbox.path}/local.db');
+    await database.close();
+    database = AppDatabase(NativeDatabase(file));
+    final secondDatabase = AppDatabase(NativeDatabase(file));
+    await insertAttachment(
+      'ready',
+      state: 'ready',
+      attachmentId: 'server-ready',
+    );
+    await submitter().submitWithAttachments(
+      clientMessageId: 'message-1',
+      conversationId: 'conversation',
+      bodyText: 'body',
+      localAttachmentIds: const <String>['ready'],
+    );
+    final command = await claimedCommand(token: 'shared-lease');
+    final firstSender = _DelayedMessageSender();
+    final secondSender = _FakeMessageSender();
+    final firstRun = AttachmentMessageSendExecutor(
+      database: database,
+      sender: firstSender,
+      clock: () => now,
+      executionScope: 'chat-052-shared-file',
+    ).execute(command);
+    await firstSender.started.future;
+    final duplicate = await AttachmentMessageSendExecutor(
+      database: secondDatabase,
+      sender: secondSender,
+      clock: () => now,
+      executionScope: 'chat-052-shared-file',
+    ).execute(command);
+
+    expect(duplicate.errorCode, 'message_send_in_progress');
+    expect(secondSender.calls, isEmpty);
+    expect(await secondDatabase.outboxDao.cancel('message-1', now), isTrue);
+    firstSender.result.complete(
+      const CommandExecutionResult(ExecutionDisposition.completed),
+    );
+    expect((await firstRun).errorCode, 'inactive_message_lease');
+    await secondDatabase.close();
+    await database.close();
+    database = AppDatabase(NativeDatabase.memory());
+    await sandbox.delete(recursive: true);
   });
 
   testWidgets(

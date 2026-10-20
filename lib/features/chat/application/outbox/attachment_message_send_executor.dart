@@ -31,35 +31,33 @@ final class AttachmentMessageSendExecutor implements CommandExecutor {
     required AppDatabase database,
     required this.sender,
     required DateTime Function() clock,
+    required this.executionScope,
     LocalRepositorySession? session,
   }) : _database = database,
        _clock = clock,
-       _session = session ?? LocalRepositorySession.forDatabase(database);
+       _session = session ?? LocalRepositorySession.forDatabase(database) {
+    if (executionScope.isEmpty) {
+      throw ArgumentError.value(
+        executionScope,
+        'executionScope',
+        'must identify the shared local database namespace',
+      );
+    }
+  }
 
   final AppDatabase _database;
   final DateTime Function() _clock;
   final LocalRepositorySession _session;
   final LocalMessageSendPort sender;
-  final Map<String, Future<CommandExecutionResult>> _active = {};
+
+  /// Must be identical for every handle connected to the same local DB file.
+  final String executionScope;
+  static final Map<String, Map<String, String>> _activeByScope = {};
 
   @override
-  Future<CommandExecutionResult> execute(OutboxExecutionCommand command) {
-    if (_active[command.id] case final Future<CommandExecutionResult> active) {
-      return active;
-    }
-    late final Future<CommandExecutionResult> operation;
-    operation = _execute(command).whenComplete(() {
-      if (identical(_active[command.id], operation)) {
-        _active.remove(command.id);
-      }
-    });
-    _active[command.id] = operation;
-    return operation;
-  }
-
-  Future<CommandExecutionResult> _execute(
-    OutboxExecutionCommand command,
-  ) async {
+  Future<CommandExecutionResult> execute(OutboxExecutionCommand command) async {
+    final active = _activeByScope[executionScope] ??= <String, String>{};
+    var owns = false;
     try {
       if (command.commandType != 'local_send_message_v2' ||
           command.id != command.clientRequestId ||
@@ -72,7 +70,7 @@ final class AttachmentMessageSendExecutor implements CommandExecutor {
       final payload = LocalAttachmentMessageCommand.decode(command.payloadJson);
       if (payload.id != command.id ||
           payload.conversationId != command.aggregateId ||
-          payload.localAttachmentIds.isEmpty ||
+          (payload.localAttachmentIds.isEmpty && payload.bodyText.isEmpty) ||
           payload.localAttachmentIds.length > 5 ||
           payload.localAttachmentIds.toSet().length !=
               payload.localAttachmentIds.length) {
@@ -124,6 +122,14 @@ final class AttachmentMessageSendExecutor implements CommandExecutor {
           errorCode: 'message_aggregate_invalid',
         );
       }
+      if (active[command.id] == command.leaseToken) {
+        return const CommandExecutionResult(
+          ExecutionDisposition.retryable,
+          errorCode: 'message_send_in_progress',
+        );
+      }
+      active[command.id] = command.leaseToken!;
+      owns = true;
       if (attachments.any((row) => row.uploadState == 'failed')) {
         return const CommandExecutionResult(
           ExecutionDisposition.deferred,
@@ -148,7 +154,7 @@ final class AttachmentMessageSendExecutor implements CommandExecutor {
         }
         attachmentIds.add(attachmentId);
       }
-      return sender.send(
+      final result = await sender.send(
         LocalMessageSendRequest(
           clientMessageId: payload.id,
           conversationId: payload.conversationId,
@@ -156,6 +162,21 @@ final class AttachmentMessageSendExecutor implements CommandExecutor {
           attachmentIds: attachmentIds,
         ),
       );
+      final stillCurrent = await _session.read(() async {
+        final row = await (_database.select(
+          _database.outboxCommands,
+        )..where((entry) => entry.id.equals(command.id))).getSingleOrNull();
+        return row?.state == 'running' &&
+            row?.leaseOwner == command.leaseToken &&
+            row?.payloadJson == command.payloadJson &&
+            row?.leaseUntil?.isAfter(_clock()) == true;
+      });
+      return stillCurrent
+          ? result
+          : const CommandExecutionResult(
+              ExecutionDisposition.retryable,
+              errorCode: 'inactive_message_lease',
+            );
     } on FormatException {
       return const CommandExecutionResult(
         ExecutionDisposition.permanent,
@@ -175,6 +196,11 @@ final class AttachmentMessageSendExecutor implements CommandExecutor {
         ExecutionDisposition.retryable,
         errorCode: 'message_local_read_failed',
       );
+    } finally {
+      if (owns && active[command.id] == command.leaseToken) {
+        active.remove(command.id);
+        if (active.isEmpty) _activeByScope.remove(executionScope);
+      }
     }
   }
 }

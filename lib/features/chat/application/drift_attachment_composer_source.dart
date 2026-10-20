@@ -24,27 +24,29 @@ final class DriftAttachmentComposerSource implements AttachmentComposerSource {
   Stream<List<ComposerAttachment>> watch({
     required String conversationId,
     required String clientMessageId,
-  }) =>
-      (_database.select(_database.localAttachments)..where(
-            (row) =>
-                row.conversationId.equals(conversationId) &
-                row.clientMessageId.equals(clientMessageId) &
-                row.composerExcluded.equals(false),
-          ))
-          .watch()
-          .map(
-            (rows) => List<ComposerAttachment>.unmodifiable(
-              rows.map(
-                (row) => ComposerAttachment(
-                  localId: row.localId,
-                  contentType: row.contentType,
-                  state: _composerState(row.uploadState),
-                  bytesSent: row.bytesSent,
-                  bytesTotal: row.bytesTotal,
+  }) => _session.watch(
+    () =>
+        (_database.select(_database.localAttachments)..where(
+              (row) =>
+                  row.conversationId.equals(conversationId) &
+                  row.clientMessageId.equals(clientMessageId) &
+                  row.composerExcluded.equals(false),
+            ))
+            .watch()
+            .map(
+              (rows) => List<ComposerAttachment>.unmodifiable(
+                rows.map(
+                  (row) => ComposerAttachment(
+                    localId: row.localId,
+                    contentType: row.contentType,
+                    state: _composerState(row.uploadState),
+                    bytesSent: row.bytesSent,
+                    bytesTotal: row.bytesTotal,
+                  ),
                 ),
               ),
             ),
-          );
+  );
 
   @override
   Future<void> removeFailed({
@@ -145,7 +147,11 @@ final class DriftAttachmentComposerSource implements AttachmentComposerSource {
           )..where((row) => row.localId.equals(clientMessageId))).write(
             LocalMessagesCompanion(
               messageKind: Value(
-                payload.bodyText.isEmpty ? 'attachment' : 'mixed',
+                remaining.isEmpty
+                    ? 'text'
+                    : payload.bodyText.isEmpty
+                    ? 'attachment'
+                    : 'mixed',
               ),
             ),
           );
