@@ -20,10 +20,20 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
-  MigrationStrategy get migration => schemaV1MigrationStrategy();
+  MigrationStrategy get migration =>
+      schemaV2MigrationStrategy((migrator) async {
+        await migrator.addColumn(
+          localAttachments,
+          localAttachments.uploadObjectPath,
+        );
+        await migrator.addColumn(
+          localAttachments,
+          localAttachments.verificationFailures,
+        );
+      });
 
   Future<void> purgeChatData() => transaction(() async {
     await delete(localAttachments).go();

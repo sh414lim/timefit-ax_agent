@@ -1470,6 +1470,28 @@ class $LocalAttachmentsTable extends LocalAttachments
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _uploadObjectPathMeta = const VerificationMeta(
+    'uploadObjectPath',
+  );
+  @override
+  late final GeneratedColumn<String> uploadObjectPath = GeneratedColumn<String>(
+    'upload_object_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _verificationFailuresMeta =
+      const VerificationMeta('verificationFailures');
+  @override
+  late final GeneratedColumn<int> verificationFailures = GeneratedColumn<int>(
+    'verification_failures',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     localId,
@@ -1483,6 +1505,8 @@ class $LocalAttachmentsTable extends LocalAttachments
     contentType,
     sha256,
     failureCode,
+    uploadObjectPath,
+    verificationFailures,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1593,6 +1617,24 @@ class $LocalAttachmentsTable extends LocalAttachments
         ),
       );
     }
+    if (data.containsKey('upload_object_path')) {
+      context.handle(
+        _uploadObjectPathMeta,
+        uploadObjectPath.isAcceptableOrUnknown(
+          data['upload_object_path']!,
+          _uploadObjectPathMeta,
+        ),
+      );
+    }
+    if (data.containsKey('verification_failures')) {
+      context.handle(
+        _verificationFailuresMeta,
+        verificationFailures.isAcceptableOrUnknown(
+          data['verification_failures']!,
+          _verificationFailuresMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1646,6 +1688,14 @@ class $LocalAttachmentsTable extends LocalAttachments
         DriftSqlType.string,
         data['${effectivePrefix}failure_code'],
       ),
+      uploadObjectPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}upload_object_path'],
+      ),
+      verificationFailures: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}verification_failures'],
+      )!,
     );
   }
 
@@ -1667,6 +1717,8 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
   final String contentType;
   final String sha256;
   final String? failureCode;
+  final String? uploadObjectPath;
+  final int verificationFailures;
   const LocalAttachment({
     required this.localId,
     this.attachmentId,
@@ -1679,6 +1731,8 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     required this.contentType,
     required this.sha256,
     this.failureCode,
+    this.uploadObjectPath,
+    required this.verificationFailures,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1700,6 +1754,10 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     if (!nullToAbsent || failureCode != null) {
       map['failure_code'] = Variable<String>(failureCode);
     }
+    if (!nullToAbsent || uploadObjectPath != null) {
+      map['upload_object_path'] = Variable<String>(uploadObjectPath);
+    }
+    map['verification_failures'] = Variable<int>(verificationFailures);
     return map;
   }
 
@@ -1722,6 +1780,10 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
       failureCode: failureCode == null && nullToAbsent
           ? const Value.absent()
           : Value(failureCode),
+      uploadObjectPath: uploadObjectPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(uploadObjectPath),
+      verificationFailures: Value(verificationFailures),
     );
   }
 
@@ -1742,6 +1804,10 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
       contentType: serializer.fromJson<String>(json['contentType']),
       sha256: serializer.fromJson<String>(json['sha256']),
       failureCode: serializer.fromJson<String?>(json['failureCode']),
+      uploadObjectPath: serializer.fromJson<String?>(json['uploadObjectPath']),
+      verificationFailures: serializer.fromJson<int>(
+        json['verificationFailures'],
+      ),
     );
   }
   @override
@@ -1759,6 +1825,8 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
       'contentType': serializer.toJson<String>(contentType),
       'sha256': serializer.toJson<String>(sha256),
       'failureCode': serializer.toJson<String?>(failureCode),
+      'uploadObjectPath': serializer.toJson<String?>(uploadObjectPath),
+      'verificationFailures': serializer.toJson<int>(verificationFailures),
     };
   }
 
@@ -1774,6 +1842,8 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     String? contentType,
     String? sha256,
     Value<String?> failureCode = const Value.absent(),
+    Value<String?> uploadObjectPath = const Value.absent(),
+    int? verificationFailures,
   }) => LocalAttachment(
     localId: localId ?? this.localId,
     attachmentId: attachmentId.present ? attachmentId.value : this.attachmentId,
@@ -1786,6 +1856,10 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     contentType: contentType ?? this.contentType,
     sha256: sha256 ?? this.sha256,
     failureCode: failureCode.present ? failureCode.value : this.failureCode,
+    uploadObjectPath: uploadObjectPath.present
+        ? uploadObjectPath.value
+        : this.uploadObjectPath,
+    verificationFailures: verificationFailures ?? this.verificationFailures,
   );
   LocalAttachment copyWithCompanion(LocalAttachmentsCompanion data) {
     return LocalAttachment(
@@ -1816,6 +1890,12 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
       failureCode: data.failureCode.present
           ? data.failureCode.value
           : this.failureCode,
+      uploadObjectPath: data.uploadObjectPath.present
+          ? data.uploadObjectPath.value
+          : this.uploadObjectPath,
+      verificationFailures: data.verificationFailures.present
+          ? data.verificationFailures.value
+          : this.verificationFailures,
     );
   }
 
@@ -1832,7 +1912,9 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
           ..write('bytesSent: $bytesSent, ')
           ..write('contentType: $contentType, ')
           ..write('sha256: $sha256, ')
-          ..write('failureCode: $failureCode')
+          ..write('failureCode: $failureCode, ')
+          ..write('uploadObjectPath: $uploadObjectPath, ')
+          ..write('verificationFailures: $verificationFailures')
           ..write(')'))
         .toString();
   }
@@ -1850,6 +1932,8 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     contentType,
     sha256,
     failureCode,
+    uploadObjectPath,
+    verificationFailures,
   );
   @override
   bool operator ==(Object other) =>
@@ -1865,7 +1949,9 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
           other.bytesSent == this.bytesSent &&
           other.contentType == this.contentType &&
           other.sha256 == this.sha256 &&
-          other.failureCode == this.failureCode);
+          other.failureCode == this.failureCode &&
+          other.uploadObjectPath == this.uploadObjectPath &&
+          other.verificationFailures == this.verificationFailures);
 }
 
 class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
@@ -1880,6 +1966,8 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
   final Value<String> contentType;
   final Value<String> sha256;
   final Value<String?> failureCode;
+  final Value<String?> uploadObjectPath;
+  final Value<int> verificationFailures;
   final Value<int> rowid;
   const LocalAttachmentsCompanion({
     this.localId = const Value.absent(),
@@ -1893,6 +1981,8 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     this.contentType = const Value.absent(),
     this.sha256 = const Value.absent(),
     this.failureCode = const Value.absent(),
+    this.uploadObjectPath = const Value.absent(),
+    this.verificationFailures = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   LocalAttachmentsCompanion.insert({
@@ -1907,6 +1997,8 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     required String contentType,
     required String sha256,
     this.failureCode = const Value.absent(),
+    this.uploadObjectPath = const Value.absent(),
+    this.verificationFailures = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : localId = Value(localId),
        conversationId = Value(conversationId),
@@ -1925,6 +2017,8 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     Expression<String>? contentType,
     Expression<String>? sha256,
     Expression<String>? failureCode,
+    Expression<String>? uploadObjectPath,
+    Expression<int>? verificationFailures,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1939,6 +2033,9 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
       if (contentType != null) 'content_type': contentType,
       if (sha256 != null) 'sha256': sha256,
       if (failureCode != null) 'failure_code': failureCode,
+      if (uploadObjectPath != null) 'upload_object_path': uploadObjectPath,
+      if (verificationFailures != null)
+        'verification_failures': verificationFailures,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1955,6 +2052,8 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     Value<String>? contentType,
     Value<String>? sha256,
     Value<String?>? failureCode,
+    Value<String?>? uploadObjectPath,
+    Value<int>? verificationFailures,
     Value<int>? rowid,
   }) {
     return LocalAttachmentsCompanion(
@@ -1969,6 +2068,8 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
       contentType: contentType ?? this.contentType,
       sha256: sha256 ?? this.sha256,
       failureCode: failureCode ?? this.failureCode,
+      uploadObjectPath: uploadObjectPath ?? this.uploadObjectPath,
+      verificationFailures: verificationFailures ?? this.verificationFailures,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2009,6 +2110,12 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     if (failureCode.present) {
       map['failure_code'] = Variable<String>(failureCode.value);
     }
+    if (uploadObjectPath.present) {
+      map['upload_object_path'] = Variable<String>(uploadObjectPath.value);
+    }
+    if (verificationFailures.present) {
+      map['verification_failures'] = Variable<int>(verificationFailures.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2029,6 +2136,8 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
           ..write('contentType: $contentType, ')
           ..write('sha256: $sha256, ')
           ..write('failureCode: $failureCode, ')
+          ..write('uploadObjectPath: $uploadObjectPath, ')
+          ..write('verificationFailures: $verificationFailures, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3515,6 +3624,8 @@ typedef $$LocalAttachmentsTableCreateCompanionBuilder =
       required String contentType,
       required String sha256,
       Value<String?> failureCode,
+      Value<String?> uploadObjectPath,
+      Value<int> verificationFailures,
       Value<int> rowid,
     });
 typedef $$LocalAttachmentsTableUpdateCompanionBuilder =
@@ -3530,6 +3641,8 @@ typedef $$LocalAttachmentsTableUpdateCompanionBuilder =
       Value<String> contentType,
       Value<String> sha256,
       Value<String?> failureCode,
+      Value<String?> uploadObjectPath,
+      Value<int> verificationFailures,
       Value<int> rowid,
     });
 
@@ -3594,6 +3707,16 @@ class $$LocalAttachmentsTableFilterComposer
 
   ColumnFilters<String> get failureCode => $composableBuilder(
     column: $table.failureCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uploadObjectPath => $composableBuilder(
+    column: $table.uploadObjectPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get verificationFailures => $composableBuilder(
+    column: $table.verificationFailures,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3661,6 +3784,16 @@ class $$LocalAttachmentsTableOrderingComposer
     column: $table.failureCode,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get uploadObjectPath => $composableBuilder(
+    column: $table.uploadObjectPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get verificationFailures => $composableBuilder(
+    column: $table.verificationFailures,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$LocalAttachmentsTableAnnotationComposer
@@ -3720,6 +3853,16 @@ class $$LocalAttachmentsTableAnnotationComposer
     column: $table.failureCode,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get uploadObjectPath => $composableBuilder(
+    column: $table.uploadObjectPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get verificationFailures => $composableBuilder(
+    column: $table.verificationFailures,
+    builder: (column) => column,
+  );
 }
 
 class $$LocalAttachmentsTableTableManager
@@ -3770,6 +3913,8 @@ class $$LocalAttachmentsTableTableManager
                 Value<String> contentType = const Value.absent(),
                 Value<String> sha256 = const Value.absent(),
                 Value<String?> failureCode = const Value.absent(),
+                Value<String?> uploadObjectPath = const Value.absent(),
+                Value<int> verificationFailures = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalAttachmentsCompanion(
                 localId: localId,
@@ -3783,6 +3928,8 @@ class $$LocalAttachmentsTableTableManager
                 contentType: contentType,
                 sha256: sha256,
                 failureCode: failureCode,
+                uploadObjectPath: uploadObjectPath,
+                verificationFailures: verificationFailures,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3798,6 +3945,8 @@ class $$LocalAttachmentsTableTableManager
                 required String contentType,
                 required String sha256,
                 Value<String?> failureCode = const Value.absent(),
+                Value<String?> uploadObjectPath = const Value.absent(),
+                Value<int> verificationFailures = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalAttachmentsCompanion.insert(
                 localId: localId,
@@ -3811,6 +3960,8 @@ class $$LocalAttachmentsTableTableManager
                 contentType: contentType,
                 sha256: sha256,
                 failureCode: failureCode,
+                uploadObjectPath: uploadObjectPath,
+                verificationFailures: verificationFailures,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

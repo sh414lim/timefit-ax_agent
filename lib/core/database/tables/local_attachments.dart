@@ -22,6 +22,9 @@ class LocalAttachments extends Table {
   TextColumn get sha256 => text()();
 
   TextColumn get failureCode => text().nullable()();
+  TextColumn get uploadObjectPath => text().nullable()();
+  IntColumn get verificationFailures =>
+      integer().withDefault(const Constant(0))();
 
   @override
   Set<Column<Object>> get primaryKey => {localId};
