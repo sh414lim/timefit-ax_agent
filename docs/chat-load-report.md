@@ -33,6 +33,7 @@ Use the repository-pinned Flutter 3.38.5 and a physical Android or iOS device:
 
 ```text
 fvm flutter drive --profile \
+  --flavor dev \
   --driver=test_driver/integration_test.dart \
   --target=integration_test/chat_performance_test.dart \
   -d <physical-device-id>

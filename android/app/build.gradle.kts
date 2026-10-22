@@ -60,12 +60,15 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:1.2.2")
 }
 
-val expectedFlutterTargetByFlavor = mapOf(
-    "Dev" to "lib/main.dart",
-    "Staging" to "lib/main_staging.dart",
+val allowedFlutterTargetsByFlavor = mapOf(
+    "Dev" to setOf(
+        "lib/main.dart",
+        "integration_test/chat_performance_test.dart",
+    ),
+    "Staging" to setOf("lib/main_staging.dart"),
 )
 
-val requestedFlutterFlavor = expectedFlutterTargetByFlavor.keys.firstOrNull { flavor ->
+val requestedFlutterFlavor = allowedFlutterTargetsByFlavor.keys.firstOrNull { flavor ->
     gradle.startParameter.taskNames.any { taskName ->
         taskName.contains(flavor, ignoreCase = true)
     }
@@ -73,10 +76,14 @@ val requestedFlutterFlavor = expectedFlutterTargetByFlavor.keys.firstOrNull { fl
 
 if (requestedFlutterFlavor != null) {
     val actualTarget = project.findProperty("target")?.toString() ?: "lib/main.dart"
-    val expectedTarget = expectedFlutterTargetByFlavor.getValue(requestedFlutterFlavor)
-    if (actualTarget != expectedTarget) {
+    val allowedTargets = allowedFlutterTargetsByFlavor.getValue(requestedFlutterFlavor)
+    val isPerformanceTarget = actualTarget == "integration_test/chat_performance_test.dart"
+    val isProfileTask = gradle.startParameter.taskNames.any { taskName ->
+        taskName.contains("Profile", ignoreCase = true)
+    }
+    if (actualTarget !in allowedTargets || (isPerformanceTarget && !isProfileTask)) {
         throw org.gradle.api.GradleException(
-            "${requestedFlutterFlavor.lowercase()} requires $expectedTarget; got $actualTarget.",
+            "${requestedFlutterFlavor.lowercase()} does not allow the requested Flutter target.",
         )
     }
 }

@@ -55,6 +55,14 @@ require_literal \
   lib/src/bootstrap_app.dart \
   "throw StateError('production_configuration_unavailable')" \
   'Production bootstrap must fail closed.'
+require_literal \
+  android/app/build.gradle.kts \
+  '"integration_test/chat_performance_test.dart"' \
+  'The exact CHAT-073 dev profile harness target is missing.'
+require_literal \
+  android/app/build.gradle.kts \
+  'isPerformanceTarget && !isProfileTask' \
+  'The CHAT-073 harness must remain profile-only.'
 
 if [[ -e lib/main_production.dart ]]; then
   fail 'A production entrypoint must not exist before identity and signing approval.'
