@@ -21,12 +21,17 @@ fi
 chat_e2e_target='integration_test/chat_e2e_test.dart'
 repository_root="$(cd "${PROJECT_DIR}/.." && pwd -P)"
 expected_test_uri="file://${repository_root}/${chat_e2e_target}"
+listener_template="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/fixtures/flutter_3_38_5_integration_listener.dart.template"
 is_chat_e2e_listener=false
 case "$actual_target" in
   */flutter_test_listener.*/listener.dart)
-    if [[ -f "$actual_target" ]] &&
-        [[ "$(grep -Fxc "import '${expected_test_uri}' as test;" "$actual_target")" -eq 1 ]]; then
-      is_chat_e2e_listener=true
+    if [[ -f "$actual_target" ]] && [[ -f "$listener_template" ]]; then
+      normalized_listener="$(sed "s|file://${repository_root}|__REPOSITORY_URI__|g" "$actual_target")"
+      expected_listener="$(cat "$listener_template")"
+      if [[ "$normalized_listener" == "$expected_listener" ]] &&
+          [[ "$(grep -Fxc "import '${expected_test_uri}' as test;" "$actual_target")" -eq 1 ]]; then
+        is_chat_e2e_listener=true
+      fi
     fi
     ;;
 esac

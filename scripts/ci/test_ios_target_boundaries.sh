@@ -8,6 +8,7 @@ sandbox="$(mktemp -d)"
 project="$sandbox/project"
 ios_project="$project/ios"
 output="$sandbox/output"
+listener_template="$repository_root/scripts/ci/fixtures/flutter_3_38_5_integration_listener.dart.template"
 
 cleanup() {
   rm -rf "$sandbox"
@@ -34,8 +35,23 @@ run_case() {
     CHAT_E2E_LISTENER)
       actual_target="$sandbox/flutter_test_listener.allowed/listener.dart"
       mkdir -p "$(dirname "$actual_target")"
-      printf "import 'file://%s/integration_test/chat_e2e_test.dart' as test;\n" \
-        "$project" >"$actual_target"
+      sed "s|__REPOSITORY_URI__|file://${project}|g" \
+        "$listener_template" >"$actual_target"
+      ;;
+    CHAT_E2E_LISTENER_EXTRA_IMPORT)
+      actual_target="$sandbox/flutter_test_listener.extra_import/listener.dart"
+      mkdir -p "$(dirname "$actual_target")"
+      sed "s|__REPOSITORY_URI__|file://${project}|g" \
+        "$listener_template" >"$actual_target"
+      printf "%s\n" "import 'file://${project}/integration_test/unapproved.dart';" \
+        >>"$actual_target"
+      ;;
+    CHAT_E2E_LISTENER_EXTRA_CODE)
+      actual_target="$sandbox/flutter_test_listener.extra_code/listener.dart"
+      mkdir -p "$(dirname "$actual_target")"
+      sed "s|__REPOSITORY_URI__|file://${project}|g" \
+        "$listener_template" >"$actual_target"
+      printf '%s\n' 'void unexpectedMain() {}' >>"$actual_target"
       ;;
     OTHER_TEST_LISTENER)
       actual_target="$sandbox/flutter_test_listener.other/listener.dart"
@@ -114,4 +130,10 @@ run_case reject 'direct integration target without Flutter test listener' \
   iphonesimulator iphonesimulator18.1
 run_case reject 'listener comment cannot spoof CHAT-074 target' \
   dev lib/main.dart SPOOFED_TEST_LISTENER Debug-dev \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'listener with additional import' \
+  dev lib/main.dart CHAT_E2E_LISTENER_EXTRA_IMPORT Debug-dev \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'listener with additional code' \
+  dev lib/main.dart CHAT_E2E_LISTENER_EXTRA_CODE Debug-dev \
   iphonesimulator iphonesimulator18.1
