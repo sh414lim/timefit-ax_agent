@@ -40,7 +40,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   Future<OutboxCommand?> claim(DateTime now, String token) => _withBusyRetry(
     () => transaction(() async {
       final rows = await customWriteReturning(
-        "UPDATE outbox_commands SET state = 'running', lease_owner = ?, lease_until = ?, updated_at = ? WHERE id = (SELECT id FROM outbox_commands WHERE ((state IN ('queued','retry_wait') AND next_attempt_at <= ?) OR (state = 'running' AND lease_until <= ?)) ORDER BY created_at, id LIMIT 1) RETURNING *",
+        "UPDATE outbox_commands SET state = 'running', lease_owner = ?, lease_until = ?, updated_at = ? WHERE id = (SELECT id FROM outbox_commands WHERE ((state IN ('queued','retry_wait') AND next_attempt_at <= ?) OR (state = 'running' AND lease_until <= ?)) ORDER BY created_at, rowid LIMIT 1) RETURNING *",
         variables: [
           Variable(token),
           Variable.withDateTime(

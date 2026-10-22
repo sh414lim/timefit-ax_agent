@@ -23,7 +23,9 @@ void registerLocalChatFaultScenarios() {
     'offline UI writes survive reopen and unknown commit converges once',
     (WidgetTester tester) async {
       var now = DateTime.utc(2026, 10, 22, 12);
-      const ids = <String>['offline-1', 'offline-2', 'offline-3'];
+      // Deliberately reverse lexical ID order and keep one clock value. The
+      // durable queue must follow insertion order, not UUID/text ordering.
+      const ids = <String>['offline-3', 'offline-2', 'offline-1'];
       var idIndex = 0;
       var composerDisposed = false;
       late Directory sandbox;
@@ -59,7 +61,6 @@ void registerLocalChatFaultScenarios() {
           await tester.pump();
           await tester.runAsync(() => _waitForComposer(composer));
           await _settleAsyncUi(tester);
-          now = now.add(const Duration(seconds: 1));
         }
         expect(find.text('offline message 1'), findsOneWidget);
         expect(find.text('offline message 3'), findsOneWidget);
@@ -117,9 +118,23 @@ void registerLocalChatFaultScenarios() {
             'offline-3': 1,
           });
 
-          now = afterUnknown
+          final retryDeadline = afterUnknown
               .singleWhere((row) => row.id == 'offline-2')
               .nextAttemptAt;
+          now = retryDeadline.subtract(const Duration(microseconds: 1));
+          final earlyRetryExecutor = ScriptedFaultExecutor(
+            database: database,
+            ledger: ledger,
+          );
+          await _worker(
+            database,
+            earlyRetryExecutor,
+            () => now,
+            scope: '${sandbox.path}:before-retry-deadline',
+          ).wake();
+          expect(earlyRetryExecutor.calls, isEmpty);
+
+          now = retryDeadline;
           final retryExecutor = ScriptedFaultExecutor(
             database: database,
             ledger: ledger,
@@ -142,9 +157,9 @@ void registerLocalChatFaultScenarios() {
               ...retryExecutor.calls.map((call) => call.clientRequestId),
             ],
             orderedEquals(const <String>[
-              'offline-1',
-              'offline-2',
               'offline-3',
+              'offline-2',
+              'offline-1',
               'offline-2',
             ]),
           );

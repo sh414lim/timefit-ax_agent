@@ -12,10 +12,12 @@ RPC adapter or server fixture.
 
 - Three messages are entered through the UI while no worker is running. After
   closing and reopening SQLite, a reconstructed worker preserves command and
-  client IDs and insertion order.
+  client IDs and insertion order, including identical timestamps and IDs whose
+  lexical order is the reverse of creation order.
 - One scripted response records a remote-like commit but returns
   `unknown_commit_timeout`. The retry uses the same ID and the fake ledger
-  converges without a duplicate.
+  converges without a duplicate; a wake immediately before the persisted retry
+  deadline remains ineligible and the exact deadline is eligible.
 - An upload command is interrupted at persisted 60/100 progress. Closing and
   reopening SQLite preserves the attachment and lease; a reconstructed worker
   reclaims the expired lease and completes the local fixture.
