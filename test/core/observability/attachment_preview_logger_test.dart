@@ -39,6 +39,23 @@ void main() {
 
     expect(() => telemetry.record('attachment_url_ready'), returnsNormally);
   });
+
+  test('invalid adapter inputs do not escape the observability boundary', () {
+    final sink = FakeAppLogSink();
+    final telemetry = AppLoggerAttachmentPreviewTelemetry(
+      logger: AppLogger(
+        context: AppLogContext(environment: 'test', app: 'app', build: '1'),
+        sink: sink,
+      ),
+      attachmentId: 'https://host/path?token=canary',
+    );
+
+    expect(
+      () => telemetry.record('https://host/path?token=canary'),
+      returnsNormally,
+    );
+    expect(sink.records, isEmpty);
+  });
 }
 
 final class _FailingSink implements AppLogSink {

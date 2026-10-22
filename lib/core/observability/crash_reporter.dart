@@ -23,10 +23,15 @@ final class LocalCrashReporter implements CrashReporter {
     StackTrace? stackTrace,
     Map<String, Object?> fields = const {},
   }) {
-    _logger.record(
-      'app_error',
-      level: AppLogLevel.error,
-      fields: {'errorCode': ErrorCode(stableErrorCode), ...fields},
-    );
+    try {
+      _logger.record(
+        'app_error',
+        level: AppLogLevel.error,
+        fields: {'errorCode': ErrorCode(stableErrorCode), ...fields},
+      );
+    } on Object {
+      // The reporter boundary includes validation and payload construction.
+      // Never fall back to printing the rejected exception or fields.
+    }
   }
 }

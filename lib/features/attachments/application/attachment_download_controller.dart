@@ -65,14 +65,28 @@ final class AppLoggerAttachmentPreviewTelemetry
     required AppLogger logger,
     required String attachmentId,
   }) : _logger = logger,
-       _attachmentId = AttachmentId(attachmentId);
+       _attachmentId = _safeAttachmentId(attachmentId);
 
   final AppLogger _logger;
-  final AttachmentId _attachmentId;
+  final AttachmentId? _attachmentId;
 
   @override
   void record(String eventCode) {
-    _logger.record(eventCode, fields: {'attachmentId': _attachmentId});
+    _logger.record(
+      eventCode,
+      fields: {
+        if (_attachmentId case final attachmentId?)
+          'attachmentId': attachmentId,
+      },
+    );
+  }
+
+  static AttachmentId? _safeAttachmentId(String value) {
+    try {
+      return AttachmentId(value);
+    } on Object {
+      return null;
+    }
   }
 }
 
