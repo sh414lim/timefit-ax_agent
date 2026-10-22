@@ -62,6 +62,10 @@ require_literal \
   'The exact CHAT-073 dev profile harness target is missing.'
 require_literal \
   android/app/build.gradle.kts \
+  '"integration_test/chat_e2e_test.dart"' \
+  'The exact CHAT-074 dev profile harness target is missing.'
+require_literal \
+  android/app/build.gradle.kts \
   'requestedTasks.all { it.equals("assembleDevProfile", ignoreCase = true) }' \
   'The CHAT-073 harness must reject mixed and aggregate Gradle tasks.'
 

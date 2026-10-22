@@ -64,20 +64,24 @@ val allowedFlutterTargetsByFlavor = mapOf(
     "Dev" to setOf(
         "lib/main.dart",
         "integration_test/chat_performance_test.dart",
+        "integration_test/chat_e2e_test.dart",
     ),
     "Staging" to setOf("lib/main_staging.dart"),
 )
 
 val actualTarget = project.findProperty("target")?.toString() ?: "lib/main.dart"
 val requestedTasks = gradle.startParameter.taskNames.map { it.substringAfterLast(':') }
-val performanceTarget = "integration_test/chat_performance_test.dart"
+val approvedDevProfileTargets = setOf(
+    "integration_test/chat_performance_test.dart",
+    "integration_test/chat_e2e_test.dart",
+)
 
-if (actualTarget == performanceTarget) {
+if (actualTarget in approvedDevProfileTargets) {
     val isExactDevProfileRequest = requestedTasks.isNotEmpty() &&
         requestedTasks.all { it.equals("assembleDevProfile", ignoreCase = true) }
     if (!isExactDevProfileRequest) {
         throw org.gradle.api.GradleException(
-            "The CHAT-073 performance target requires only assembleDevProfile.",
+            "The approved integration target requires only assembleDevProfile.",
         )
     }
 } else {
