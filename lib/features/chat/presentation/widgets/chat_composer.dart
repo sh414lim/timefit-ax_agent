@@ -65,12 +65,15 @@ class _ChatComposerState extends State<ChatComposer> {
   }
 
   Future<void> _removeFailedAttachment(String localId) async {
+    final ComposerController controller = widget.controller;
     try {
-      await widget.controller.removeFailedAttachment(localId);
+      await controller.removeFailedAttachment(localId);
     } on Object {
       return;
     }
-    if (mounted) _focusNode.requestFocus();
+    if (mounted && identical(widget.controller, controller)) {
+      _focusNode.requestFocus();
+    }
   }
 
   @override

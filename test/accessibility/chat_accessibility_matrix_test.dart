@@ -71,6 +71,94 @@ void main() {
     expect(find.text('다시 시도').hitTestable(), findsOneWidget);
   });
 
+  for (final mode in <String>['last', 'failure', 'dispose', 'switch']) {
+    testWidgets('late attachment removal preserves focus boundary $mode', (
+      WidgetTester tester,
+    ) async {
+      final source = _PendingAttachmentSource();
+      final oldController = ComposerController(
+        conversationId: 'old',
+        submitter: _Submitter(),
+        attachmentClientMessageId: 'aggregate',
+        attachmentSource: source,
+      );
+      final nextController = ComposerController(
+        conversationId: 'next',
+        submitter: _Submitter(),
+      );
+      final sentinel = FocusNode();
+      Widget view(ComposerController controller) => MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: <Widget>[
+              TextButton(
+                focusNode: sentinel,
+                onPressed: () {},
+                child: const Text('sentinel'),
+              ),
+              ChatComposer(controller: controller),
+            ],
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(view(oldController));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('실패한 첨부 제거'));
+      await tester.pump();
+      if (mode == 'switch') {
+        await tester.pumpWidget(view(nextController));
+        await tester.pump();
+      }
+      if (mode == 'dispose') {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: TextButton(
+              focusNode: sentinel,
+              onPressed: () {},
+              child: const Text('sentinel'),
+            ),
+          ),
+        );
+        await tester.pump();
+      }
+      sentinel.requestFocus();
+      await tester.pump();
+      expect(sentinel.hasFocus, isTrue);
+
+      if (mode == 'failure') {
+        source.completeError(StateError('remove failed'));
+      } else {
+        source.complete();
+      }
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      if (mode == 'last') {
+        expect(find.byTooltip('실패한 첨부 제거'), findsNothing);
+        expect(
+          tester
+              .widget<EditableText>(find.byType(EditableText))
+              .focusNode
+              .hasFocus,
+          isTrue,
+        );
+      } else {
+        expect(
+          sentinel.hasFocus,
+          isTrue,
+          reason: 'late removal must not steal focus after $mode',
+        );
+      }
+
+      await tester.pumpWidget(const SizedBox());
+      oldController.dispose();
+      nextController.dispose();
+      sentinel.dispose();
+      await source.dispose();
+    });
+  }
+
   for (final bool hasMessage in <bool>[false, true]) {
     testWidgets('five attachments fit and removal retains useful focus '
         'hasMessage=$hasMessage', (WidgetTester tester) async {
@@ -456,6 +544,45 @@ final class _MutableAttachmentSource implements AttachmentComposerSource {
     required String clientMessageId,
   }) async* {
     yield List<ComposerAttachment>.unmodifiable(_attachments);
+    yield* _events.stream;
+  }
+}
+
+final class _PendingAttachmentSource implements AttachmentComposerSource {
+  final Completer<void> _pending = Completer<void>();
+  final StreamController<List<ComposerAttachment>> _events =
+      StreamController<List<ComposerAttachment>>.broadcast();
+
+  void complete() => _pending.complete();
+
+  void completeError(Object error) => _pending.completeError(error);
+
+  Future<void> dispose() => _events.close();
+
+  @override
+  Future<void> removeFailed({
+    required String conversationId,
+    required String clientMessageId,
+    required String localId,
+  }) async {
+    await _pending.future;
+    _events.add(const <ComposerAttachment>[]);
+  }
+
+  @override
+  Stream<List<ComposerAttachment>> watch({
+    required String conversationId,
+    required String clientMessageId,
+  }) async* {
+    yield const <ComposerAttachment>[
+      ComposerAttachment(
+        localId: 'last',
+        contentType: 'image/png',
+        state: ComposerAttachmentState.failed,
+        bytesSent: 0,
+        bytesTotal: 0,
+      ),
+    ];
     yield* _events.stream;
   }
 }
