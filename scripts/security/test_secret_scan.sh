@@ -32,7 +32,7 @@ finding_output="$(GITLEAKS_BIN="$scanner" GITLEAKS_CONFIG="$malicious_config" \
 finding_status=$?
 set -e
 [[ "$finding_status" -eq 1 ]]
-grep -Eq 'canary[.]txt:1:timefit-synthetic-canary' <<<"$finding_output"
+grep -Fxq 'line=1 type=timefit-synthetic-canary' <<<"$finding_output"
 if grep -Fq "$canary" <<<"$finding_output"; then
   printf 'Scanner output disclosed a finding value.\n' >&2
   exit 1
@@ -49,9 +49,57 @@ history_output="$(GITLEAKS_BIN="$scanner" "$runner" history "$fixture" 2>&1)"
 history_status=$?
 set -e
 [[ "$history_status" -eq 1 ]]
-grep -Eq 'canary[.]txt:1:timefit-synthetic-canary' <<<"$history_output"
+grep -Fxq 'line=1 type=timefit-synthetic-canary' <<<"$history_output"
 if grep -Fq "$canary" <<<"$history_output"; then
   printf 'History output disclosed a finding value.\n' >&2
+  exit 1
+fi
+
+# Finding paths are attacker-controlled too. Neither credential-shaped names
+# nor terminal-control content may be copied into public scanner output.
+malicious_name="${canary}"$'\nINJECTED_OUTPUT.txt'
+printf '%s\n' "$canary" > "$fixture/$malicious_name"
+set +e
+path_output="$(GITLEAKS_BIN="$scanner" "$runner" current "$fixture" 2>&1)"
+path_status=$?
+set -e
+[[ "$path_status" -eq 1 ]]
+grep -Fxq 'line=1 type=timefit-synthetic-canary' <<<"$path_output"
+if grep -Fq "$canary" <<<"$path_output" ||
+  grep -Fq 'INJECTED_OUTPUT' <<<"$path_output"; then
+  printf 'Scanner output disclosed an untrusted finding path.\n' >&2
+  exit 1
+fi
+rm "$fixture/$malicious_name"
+
+# A malformed or injected report is a scanner error, never a printable
+# finding. This also fences rule and line fields before the summary jq pass.
+fake_scanner="$fixture/fake-scanner"
+cat > "$fake_scanner" <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+report=''
+while [[ "$#" -gt 0 ]]; do
+  if [[ "$1" == '--report-path' ]]; then
+    shift
+    report="$1"
+  fi
+  shift
+done
+printf '%s' '[{"File":"private-path","StartLine":"1","RuleID":"bad\\nINJECTED_RULE"}]' > "$report"
+exit 1
+SCRIPT
+chmod 700 "$fake_scanner"
+set +e
+malformed_output="$(GITLEAKS_BIN="$fake_scanner" "$runner" current "$fixture" 2>&1)"
+malformed_status=$?
+set -e
+[[ "$malformed_status" -eq 2 ]]
+grep -Fxq 'Secret scanner failed without a valid findings report.' \
+  <<<"$malformed_output"
+if grep -Fq 'private-path' <<<"$malformed_output" ||
+  grep -Fq 'INJECTED_RULE' <<<"$malformed_output"; then
+  printf 'Scanner output disclosed an invalid report field.\n' >&2
   exit 1
 fi
 

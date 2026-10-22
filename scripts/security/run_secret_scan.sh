@@ -8,7 +8,7 @@ target="${2:-$repository_root}"
 scanner="${GITLEAKS_BIN:-gitleaks}"
 
 if [[ "$mode" != "current" && "$mode" != "history" ]]; then
-  printf 'Usage: %s current|history [repository]\n' "$0" >&2
+  printf 'Usage: secret scan current|history [repository]\n' >&2
   exit 2
 fi
 if ! command -v "$scanner" >/dev/null 2>&1; then
@@ -32,6 +32,7 @@ fi
 
 report="$(mktemp)"
 trap 'rm -f "$report"' EXIT
+chmod 600 "$report"
 common=(
   --config "$repository_root/.gitleaks.toml"
   --gitleaks-ignore-path "$repository_root/scripts/security/empty.gitleaksignore"
@@ -59,9 +60,21 @@ if [[ "$status" -eq 0 ]]; then
   printf 'Secret scan passed: %s.\n' "$mode"
   exit 0
 fi
-if [[ "$status" -eq 1 && -s "$report" ]] && jq -e 'type == "array"' "$report" >/dev/null 2>&1; then
+if [[ "$status" -eq 1 && -s "$report" ]] && jq -e '
+  type == "array" and all(.[ ];
+    (.StartLine | type == "number") and
+    (.StartLine >= 1) and
+    (.StartLine <= 2147483647) and
+    (.StartLine == (.StartLine | floor)) and
+    (.RuleID | type == "string") and
+    (.RuleID | test("^[a-z0-9][a-z0-9_-]{0,127}$"))
+  )
+' "$report" >/dev/null 2>&1; then
   printf 'Secret scan findings (%s):\n' "$mode" >&2
-  jq -r '.[] | "\(.File):\(.StartLine):\(.RuleID)"' "$report" >&2
+  # File paths are untrusted data and may themselves contain credentials or
+  # terminal control characters. Public output deliberately omits them.
+  jq -r '.[] | "line=\(.StartLine | floor) type=\(.RuleID)"' \
+    "$report" >&2
   exit 1
 fi
 printf 'Secret scanner failed without a valid findings report.\n' >&2

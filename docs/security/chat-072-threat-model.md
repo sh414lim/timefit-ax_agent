@@ -12,7 +12,7 @@ CHAT-020, and the unimplemented server authorization matrix.
 | Local file URI | Drift row to upload executor | File scheme, resolved private-root containment, regular-file and byte-count checks | Remote upload authorization |
 | Preview URL | Provider to in-memory preview state | Memory-only URL, expiry refresh, revoked-session fail closed, no URL export | Signed URL and permission revalidation RPC |
 | Correlation identifiers | Product flow to observability sink | Typed allowlist and format validation; raw strings fail closed | User identity hashing policy remains unspecified |
-| Repository credentials | Working tree/history to CI | Pinned/checksummed local scanner, complete-history requirement, redacted summaries | Hosted governance and required-check settings |
+| Repository credentials | Working tree/history to CI | Pinned/checksummed local scanner, complete-history requirement, path-free redacted summaries | Hosted governance and required-check settings |
 
 The OS picker, files it returns, Drift content, injected URL/upload providers,
 and Git history are untrusted inputs. Local app code and reviewed pinned CI
@@ -36,6 +36,10 @@ local behavior, never server authorization.
 - Secret committed then deleted: CI scans both the current tree and all refs.
   Inline allow comments, repository ignore files, and config environment
   variables cannot override the reviewed scanner policy.
+- Finding path injection: scanner stdout/stderr is suppressed, the temporary
+  JSON report is mode-restricted and deleted on exit, and public summaries
+  contain only validated line numbers and rule identifiers. Untrusted paths
+  are never printed.
 
 ## Explicitly deferred
 
