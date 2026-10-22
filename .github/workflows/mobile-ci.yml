@@ -65,12 +65,27 @@ jobs:
       - name: Record toolchain
         run: |
           flutter config --no-analytics
+          uname -a
+          cat /etc/os-release
           flutter --version
+          flutter --version --machine
           java -version
           java -version 2>&1 | grep -Fq 'version "17.'
+          sha256sum test/fixtures/fonts/nanum_gothic/NanumGothic-Regular.ttf
+          stat --format='Bundled font size: %s bytes' \
+            test/fixtures/fonts/nanum_gothic/NanumGothic-Regular.ttf
 
       - name: Run mobile quality and Android gates
         run: bash scripts/ci_mobile.sh
+
+      - name: Upload golden failure evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: golden-failures-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test/**/failures/**
+          if-no-files-found: warn
+          retention-days: 7
 
   gate-fixtures:
     name: Intentional gate failure fixtures
