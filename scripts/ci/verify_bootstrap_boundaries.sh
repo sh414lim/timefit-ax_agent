@@ -37,6 +37,8 @@ require_file scripts/ci_mobile.sh
 require_file scripts/ci_mobile_gate_fixtures.sh
 require_file scripts/ci/check_generated_diff.sh
 require_file scripts/ci/test_performance_target_boundaries.sh
+require_file scripts/ci/test_ios_target_boundaries.sh
+require_file scripts/ci/validate_ios_environment.sh
 require_file scripts/ci/verify_locked_dependencies.sh
 require_file scripts/ci/verify_workflow_triggers.rb
 
@@ -68,6 +70,18 @@ require_literal \
   android/app/build.gradle.kts \
   'requestedTasks.all { it.equals("assembleDevProfile", ignoreCase = true) }' \
   'The CHAT-073 harness must reject mixed and aggregate Gradle tasks.'
+require_literal \
+  ios/Runner.xcodeproj/project.pbxproj \
+  'scripts/ci/validate_ios_environment.sh' \
+  'The iOS environment build phase must use the fail-closed target guard.'
+require_literal \
+  scripts/ci/validate_ios_environment.sh \
+  "chat_e2e_target='integration_test/chat_e2e_test.dart'" \
+  'The exact CHAT-074 iOS simulator test target is missing.'
+require_literal \
+  scripts/ci/validate_ios_environment.sh \
+  "[[ \"\${PLATFORM_NAME}\" == 'iphonesimulator' ]]" \
+  'The CHAT-074 iOS target must remain simulator-only.'
 
 if [[ -e lib/main_production.dart ]]; then
   fail 'A production entrypoint must not exist before identity and signing approval.'
