@@ -80,12 +80,13 @@ void main() {
     );
   });
 
-  test('invalid context and event codes are rejected', () {
+  test('invalid context is rejected and invalid event is ignored', () {
     expect(
       () => AppLogContext(environment: 'preview', app: 'app', build: '1'),
       throwsArgumentError,
     );
-    expect(() => logger.record('free form event'), throwsArgumentError);
+    expect(() => logger.record('free form event'), returnsNormally);
+    expect(sink.records, isEmpty);
   });
 }
 

@@ -71,7 +71,7 @@ final class SafeLogNumber extends SafeLogValue {
   const SafeLogNumber(this.value);
   final num value;
   @override
-  Object toJsonValue() => value;
+  Object toJsonValue() => value.isFinite ? value : redactedValue;
 }
 
 final class SafeLogFlag extends SafeLogValue {
@@ -82,7 +82,7 @@ final class SafeLogFlag extends SafeLogValue {
 }
 
 String _validate(String value, String name, RegExp pattern) {
-  if (!pattern.hasMatch(value)) throw ArgumentError.value(value, name);
+  if (!pattern.hasMatch(value)) throw ArgumentError('Invalid $name');
   return value;
 }
 
@@ -91,6 +91,12 @@ String _validateCorrelationId(String value) => _validate(
   'correlation id',
   RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'),
 );
+
+bool _isTypedIdValue(String value, String testPrefix) => RegExp(
+  '^(?:$testPrefix-[0-9]+|'
+  r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-'
+  r'[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$',
+).hasMatch(value);
 
 /// Recursively converts data to an export-safe structure. Unknown keys are
 /// dropped and unknown values are never stringified. Cycles and excessive
@@ -110,10 +116,10 @@ Object? _redact(Object? value, Set<Object> seen, int depth) {
   if (value is Map<Object?, Object?>) {
     if (!seen.add(value)) return redactedValue;
     final result = <String, Object?>{};
-    for (final entry in value.entries) {
+    for (final entry in value.entries.take(64)) {
       final key = entry.key;
       if (key is String && _allowedFieldNames.contains(key)) {
-        result[key] = _redact(entry.value, seen, depth + 1);
+        result[key] = _redactField(key, entry.value, seen, depth + 1);
       }
     }
     seen.remove(value);
@@ -129,4 +135,18 @@ Object? _redact(Object? value, Set<Object> seen, int depth) {
     return result;
   }
   return redactedValue;
+}
+
+Object? _redactField(String key, Object? value, Set<Object> seen, int depth) {
+  final valid = switch (key) {
+    'clientMessageId' =>
+      value is ClientMessageId && _isTypedIdValue(value.value, 'message'),
+    'attachmentId' =>
+      value is AttachmentId && _isTypedIdValue(value.value, 'attachment'),
+    'eventId' => value is EventId && _isTypedIdValue(value.value, 'event'),
+    'errorCode' || 'stage' => value is SafeLogText,
+    'ageMs' || 'attempt' || 'count' || 'latencyMs' => value is SafeLogNumber,
+    _ => false,
+  };
+  return valid ? _redact(value, seen, depth) : redactedValue;
 }

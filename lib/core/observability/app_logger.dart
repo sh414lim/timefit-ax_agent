@@ -64,13 +64,13 @@ final class AppLogger {
     AppLogLevel level = AppLogLevel.info,
     Map<String, Object?> fields = const {},
   }) {
-    final record = AppLogRecord(
-      level: level,
-      eventCode: SafeLogText.stableCode(eventCode),
-      context: _context,
-      fields: fields,
-    );
     try {
+      final record = AppLogRecord(
+        level: level,
+        eventCode: SafeLogText.stableCode(eventCode),
+        context: _context,
+        fields: fields,
+      );
       _sink.write(record);
     } on Object {
       // Observability must never change product behavior. There is no print or
