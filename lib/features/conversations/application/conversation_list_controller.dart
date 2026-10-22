@@ -27,12 +27,15 @@ class ConversationListState {
 typedef ConversationListListener = void Function(ConversationListState state);
 
 class ConversationListController {
-  ConversationListController({required ConversationRepository repository})
-    : _repository = repository;
+  ConversationListController({
+    required ConversationRepository repository,
+    this.localOnly = false,
+  }) : _repository = repository;
 
   // Injected repositories are owned by the session/composition scope. This
   // controller only owns and cancels its subscription.
   final ConversationRepository _repository;
+  final bool localOnly;
   final Set<ConversationListListener> _listeners = <ConversationListListener>{};
 
   ConversationListState _state = const ConversationListState.loading();
@@ -100,7 +103,9 @@ class ConversationListController {
       }
       // Once the watch has emitted it is the authoritative cache snapshot.
       // A slower point-in-time read must never replace that newer state.
-      if (_repository is LocalConversationRepository && _cacheRevision > 0) {
+      if (!localOnly &&
+          _repository is LocalConversationRepository &&
+          _cacheRevision > 0) {
         retained = _state.conversations;
       } else if (cached.isNotEmpty) {
         // An empty cache is not proof that the server-side list is empty. Keep
@@ -111,6 +116,18 @@ class ConversationListController {
       // A cache read failure must not prevent a remote recovery attempt.
     }
     if (!_isCurrent(requestEpoch)) {
+      return;
+    }
+
+    if (localOnly) {
+      _emit(
+        retained.isEmpty
+            ? const ConversationListState(phase: ConversationListPhase.empty)
+            : ConversationListState(
+                phase: ConversationListPhase.ready,
+                conversations: retained,
+              ),
+      );
       return;
     }
 
