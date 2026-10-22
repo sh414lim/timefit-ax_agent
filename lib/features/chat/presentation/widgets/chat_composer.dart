@@ -20,6 +20,7 @@ class _ChatComposerState extends State<ChatComposer> {
     text: widget.controller.draft,
   );
   final FocusNode _focusNode = FocusNode();
+  var _controllerGeneration = 0;
 
   @override
   void initState() {
@@ -31,6 +32,7 @@ class _ChatComposerState extends State<ChatComposer> {
   void didUpdateWidget(ChatComposer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
+      _controllerGeneration += 1;
       oldWidget.controller.removeListener(_handleControllerChanged);
       widget.controller.addListener(_handleControllerChanged);
       _syncText();
@@ -66,12 +68,15 @@ class _ChatComposerState extends State<ChatComposer> {
 
   Future<void> _removeFailedAttachment(String localId) async {
     final ComposerController controller = widget.controller;
+    final int controllerGeneration = _controllerGeneration;
     try {
       await controller.removeFailedAttachment(localId);
     } on Object {
       return;
     }
-    if (mounted && identical(widget.controller, controller)) {
+    if (mounted &&
+        identical(widget.controller, controller) &&
+        _controllerGeneration == controllerGeneration) {
       _focusNode.requestFocus();
     }
   }

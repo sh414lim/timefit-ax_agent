@@ -71,7 +71,13 @@ void main() {
     expect(find.text('다시 시도').hitTestable(), findsOneWidget);
   });
 
-  for (final mode in <String>['last', 'failure', 'dispose', 'switch']) {
+  for (final mode in <String>[
+    'last',
+    'failure',
+    'dispose',
+    'switch',
+    'roundtrip',
+  ]) {
     testWidgets('late attachment removal preserves focus boundary $mode', (
       WidgetTester tester,
     ) async {
@@ -109,6 +115,12 @@ void main() {
       if (mode == 'switch') {
         await tester.pumpWidget(view(nextController));
         await tester.pump();
+      }
+      if (mode == 'roundtrip') {
+        await tester.pumpWidget(view(nextController));
+        await tester.pump();
+        await tester.pumpWidget(view(oldController));
+        await tester.pumpAndSettle();
       }
       if (mode == 'dispose') {
         await tester.pumpWidget(
