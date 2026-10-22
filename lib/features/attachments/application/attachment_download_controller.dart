@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../../core/observability/app_logger.dart';
+import '../../../core/observability/redaction.dart';
+
 enum AttachmentPreviewKind { image, pdf }
 
 enum AttachmentPreviewError {
@@ -53,6 +56,24 @@ abstract interface class AttachmentUrlProvider {
 abstract interface class AttachmentPreviewTelemetry {
   /// Stable event codes only. Implementations must not accept URLs or paths.
   void record(String eventCode);
+}
+
+/// Bridges the existing CHAT-053 telemetry seam to the common local logger.
+final class AppLoggerAttachmentPreviewTelemetry
+    implements AttachmentPreviewTelemetry {
+  AppLoggerAttachmentPreviewTelemetry({
+    required AppLogger logger,
+    required String attachmentId,
+  }) : _logger = logger,
+       _attachmentId = AttachmentId(attachmentId);
+
+  final AppLogger _logger;
+  final AttachmentId _attachmentId;
+
+  @override
+  void record(String eventCode) {
+    _logger.record(eventCode, fields: {'attachmentId': _attachmentId});
+  }
 }
 
 abstract interface class AttachmentRefreshHandle {
