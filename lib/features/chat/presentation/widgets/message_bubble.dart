@@ -23,6 +23,7 @@ class MessageBubble extends StatelessWidget {
         : colors.surfaceContainerHighest;
     return Semantics(
       container: true,
+      liveRegion: message.deliveryState != MessageDeliveryState.sent,
       excludeSemantics: !canRetry,
       explicitChildNodes: canRetry,
       label:
