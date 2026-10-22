@@ -4,7 +4,10 @@ set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 gradle="$repository_root/android/gradlew"
-performance_target="integration_test/chat_performance_test.dart"
+approved_targets=(
+  "integration_test/chat_performance_test.dart"
+  "integration_test/chat_e2e_test.dart"
+)
 temporary="$(mktemp)"
 
 cleanup() {
@@ -44,17 +47,19 @@ run_case() {
   printf 'Gradle performance target boundary %s: %s\n' "$expected" "$description"
 }
 
-run_case pass 'single dev profile task' "$performance_target" \
-  :app:assembleDevProfile
-run_case reject 'dev debug task' "$performance_target" \
-  :app:assembleDevDebug
-run_case reject 'staging profile task' "$performance_target" \
-  :app:assembleStagingProfile
-run_case reject 'mixed dev debug and dev profile tasks' "$performance_target" \
-  :app:assembleDevDebug :app:assembleDevProfile
-run_case reject 'mixed dev and staging profile tasks' "$performance_target" \
-  :app:assembleDevProfile :app:assembleStagingProfile
-run_case reject 'aggregate profile task' "$performance_target" \
-  :app:assembleProfile
+for approved_target in "${approved_targets[@]}"; do
+  run_case pass "single dev profile task for $approved_target" \
+    "$approved_target" :app:assembleDevProfile
+  run_case reject "dev debug task for $approved_target" \
+    "$approved_target" :app:assembleDevDebug
+  run_case reject "staging profile task for $approved_target" \
+    "$approved_target" :app:assembleStagingProfile
+  run_case reject "mixed dev debug and dev profile tasks for $approved_target" \
+    "$approved_target" :app:assembleDevDebug :app:assembleDevProfile
+  run_case reject "mixed dev and staging profile tasks for $approved_target" \
+    "$approved_target" :app:assembleDevProfile :app:assembleStagingProfile
+  run_case reject "aggregate profile task for $approved_target" \
+    "$approved_target" :app:assembleProfile
+done
 run_case reject 'unapproved integration target' \
   'integration_test/unapproved.dart' :app:assembleDevProfile
