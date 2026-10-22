@@ -48,6 +48,27 @@ final class SafeLogText extends SafeLogValue {
   Object toJsonValue() => value;
 }
 
+final class ErrorCode extends SafeLogValue {
+  ErrorCode(String value)
+    : value = _validate(value, 'error code', RegExp(r'^[a-z][a-z0-9_]{0,63}$'));
+
+  final String value;
+
+  @override
+  Object toJsonValue() => value;
+}
+
+enum UploadStageValue implements SafeLogValue {
+  queued,
+  copying,
+  uploading,
+  ready,
+  failed;
+
+  @override
+  Object toJsonValue() => name;
+}
+
 sealed class CorrelationId extends SafeLogValue {
   CorrelationId(String value) : value = _validateCorrelationId(value);
   final String value;
@@ -103,50 +124,79 @@ bool _isTypedIdValue(String value, String testPrefix) => RegExp(
 /// depth collapse to [REDACTED].
 Object? redactForExport(Object? value) {
   try {
-    return _redact(value, HashSet<Object>.identity(), 0);
+    return _redact(value, HashSet<Object>.identity(), _RedactionBudget(256), 0);
   } on Object {
     return redactedValue;
   }
 }
 
-Object? _redact(Object? value, Set<Object> seen, int depth) {
+Object? _redact(
+  Object? value,
+  Set<Object> seen,
+  _RedactionBudget budget,
+  int depth,
+) {
+  if (!budget.consume()) return redactedValue;
   if (value == null) return null;
   if (value is SafeLogValue) return value.toJsonValue();
   if (depth >= 6) return redactedValue;
   if (value is Map<Object?, Object?>) {
     if (!seen.add(value)) return redactedValue;
     final result = <String, Object?>{};
-    for (final entry in value.entries.take(64)) {
+    final iterator = value.entries.iterator;
+    var entries = 0;
+    while (entries < 64 && budget.consume() && iterator.moveNext()) {
+      entries += 1;
+      final entry = iterator.current;
       final key = entry.key;
       if (key is String && _allowedFieldNames.contains(key)) {
-        result[key] = _redactField(key, entry.value, seen, depth + 1);
+        result[key] = _redactField(key, entry.value, seen, budget, depth + 1);
       }
     }
-    seen.remove(value);
     return result;
   }
   if (value is Iterable<Object?>) {
     if (!seen.add(value)) return redactedValue;
     final result = <Object?>[];
-    for (final item in value.take(32)) {
-      result.add(_redact(item, seen, depth + 1));
+    final iterator = value.iterator;
+    var items = 0;
+    while (items < 32 && budget.consume() && iterator.moveNext()) {
+      items += 1;
+      result.add(_redact(iterator.current, seen, budget, depth + 1));
     }
-    seen.remove(value);
     return result;
   }
   return redactedValue;
 }
 
-Object? _redactField(String key, Object? value, Set<Object> seen, int depth) {
+Object? _redactField(
+  String key,
+  Object? value,
+  Set<Object> seen,
+  _RedactionBudget budget,
+  int depth,
+) {
   final valid = switch (key) {
     'clientMessageId' =>
       value is ClientMessageId && _isTypedIdValue(value.value, 'message'),
     'attachmentId' =>
       value is AttachmentId && _isTypedIdValue(value.value, 'attachment'),
     'eventId' => value is EventId && _isTypedIdValue(value.value, 'event'),
-    'errorCode' || 'stage' => value is SafeLogText,
+    'errorCode' => value is ErrorCode,
+    'stage' => value is UploadStageValue,
     'ageMs' || 'attempt' || 'count' || 'latencyMs' => value is SafeLogNumber,
     _ => false,
   };
-  return valid ? _redact(value, seen, depth) : redactedValue;
+  return valid ? _redact(value, seen, budget, depth) : redactedValue;
+}
+
+final class _RedactionBudget {
+  _RedactionBudget(this._remaining);
+  int _remaining;
+
+  bool consume() {
+    if (_remaining <= 0) return false;
+    _remaining -= 1;
+    return true;
+  }
 }

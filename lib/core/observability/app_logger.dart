@@ -127,7 +127,7 @@ final class UploadStageMetric extends ObservabilityMetric {
   String get eventCode => 'upload_stage';
   @override
   Map<String, Object?> get fields => {
-    'stage': SafeLogText.stableCode(stage.name),
+    'stage': UploadStageValue.values.byName(stage.name),
     'attachmentId': attachmentId,
   };
 }

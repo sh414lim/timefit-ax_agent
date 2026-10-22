@@ -26,7 +26,7 @@ final class LocalCrashReporter implements CrashReporter {
     _logger.record(
       'app_error',
       level: AppLogLevel.error,
-      fields: {'errorCode': SafeLogText.stableCode(stableErrorCode), ...fields},
+      fields: {'errorCode': ErrorCode(stableErrorCode), ...fields},
     );
   }
 }
