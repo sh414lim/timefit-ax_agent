@@ -67,6 +67,14 @@ class _ChatComposerState extends State<ChatComposer> {
   @override
   Widget build(BuildContext context) {
     final ComposerController controller = widget.controller;
+    final List<ComposerAttachment> visibleAttachments = <ComposerAttachment>[
+      ...controller.attachments.where(
+        (attachment) => attachment.state == ComposerAttachmentState.failed,
+      ),
+      ...controller.attachments.where(
+        (attachment) => attachment.state != ComposerAttachmentState.failed,
+      ),
+    ];
     return SafeArea(
       top: false,
       child: Material(
@@ -78,20 +86,24 @@ class _ChatComposerState extends State<ChatComposer> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               if (controller.attachments.isNotEmpty) ...<Widget>[
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: <Widget>[
-                    for (final attachment in controller.attachments)
-                      ComposerAttachmentChip(
-                        attachment: attachment,
-                        onRemoveFailed: () => unawaited(
-                          controller
-                              .removeFailedAttachment(attachment.localId)
-                              .catchError((Object _) {}),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: <Widget>[
+                      for (final attachment in visibleAttachments)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ComposerAttachmentChip(
+                            attachment: attachment,
+                            onRemoveFailed: () => unawaited(
+                              controller
+                                  .removeFailedAttachment(attachment.localId)
+                                  .catchError((Object _) {}),
+                            ),
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 8),
               ],
@@ -134,6 +146,10 @@ class _ChatComposerState extends State<ChatComposer> {
                     label: controller.isSubmitting ? '메시지 저장 중' : '메시지 보내기',
                     child: IconButton.filled(
                       tooltip: '메시지 보내기',
+                      constraints: const BoxConstraints.tightFor(
+                        width: 48,
+                        height: 48,
+                      ),
                       onPressed: controller.canSubmit ? _submit : null,
                       icon: controller.isSubmitting
                           ? const SizedBox.square(
