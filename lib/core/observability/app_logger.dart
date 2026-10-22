@@ -22,17 +22,24 @@ final class AppLogRecord {
     required SafeLogText eventCode,
     required AppLogContext context,
     required Map<String, Object?> fields,
-  }) : export = Map.unmodifiable(<String, Object?>{
-         'level': level.name,
-         'eventCode': eventCode.toJsonValue(),
-         'environment': context.environment.toJsonValue(),
-         'app': context.app.toJsonValue(),
-         'build': context.build.toJsonValue(),
-         'fields': redactForExport(fields),
-       });
+    ErrorCode? errorCode,
+  }) {
+    final redactedFields = redactForExport(fields);
+    if (errorCode != null && redactedFields is Map<String, Object?>) {
+      redactedFields['errorCode'] = errorCode.toJsonValue();
+    }
+    export = Map.unmodifiable(<String, Object?>{
+      'level': level.name,
+      'eventCode': eventCode.toJsonValue(),
+      'environment': context.environment.toJsonValue(),
+      'app': context.app.toJsonValue(),
+      'build': context.build.toJsonValue(),
+      'fields': redactedFields,
+    });
+  }
 
   final AppLogLevel level;
-  final Map<String, Object?> export;
+  late final Map<String, Object?> export;
 }
 
 abstract interface class AppLogSink {
@@ -63,6 +70,7 @@ final class AppLogger {
     String eventCode, {
     AppLogLevel level = AppLogLevel.info,
     Map<String, Object?> fields = const {},
+    ErrorCode? errorCode,
   }) {
     try {
       final record = AppLogRecord(
@@ -70,6 +78,7 @@ final class AppLogger {
         eventCode: SafeLogText.stableCode(eventCode),
         context: _context,
         fields: fields,
+        errorCode: errorCode,
       );
       _sink.write(record);
     } on Object {

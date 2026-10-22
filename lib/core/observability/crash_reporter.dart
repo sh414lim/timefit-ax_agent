@@ -27,7 +27,8 @@ final class LocalCrashReporter implements CrashReporter {
       _logger.record(
         'app_error',
         level: AppLogLevel.error,
-        fields: {'errorCode': ErrorCode(stableErrorCode), ...fields},
+        fields: fields,
+        errorCode: ErrorCode(stableErrorCode),
       );
     } on Object {
       // The reporter boundary includes validation and payload construction.
