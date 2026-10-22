@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -367,7 +366,6 @@ void main() {
       );
       final Rect composer = tester.getRect(find.byType(TextField));
       expect(composer.bottom, lessThanOrEqualTo(640 - 280 - 16));
-      _installTextRasterizationComparator(tester);
       await expectLater(
         find.byType(ChatScreen),
         matchesGoldenFile(
@@ -628,91 +626,4 @@ ThemeData _theme(Brightness brightness) {
     textTheme: base.textTheme.apply(fontFamily: _fontFamily),
     primaryTextTheme: base.primaryTextTheme.apply(fontFamily: _fontFamily),
   );
-}
-
-void _installTextRasterizationComparator(WidgetTester tester) {
-  final Finder screen = find.byType(ChatScreen);
-  final List<Rect> textRegions = find
-      .descendant(of: screen, matching: find.byType(Text))
-      .evaluate()
-      .map((Element element) {
-        final RenderBox box = element.renderObject! as RenderBox;
-        return box.localToGlobal(Offset.zero) & box.size;
-      })
-      .map((Rect region) => region.inflate(1))
-      .toList(growable: false);
-  final GoldenFileComparator previous = goldenFileComparator;
-  goldenFileComparator = _TextRasterizationComparator(
-    Uri.parse('test/accessibility/chat_accessibility_matrix_test.dart'),
-    textRegions: textRegions,
-  );
-  addTearDown(() => goldenFileComparator = previous);
-}
-
-/// Keeps layout, surfaces, borders, and icons exact while allowing only the
-/// bundled font's measured glyph boxes to rasterize differently by platform.
-final class _TextRasterizationComparator extends LocalFileComparator {
-  _TextRasterizationComparator(super.testFile, {required this.textRegions});
-
-  final List<Rect> textRegions;
-
-  @override
-  Future<bool> compare(Uint8List imageBytes, Uri golden) async {
-    final _DecodedImage actual = await _decode(imageBytes);
-    final _DecodedImage expected = await _decode(
-      Uint8List.fromList(await getGoldenBytes(golden)),
-    );
-    try {
-      if (actual.width != expected.width || actual.height != expected.height) {
-        throw FlutterError('Golden image dimensions changed for $golden.');
-      }
-      var differences = 0;
-      for (var y = 0; y < actual.height; y += 1) {
-        for (var x = 0; x < actual.width; x += 1) {
-          final Offset center = Offset(x + 0.5, y + 0.5);
-          if (textRegions.any((Rect region) => region.contains(center))) {
-            continue;
-          }
-          final int offset = (y * actual.width + x) * 4;
-          if (actual.bytes.getUint32(offset) !=
-              expected.bytes.getUint32(offset)) {
-            differences += 1;
-          }
-        }
-      }
-      if (differences != 0) {
-        throw FlutterError(
-          '$golden differs by $differences pixels outside text regions.',
-        );
-      }
-      return true;
-    } finally {
-      actual.dispose();
-      expected.dispose();
-    }
-  }
-}
-
-final class _DecodedImage {
-  const _DecodedImage(this.image, this.bytes);
-
-  final ui.Image image;
-  final ByteData bytes;
-  int get width => image.width;
-  int get height => image.height;
-  void dispose() => image.dispose();
-}
-
-Future<_DecodedImage> _decode(Uint8List pngBytes) async {
-  final ui.Codec codec = await ui.instantiateImageCodec(pngBytes);
-  final ui.FrameInfo frame = await codec.getNextFrame();
-  codec.dispose();
-  final ByteData? bytes = await frame.image.toByteData(
-    format: ui.ImageByteFormat.rawRgba,
-  );
-  if (bytes == null) {
-    frame.image.dispose();
-    throw FlutterError('Unable to decode golden pixels.');
-  }
-  return _DecodedImage(frame.image, bytes);
 }
