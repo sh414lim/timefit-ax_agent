@@ -98,9 +98,18 @@ run_case() {
 
 run_case pass 'normal dev entrypoint' \
   dev lib/main.dart lib/main.dart Release-dev iphoneos iphoneos18.1
+run_case pass 'normal dev absolute entrypoint from flutter run' \
+  dev lib/main.dart "$project/lib/main.dart" Debug-dev \
+  iphonesimulator iphonesimulator18.1
 run_case pass 'normal staging entrypoint' \
   staging lib/main_staging.dart lib/main_staging.dart Release-staging \
   iphoneos iphoneos18.1
+run_case pass 'normal staging absolute entrypoint from flutter run' \
+  staging lib/main_staging.dart "$project/lib/main_staging.dart" Debug-staging \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'absolute entrypoint outside repository' \
+  dev lib/main.dart "$sandbox/outside/lib/main.dart" Debug-dev \
+  iphonesimulator iphonesimulator18.1
 run_case pass 'CHAT-074 dev debug simulator target' \
   dev lib/main.dart CHAT_E2E_LISTENER Debug-dev \
   iphonesimulator iphonesimulator18.1

@@ -14,12 +14,14 @@ xcconfig_value() {
 }
 
 actual_target="$(xcconfig_value FLUTTER_TARGET)"
-if [[ "$actual_target" == "${TIMEFIT_EXPECTED_FLUTTER_TARGET}" ]]; then
+repository_root="$(cd "${PROJECT_DIR}/.." && pwd -P)"
+expected_absolute_target="${repository_root}/${TIMEFIT_EXPECTED_FLUTTER_TARGET}"
+if [[ "$actual_target" == "${TIMEFIT_EXPECTED_FLUTTER_TARGET}" ]] ||
+    [[ "$actual_target" == "$expected_absolute_target" ]]; then
   exit 0
 fi
 
 chat_e2e_target='integration_test/chat_e2e_test.dart'
-repository_root="$(cd "${PROJECT_DIR}/.." && pwd -P)"
 expected_test_uri="file://${repository_root}/${chat_e2e_target}"
 listener_template="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/fixtures/flutter_3_38_5_integration_listener.dart.template"
 is_chat_e2e_listener=false
