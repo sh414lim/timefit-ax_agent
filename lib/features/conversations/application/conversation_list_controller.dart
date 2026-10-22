@@ -119,6 +119,12 @@ class ConversationListController {
       }
     } on Object {
       // A cache read failure must not prevent a remote recovery attempt.
+      // If the watch advanced while that read was pending, preserve its
+      // authoritative snapshot on the failure path too.
+      if (_repository is LocalConversationRepository &&
+          _cacheRevision != cacheRevisionAtReadStart) {
+        retained = _state.conversations;
+      }
     }
     if (!_isCurrent(requestEpoch)) {
       return;
