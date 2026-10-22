@@ -36,6 +36,7 @@ require_file .github/workflows/mobile-ci.yml
 require_file scripts/ci_mobile.sh
 require_file scripts/ci_mobile_gate_fixtures.sh
 require_file scripts/ci/check_generated_diff.sh
+require_file scripts/ci/test_performance_target_boundaries.sh
 require_file scripts/ci/verify_locked_dependencies.sh
 require_file scripts/ci/verify_workflow_triggers.rb
 
@@ -55,6 +56,14 @@ require_literal \
   lib/src/bootstrap_app.dart \
   "throw StateError('production_configuration_unavailable')" \
   'Production bootstrap must fail closed.'
+require_literal \
+  android/app/build.gradle.kts \
+  '"integration_test/chat_performance_test.dart"' \
+  'The exact CHAT-073 dev profile harness target is missing.'
+require_literal \
+  android/app/build.gradle.kts \
+  'requestedTasks.all { it.equals("assembleDevProfile", ignoreCase = true) }' \
+  'The CHAT-073 harness must reject mixed and aggregate Gradle tasks.'
 
 if [[ -e lib/main_production.dart ]]; then
   fail 'A production entrypoint must not exist before identity and signing approval.'

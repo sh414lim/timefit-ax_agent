@@ -45,6 +45,7 @@ if [[ "$phase" == "quality-android" ]]; then
   "${flutter_command[@]}" build apk --debug --no-pub --flavor dev --target lib/main.dart
   "${flutter_command[@]}" build apk --debug --no-pub --flavor staging \
     --target lib/main_staging.dart
+  bash scripts/ci/test_performance_target_boundaries.sh
 else
   "${flutter_command[@]}" build ios --debug --no-codesign --no-pub --flavor dev \
     --target lib/main.dart

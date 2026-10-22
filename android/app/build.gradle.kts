@@ -60,23 +60,36 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:1.2.2")
 }
 
-val expectedFlutterTargetByFlavor = mapOf(
-    "Dev" to "lib/main.dart",
-    "Staging" to "lib/main_staging.dart",
+val allowedFlutterTargetsByFlavor = mapOf(
+    "Dev" to setOf(
+        "lib/main.dart",
+        "integration_test/chat_performance_test.dart",
+    ),
+    "Staging" to setOf("lib/main_staging.dart"),
 )
 
-val requestedFlutterFlavor = expectedFlutterTargetByFlavor.keys.firstOrNull { flavor ->
-    gradle.startParameter.taskNames.any { taskName ->
-        taskName.contains(flavor, ignoreCase = true)
-    }
-}
+val actualTarget = project.findProperty("target")?.toString() ?: "lib/main.dart"
+val requestedTasks = gradle.startParameter.taskNames.map { it.substringAfterLast(':') }
+val performanceTarget = "integration_test/chat_performance_test.dart"
 
-if (requestedFlutterFlavor != null) {
-    val actualTarget = project.findProperty("target")?.toString() ?: "lib/main.dart"
-    val expectedTarget = expectedFlutterTargetByFlavor.getValue(requestedFlutterFlavor)
-    if (actualTarget != expectedTarget) {
+if (actualTarget == performanceTarget) {
+    val isExactDevProfileRequest = requestedTasks.isNotEmpty() &&
+        requestedTasks.all { it.equals("assembleDevProfile", ignoreCase = true) }
+    if (!isExactDevProfileRequest) {
         throw org.gradle.api.GradleException(
-            "${requestedFlutterFlavor.lowercase()} requires $expectedTarget; got $actualTarget.",
+            "The CHAT-073 performance target requires only assembleDevProfile.",
         )
+    }
+} else {
+    val requestedFlutterFlavor = allowedFlutterTargetsByFlavor.keys.firstOrNull { flavor ->
+        requestedTasks.any { taskName -> taskName.contains(flavor, ignoreCase = true) }
+    }
+    if (requestedFlutterFlavor != null) {
+        val allowedTargets = allowedFlutterTargetsByFlavor.getValue(requestedFlutterFlavor)
+        if (actualTarget !in allowedTargets) {
+            throw org.gradle.api.GradleException(
+                "${requestedFlutterFlavor.lowercase()} does not allow the requested Flutter target.",
+            )
+        }
     }
 }
