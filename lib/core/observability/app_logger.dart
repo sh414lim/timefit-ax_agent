@@ -8,8 +8,8 @@ final class AppLogContext {
     required String app,
     required String build,
   }) : environment = SafeLogText.environment(environment),
-       app = SafeLogText.buildValue(app),
-       build = SafeLogText.buildValue(build);
+       app = SafeLogText.buildValue(_validateAppName(app)),
+       build = SafeLogText.buildValue(_validateBuild(build));
 
   final SafeLogText environment;
   final SafeLogText app;
@@ -19,7 +19,7 @@ final class AppLogContext {
 final class AppLogRecord {
   AppLogRecord({
     required this.level,
-    required SafeLogText eventCode,
+    required SafeLogValue eventCode,
     required AppLogContext context,
     required Map<String, Object?> fields,
     ErrorCode? errorCode,
@@ -30,7 +30,9 @@ final class AppLogRecord {
     }
     export = Map.unmodifiable(<String, Object?>{
       'level': level.name,
-      'eventCode': eventCode.toJsonValue(),
+      'eventCode': eventCode is EventCode
+          ? eventCode.toJsonValue()
+          : redactedValue,
       'environment': context.environment.toJsonValue(),
       'app': context.app.toJsonValue(),
       'build': context.build.toJsonValue(),
@@ -75,7 +77,7 @@ final class AppLogger {
     try {
       final record = AppLogRecord(
         level: level,
-        eventCode: SafeLogText.stableCode(eventCode),
+        eventCode: EventCode(eventCode),
         context: _context,
         fields: fields,
         errorCode: errorCode,
@@ -89,6 +91,20 @@ final class AppLogger {
 
   void metric(ObservabilityMetric metric) =>
       record(metric.eventCode, fields: metric.fields);
+}
+
+String _validateAppName(String value) {
+  if (!RegExp(r'^(?:timefit-native|app)$').hasMatch(value)) {
+    throw ArgumentError('Invalid app name');
+  }
+  return value;
+}
+
+String _validateBuild(String value) {
+  if (!RegExp(r'^[0-9]+(?:\.[0-9]+){0,2}(?:\+[0-9]+)?$').hasMatch(value)) {
+    throw ArgumentError('Invalid build identifier');
+  }
+  return value;
 }
 
 sealed class ObservabilityMetric {

@@ -58,6 +58,16 @@ final class ErrorCode extends SafeLogValue {
   Object toJsonValue() => value;
 }
 
+final class EventCode extends SafeLogValue {
+  EventCode(String value)
+    : value = _validate(value, 'event code', RegExp(r'^[a-z][a-z0-9_]{0,63}$'));
+
+  final String value;
+
+  @override
+  Object toJsonValue() => value;
+}
+
 enum UploadStageValue implements SafeLogValue {
   queued,
   copying,
