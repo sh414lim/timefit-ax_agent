@@ -68,22 +68,28 @@ val allowedFlutterTargetsByFlavor = mapOf(
     "Staging" to setOf("lib/main_staging.dart"),
 )
 
-val requestedFlutterFlavor = allowedFlutterTargetsByFlavor.keys.firstOrNull { flavor ->
-    gradle.startParameter.taskNames.any { taskName ->
-        taskName.contains(flavor, ignoreCase = true)
-    }
-}
+val actualTarget = project.findProperty("target")?.toString() ?: "lib/main.dart"
+val requestedTasks = gradle.startParameter.taskNames.map { it.substringAfterLast(':') }
+val performanceTarget = "integration_test/chat_performance_test.dart"
 
-if (requestedFlutterFlavor != null) {
-    val actualTarget = project.findProperty("target")?.toString() ?: "lib/main.dart"
-    val allowedTargets = allowedFlutterTargetsByFlavor.getValue(requestedFlutterFlavor)
-    val isPerformanceTarget = actualTarget == "integration_test/chat_performance_test.dart"
-    val isProfileTask = gradle.startParameter.taskNames.any { taskName ->
-        taskName.contains("Profile", ignoreCase = true)
-    }
-    if (actualTarget !in allowedTargets || (isPerformanceTarget && !isProfileTask)) {
+if (actualTarget == performanceTarget) {
+    val isExactDevProfileRequest = requestedTasks.isNotEmpty() &&
+        requestedTasks.all { it.equals("assembleDevProfile", ignoreCase = true) }
+    if (!isExactDevProfileRequest) {
         throw org.gradle.api.GradleException(
-            "${requestedFlutterFlavor.lowercase()} does not allow the requested Flutter target.",
+            "The CHAT-073 performance target requires only assembleDevProfile.",
         )
+    }
+} else {
+    val requestedFlutterFlavor = allowedFlutterTargetsByFlavor.keys.firstOrNull { flavor ->
+        requestedTasks.any { taskName -> taskName.contains(flavor, ignoreCase = true) }
+    }
+    if (requestedFlutterFlavor != null) {
+        val allowedTargets = allowedFlutterTargetsByFlavor.getValue(requestedFlutterFlavor)
+        if (actualTarget !in allowedTargets) {
+            throw org.gradle.api.GradleException(
+                "${requestedFlutterFlavor.lowercase()} does not allow the requested Flutter target.",
+            )
+        }
     }
 }

@@ -20,10 +20,14 @@ five attachment chips are visible. Reopening the connection avoids a warm
 repository instance, but it is not an OS cold-cache flush or a full app cold
 start and must not be reported as either.
 
-In profile mode each scenario registers its callback, flushes and discards
-setup frames, then records raw build, raster, total, and engine-monotonic frame
-timestamps plus a VM timeline and UTC scenario window. The driver writes one
-reproducible JSON document to `build/performance/chat_performance.json`.
+In profile mode each scenario brackets the action with two frames on the
+engine's monotonic clock. Delayed `FrameTiming` callbacks are accepted only
+when the complete frame falls strictly inside those markers; pre-action,
+post-action, and boundary-crossing frames are excluded. The report records raw
+build, raster, total, and engine-monotonic timestamps plus a VM timeline. UTC
+timestamps are context only and are never compared with engine timestamps. The
+driver writes one reproducible JSON document to
+`build/performance/chat_performance.json`.
 Debug/widget runs validate the harness only and explicitly report
 `debug_harness_only`; they are not performance evidence.
 

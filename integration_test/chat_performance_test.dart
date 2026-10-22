@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'dart:io';
-import 'dart:ui' show FramePhase;
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -15,6 +15,8 @@ import 'package:timefit_native/features/chat/application/send_message.dart';
 import 'package:timefit_native/features/chat/data/message_repository_impl.dart';
 import 'package:timefit_native/features/chat/presentation/chat_screen.dart';
 import 'package:timefit_native/features/chat/presentation/widgets/attachment_chip.dart';
+
+import 'support/frame_window.dart';
 
 const _conversationId = 'performance-conversation';
 const _attachmentAggregateId = 'performance-attachment-aggregate';
@@ -83,13 +85,13 @@ void main() {
             ),
           );
           await tester.pumpAndSettle(const Duration(milliseconds: 16));
-          firstDisplayElapsed.stop();
           expect(
             await repository.readCachedMessages(_conversationId),
             hasLength(_messageCount),
           );
           expect(find.text(_messageBody(_messageCount)), findsOneWidget);
           expect(find.byType(ComposerAttachmentChip), findsNWidgets(5));
+          firstDisplayElapsed.stop();
         });
         if (kProfileMode) {
           binding.reportData!['reopened_sqlite_first_display_elapsedMicros'] =
@@ -227,50 +229,57 @@ Future<void> _measure(
     return;
   }
 
-  final timings = <FrameTiming>[];
-  final callback = timings.addAll;
+  final deliveredTimings = <FrameTiming>[];
+  final callback = deliveredTimings.addAll;
   SchedulerBinding.instance.addTimingsCallback(callback);
+  late final int startBoundaryMicros;
+  late final int endBoundaryMicros;
   try {
-    // Flush setup frames delivered after callback registration, then discard
-    // them before the scenario boundary starts.
-    await Future<void>.delayed(const Duration(seconds: 2));
-    timings.clear();
+    startBoundaryMicros = await _captureEngineFrameBoundary();
     final startedAt = DateTime.now().toUtc();
     final elapsed = Stopwatch()..start();
-    await binding.traceAction(() async {
-      await action();
-      // Engines may batch FrameTiming delivery for up to one second.
-      await Future<void>.delayed(const Duration(seconds: 2));
-    }, reportKey: '${scenario}_timeline');
+    await binding.traceAction(action, reportKey: '${scenario}_timeline');
     elapsed.stop();
+    final finishedAt = DateTime.now().toUtc();
+    endBoundaryMicros = await _captureEngineFrameBoundary();
+    // FrameTiming delivery may be batched. Late delivery is retained only if
+    // its engine timestamps fall wholly between the two engine-clock markers.
+    await Future<void>.delayed(const Duration(seconds: 2));
     binding.reportData!['${scenario}_window'] = <String, Object>{
       'startedAtUtc': startedAt.toIso8601String(),
-      'finishedAtUtc': DateTime.now().toUtc().toIso8601String(),
+      'finishedAtUtc': finishedAt.toIso8601String(),
       'elapsedMicros': elapsed.elapsedMicroseconds,
       'frameClock': 'engine_monotonic_microseconds',
+      'startExclusiveMicros': startBoundaryMicros,
+      'endExclusiveMicros': endBoundaryMicros,
     };
   } finally {
     SchedulerBinding.instance.removeTimingsCallback(callback);
   }
-  expect(timings, isNotEmpty, reason: '$scenario produced no FrameTiming');
+  final frames = selectFramesInsideEngineWindow(
+    samples: deliveredTimings.map(PerformanceFrameSample.fromTiming),
+    startExclusiveMicros: startBoundaryMicros,
+    endExclusiveMicros: endBoundaryMicros,
+  );
+  expect(frames, isNotEmpty, reason: '$scenario produced no in-window frames');
   binding.reportData!['${scenario}_frames'] = <String, Object>{
-    'sampleCount': timings.length,
-    'samples': <Map<String, int>>[
-      for (final timing in timings)
-        <String, int>{
-          'buildMicros': timing.buildDuration.inMicroseconds,
-          'rasterMicros': timing.rasterDuration.inMicroseconds,
-          'totalMicros': timing.totalSpan.inMicroseconds,
-          'vsyncStartMicros': timing.timestampInMicroseconds(
-            FramePhase.vsyncStart,
-          ),
-          'buildStartMicros': timing.timestampInMicroseconds(
-            FramePhase.buildStart,
-          ),
-          'rasterFinishMicros': timing.timestampInMicroseconds(
-            FramePhase.rasterFinish,
-          ),
-        },
-    ],
+    'sampleCount': frames.length,
+    'samples': frames.map((frame) => frame.toJson()).toList(growable: false),
   };
+}
+
+Future<int> _captureEngineFrameBoundary() async {
+  final boundary = Completer<int>();
+  SchedulerBinding.instance.addPostFrameCallback((_) {
+    if (!boundary.isCompleted) {
+      boundary.complete(
+        SchedulerBinding.instance.currentFrameTimeStamp.inMicroseconds,
+      );
+    }
+  });
+  SchedulerBinding.instance.scheduleFrame();
+  return boundary.future.timeout(
+    const Duration(seconds: 5),
+    onTimeout: () => throw StateError('engine_frame_boundary_timeout'),
+  );
 }
