@@ -7,6 +7,7 @@ CHAT-070은 REL-001, REL-002, CHAT-053, CHAT-062에 의해 전체 완료가 차�
 - [x] 320/390/430dp × 글자 100/150/200% × light/dark 18개 조합에서 대화 목록 행, 메시지 실패·재시도, composer, 첨부 미리보기 진입 UI를 render smoke로 확인한다. 18개 조합은 18개 golden 증거가 아니다.
 - [x] 320dp, 글자 200%, dark, 키보드 inset 280dp, 하단 safe area 16dp, 첨부 4개 조건에서 overflow 없이 입력과 action을 유지한다.
 - [x] 위 통합 조건의 golden을 저장하고 재비교한다.
+- [x] macOS와 Linux의 bundled font rasterization 차이를 각각 strict golden으로 비교한다. Linux baseline은 GitHub Actions run `39717160127`, head `9e2dfb822c6e6d4c0de3b2cc0ed3fb61a36965ab`, Ubuntu 24.04.5/Flutter 3.38.5에서 생성된 `testImage`를 시각 검토한 결과이며 SHA-256은 `8b8b9274f5c5e81a52e2adc289c3f6486ab312eede020977124023a9993f9e39`이다. 두 baseline 모두 동일한 번들 Nanum Gothic 및 Material Icons fixture를 사용한다.
 - [x] 빈 대화에서 320dp, 글자 200%, 키보드, 좌·우·하단 safe area, 실패 첨부 5개 조건을 overflow 없이 처리한다.
 - [x] 실패 첨부 제거 후 초점이 화면 FocusScope에 유실되지 않고 입력으로 이동하는지 확인한다.
 - [x] 메시지 실패 상태를 한 개의 live semantics 상태로 노출하고 재시도 action을 별도 button node로 유지한다.

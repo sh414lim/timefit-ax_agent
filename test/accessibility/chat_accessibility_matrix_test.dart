@@ -374,10 +374,12 @@ void main() {
       expect(find.bySemanticsLabel('첨부 image/png, 준비됨'), findsOneWidget);
       final Rect composer = tester.getRect(find.byType(TextField));
       expect(composer.bottom, lessThanOrEqualTo(640 - 280 - 16));
+      final String platformSuffix = Platform.isLinux ? '_linux' : '';
       await expectLater(
         find.byType(ChatScreen),
         matchesGoldenFile(
-          'goldens/chat_composer_320_text2_keyboard_attachments_dark.png',
+          'goldens/chat_composer_320_text2_keyboard_attachments_dark'
+          '$platformSuffix.png',
         ),
       );
 
