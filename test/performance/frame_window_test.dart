@@ -1,8 +1,10 @@
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/support/frame_window.dart';
 
 void main() {
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
   const before = PerformanceFrameSample(
     buildMicros: 1,
     rasterMicros: 1,
@@ -69,6 +71,52 @@ void main() {
         endExclusiveMicros: 200,
       ),
       throwsArgumentError,
+    );
+  });
+
+  test('raw system-frame markers share the FrameTiming clock', () {
+    int? adjustedStart;
+    int? adjustedEnd;
+    int? rawStart;
+    int? rawEnd;
+    binding.resetEpoch();
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      adjustedStart = binding.currentFrameTimeStamp.inMicroseconds;
+      rawStart = rawEngineFrameTimestampMicros(binding);
+    });
+    binding.handleBeginFrame(const Duration(seconds: 100));
+    binding.handleDrawFrame();
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      adjustedEnd = binding.currentFrameTimeStamp.inMicroseconds;
+      rawEnd = rawEngineFrameTimestampMicros(binding);
+    });
+    binding.handleBeginFrame(const Duration(seconds: 101));
+    binding.handleDrawFrame();
+
+    const rawFrame = PerformanceFrameSample(
+      buildMicros: 10,
+      rasterMicros: 10,
+      totalMicros: 30,
+      vsyncStartMicros: 100500000,
+      buildStartMicros: 100500010,
+      rasterFinishMicros: 100500030,
+    );
+    expect(
+      selectFramesInsideEngineWindow(
+        samples: const <PerformanceFrameSample>[rawFrame],
+        startExclusiveMicros: rawStart!,
+        endExclusiveMicros: rawEnd!,
+      ),
+      <PerformanceFrameSample>[rawFrame],
+    );
+    expect(
+      selectFramesInsideEngineWindow(
+        samples: const <PerformanceFrameSample>[rawFrame],
+        startExclusiveMicros: adjustedStart!,
+        endExclusiveMicros: adjustedEnd!,
+      ),
+      isEmpty,
+      reason: 'scheduler-adjusted timestamps are not FrameTiming markers',
     );
   });
 }

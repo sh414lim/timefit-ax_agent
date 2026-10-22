@@ -20,8 +20,9 @@ five attachment chips are visible. Reopening the connection avoids a warm
 repository instance, but it is not an OS cold-cache flush or a full app cold
 start and must not be reported as either.
 
-In profile mode each scenario brackets the action with two frames on the
-engine's monotonic clock. Delayed `FrameTiming` callbacks are accepted only
+In profile mode each scenario brackets the action with two raw system-frame
+timestamps on the same engine monotonic clock as `FrameTiming`. Delayed
+`FrameTiming` callbacks are accepted only
 when the complete frame falls strictly inside those markers; pre-action,
 post-action, and boundary-crossing frames are excluded. The report records raw
 build, raster, total, and engine-monotonic timestamps plus a VM timeline. UTC

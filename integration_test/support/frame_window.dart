@@ -1,5 +1,11 @@
 import 'dart:ui' show FramePhase, FrameTiming;
 
+import 'package:flutter/scheduler.dart';
+
+int rawEngineFrameTimestampMicros(SchedulerBinding binding) {
+  return binding.currentSystemFrameTimeStamp.inMicroseconds;
+}
+
 class PerformanceFrameSample {
   const PerformanceFrameSample({
     required this.buildMicros,

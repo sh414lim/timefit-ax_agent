@@ -273,7 +273,7 @@ Future<int> _captureEngineFrameBoundary() async {
   SchedulerBinding.instance.addPostFrameCallback((_) {
     if (!boundary.isCompleted) {
       boundary.complete(
-        SchedulerBinding.instance.currentFrameTimeStamp.inMicroseconds,
+        rawEngineFrameTimestampMicros(SchedulerBinding.instance),
       );
     }
   });
