@@ -87,9 +87,14 @@ final class AttachmentPolicy {
   static String validate(AttachmentInput input, List<int> header, int bytes) {
     if (bytes < 1 || bytes > maximumBytes)
       throw const AttachmentException(AttachmentFailure.invalidSize);
-    if (input.name.contains('/') ||
+    if (input.name.isEmpty ||
+        input.name == '.' ||
+        input.name == '..' ||
+        input.name.contains(RegExp(r'[\u0000-\u001f\u007f]')) ||
+        input.name.contains('/') ||
         input.name.contains('\\') ||
-        input.name.contains('\u0000')) {
+        input.name.contains('\u2215') ||
+        input.name.contains('\u2044')) {
       throw const AttachmentException(AttachmentFailure.unsafeName);
     }
     bool prefix(List<int> signature, [int offset = 0]) =>
