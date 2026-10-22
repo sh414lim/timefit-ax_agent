@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/theme/app_theme.dart';
 import 'package:timefit_native/features/attachments/application/attachment_download_controller.dart';
+import 'package:timefit_native/features/attachments/presentation/attachment_preview_screen.dart';
 import 'package:timefit_native/features/attachments/presentation/attachment_tile.dart';
 import 'package:timefit_native/features/chat/application/composer_controller.dart';
 import 'package:timefit_native/features/chat/application/send_message.dart';
@@ -29,6 +30,123 @@ void main() {
       ..addFont(Future<ByteData>.value(ByteData.sublistView(bytes)));
     await loader.load();
   });
+
+  testWidgets('preview error action survives 320dp 200 percent text', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 480));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final controller = AttachmentDownloadController(
+      metadata: const AttachmentPreviewMetadata(
+        attachmentId: 'attachment',
+        displayName: '긴 파일명.pdf',
+        contentType: 'application/pdf',
+      ),
+      provider: _OfflineProvider(),
+      clock: DateTime.now,
+      memoryCache: AttachmentUrlMemoryCache(),
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 480),
+            textScaler: TextScaler.linear(2),
+            padding: EdgeInsets.only(top: 24, bottom: 34, left: 16, right: 16),
+          ),
+          child: AttachmentPreviewScreen(
+            controller: controller,
+            imageRenderer: (_, _) => const SizedBox(),
+            pdfRenderer: (_, _) => const SizedBox(),
+          ),
+        ),
+      ),
+    );
+    await controller.open();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('다시 시도').hitTestable(), findsOneWidget);
+  });
+
+  for (final bool hasMessage in <bool>[false, true]) {
+    testWidgets('five attachments fit and removal retains useful focus '
+        'hasMessage=$hasMessage', (WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 640));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final source = _MutableAttachmentSource(<ComposerAttachment>[
+        for (var index = 0; index < 5; index++)
+          _attachment('f$index', ComposerAttachmentState.failed),
+      ]);
+      addTearDown(source.dispose);
+      final controller = ComposerController(
+        conversationId: 'conversation',
+        submitter: _Submitter(),
+        attachmentClientMessageId: 'aggregate',
+        attachmentSource: source,
+      );
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: _theme(Brightness.dark),
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 640),
+              textScaler: TextScaler.linear(2),
+              viewInsets: EdgeInsets.only(bottom: 280),
+              padding: EdgeInsets.only(left: 16, right: 16, bottom: 16),
+            ),
+            child: ChatScreen(
+              title: 'QA',
+              conversationId: 'conversation',
+              messages: Stream<List<ChatMessage>>.value(<ChatMessage>[
+                if (hasMessage) _message(MessageDeliveryState.failed),
+              ]),
+              composerController: controller,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ComposerAttachmentChip), findsNWidgets(5));
+      final Finder last = find.byKey(const ValueKey<String>('attachment-f4'));
+      await tester.ensureVisible(last);
+      await tester.pumpAndSettle();
+      final Finder remove = find.descendant(
+        of: last,
+        matching: find.byType(IconButton),
+      );
+      await tester.ensureVisible(remove);
+      await tester.pumpAndSettle();
+      expect(remove.hitTestable(), findsOneWidget);
+      final FocusNode removeFocus = Focus.of(
+        tester.element(
+          find.descendant(of: remove, matching: find.byIcon(Icons.close)),
+        ),
+      );
+      removeFocus.requestFocus();
+      await tester.pump();
+      expect(removeFocus.hasFocus, isTrue);
+
+      await tester.tap(remove);
+      await tester.pumpAndSettle();
+
+      expect(last, findsNothing);
+      expect(FocusManager.instance.primaryFocus, isNot(isA<FocusScopeNode>()));
+      expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText))
+            .focusNode
+            .hasFocus,
+        isTrue,
+      );
+    });
+  }
 
   for (final fixture in accessibilityFixtures) {
     testWidgets('${fixture.name} renders the shared presentation fixture', (
@@ -212,6 +330,61 @@ void main() {
       semantics.dispose();
     }
   });
+
+  testWidgets('progress byte updates keep one stable semantics status', (
+    WidgetTester tester,
+  ) async {
+    final source = _MutableAttachmentSource(<ComposerAttachment>[
+      const ComposerAttachment(
+        localId: 'uploading',
+        contentType: 'image/png',
+        state: ComposerAttachmentState.uploading,
+        bytesSent: 10,
+        bytesTotal: 100,
+      ),
+    ]);
+    addTearDown(source.dispose);
+    final controller = ComposerController(
+      conversationId: 'conversation',
+      submitter: _Submitter(),
+      attachmentClientMessageId: 'aggregate',
+      attachmentSource: source,
+    );
+    addTearDown(controller.dispose);
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: ChatComposer(controller: controller)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final Finder status = find.byKey(
+        const ValueKey<String>('attachment-status-uploading'),
+      );
+      final SemanticsNode before = tester.getSemantics(status);
+      expect(before.label, '첨부 image/png, 업로드 중');
+
+      source.emit(<ComposerAttachment>[
+        const ComposerAttachment(
+          localId: 'uploading',
+          contentType: 'image/png',
+          state: ComposerAttachmentState.uploading,
+          bytesSent: 90,
+          bytesTotal: 100,
+        ),
+      ]);
+      await tester.pump();
+      final SemanticsNode after = tester.getSemantics(status);
+
+      expect(after.id, before.id);
+      expect(after.label, before.label);
+      expect(find.bySemanticsLabel('첨부 image/png, 업로드 중'), findsOneWidget);
+      expect(after.value, isEmpty);
+    } finally {
+      semantics.dispose();
+    }
+  });
 }
 
 ChatMessage _message(MessageDeliveryState state) => ChatMessage(
@@ -250,6 +423,43 @@ final class _AttachmentSource implements AttachmentComposerSource {
   }) => Stream<List<ComposerAttachment>>.value(attachments);
 }
 
+final class _MutableAttachmentSource implements AttachmentComposerSource {
+  _MutableAttachmentSource(List<ComposerAttachment> initial)
+    : _attachments = List<ComposerAttachment>.of(initial);
+
+  final StreamController<List<ComposerAttachment>> _events =
+      StreamController<List<ComposerAttachment>>.broadcast();
+  final List<ComposerAttachment> _attachments;
+
+  void emit(List<ComposerAttachment> attachments) {
+    _attachments
+      ..clear()
+      ..addAll(attachments);
+    _events.add(List<ComposerAttachment>.unmodifiable(_attachments));
+  }
+
+  Future<void> dispose() => _events.close();
+
+  @override
+  Future<void> removeFailed({
+    required String conversationId,
+    required String clientMessageId,
+    required String localId,
+  }) async {
+    _attachments.removeWhere((attachment) => attachment.localId == localId);
+    _events.add(List<ComposerAttachment>.unmodifiable(_attachments));
+  }
+
+  @override
+  Stream<List<ComposerAttachment>> watch({
+    required String conversationId,
+    required String clientMessageId,
+  }) async* {
+    yield List<ComposerAttachment>.unmodifiable(_attachments);
+    yield* _events.stream;
+  }
+}
+
 final class _Submitter implements TextMessageSubmitter {
   @override
   Future<bool> retry(String commandId) async => true;
@@ -259,6 +469,12 @@ final class _Submitter implements TextMessageSubmitter {
     required String conversationId,
     required String bodyText,
   }) => throw UnimplementedError();
+}
+
+final class _OfflineProvider implements AttachmentUrlProvider {
+  @override
+  Future<SignedAttachmentUrl> issue({required String attachmentId}) async =>
+      throw const AttachmentUrlException(AttachmentUrlFailure.offline);
 }
 
 const String _fontFamily = 'NanumGothicAccessibilityGolden';

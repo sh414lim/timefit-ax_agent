@@ -37,6 +37,7 @@ class ComposerAttachmentChip extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             Semantics(
+              key: ValueKey<String>('attachment-status-${attachment.localId}'),
               container: true,
               liveRegion: true,
               label: '첨부 ${attachment.contentType}, $label',

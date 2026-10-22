@@ -64,6 +64,15 @@ class _ChatComposerState extends State<ChatComposer> {
     unawaited(widget.controller.submit().catchError((Object _) {}));
   }
 
+  Future<void> _removeFailedAttachment(String localId) async {
+    try {
+      await widget.controller.removeFailedAttachment(localId);
+    } on Object {
+      return;
+    }
+    if (mounted) _focusNode.requestFocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final ComposerController controller = widget.controller;
@@ -96,9 +105,7 @@ class _ChatComposerState extends State<ChatComposer> {
                           child: ComposerAttachmentChip(
                             attachment: attachment,
                             onRemoveFailed: () => unawaited(
-                              controller
-                                  .removeFailedAttachment(attachment.localId)
-                                  .catchError((Object _) {}),
+                              _removeFailedAttachment(attachment.localId),
                             ),
                           ),
                         ),
