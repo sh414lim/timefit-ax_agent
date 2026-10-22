@@ -89,6 +89,7 @@ class ConversationListController {
 
   Future<void> _synchronize({required bool showInitialLoading}) async {
     final int requestEpoch = ++_requestEpoch;
+    final int cacheRevisionAtReadStart = _cacheRevision;
     List<ConversationSummary> retained = _state.conversations;
     if (showInitialLoading) {
       _emit(const ConversationListState.loading());
@@ -103,13 +104,17 @@ class ConversationListController {
       }
       // Once the watch has emitted it is the authoritative cache snapshot.
       // A slower point-in-time read must never replace that newer state.
-      if (!localOnly &&
-          _repository is LocalConversationRepository &&
-          _cacheRevision > 0) {
+      if (_repository is LocalConversationRepository &&
+          _cacheRevision != cacheRevisionAtReadStart) {
         retained = _state.conversations;
       } else if (cached.isNotEmpty) {
         // An empty cache is not proof that the server-side list is empty. Keep
         // the in-memory result until a successful refresh confirms that state.
+        retained = cached;
+      } else if (localOnly) {
+        // With no remote source, an uncontested empty local read is also an
+        // authoritative snapshot. A concurrent watch emission is protected
+        // by the revision check above.
         retained = cached;
       }
     } on Object {
