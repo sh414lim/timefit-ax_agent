@@ -29,6 +29,9 @@ void main() {
     final FontLoader loader = FontLoader(_fontFamily)
       ..addFont(Future<ByteData>.value(ByteData.sublistView(bytes)));
     await loader.load();
+    final FontLoader materialIcons = FontLoader('MaterialIcons')
+      ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+    await materialIcons.load();
   });
 
   testWidgets('preview error action survives 320dp 200 percent text', (
@@ -314,6 +317,7 @@ void main() {
   testWidgets(
     '320dp 200 percent text keyboard and multiple attachments stay operable',
     (WidgetTester tester) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
       await tester.binding.setSurfaceSize(const Size(320, 640));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final source = _AttachmentSource(<ComposerAttachment>[
@@ -364,16 +368,35 @@ void main() {
         tester.getSize(find.byTooltip('메시지 보내기')).shortestSide,
         greaterThanOrEqualTo(44),
       );
+      expect(find.bySemanticsLabel('첨부 image/png, 대기 중'), findsOneWidget);
+      expect(find.bySemanticsLabel('첨부 image/png, 업로드 중'), findsOneWidget);
+      expect(find.bySemanticsLabel('첨부 image/png, 업로드 실패'), findsOneWidget);
+      expect(find.bySemanticsLabel('첨부 image/png, 준비됨'), findsOneWidget);
       final Rect composer = tester.getRect(find.byType(TextField));
       expect(composer.bottom, lessThanOrEqualTo(640 - 280 - 16));
-      final String platformSuffix = Platform.isLinux ? '_linux' : '';
       await expectLater(
         find.byType(ChatScreen),
         matchesGoldenFile(
-          'goldens/chat_composer_320_text2_keyboard_attachments_dark'
-          '$platformSuffix.png',
+          'goldens/chat_composer_320_text2_keyboard_attachments_dark.png',
         ),
       );
+
+      final Finder retry = find.widgetWithText(TextButton, '재시도');
+      await tester.ensureVisible(retry);
+      await tester.pumpAndSettle();
+      final Rect timeline = tester.getRect(
+        find.byKey(const ValueKey<String>('message-timeline')),
+      );
+      final Rect retryRect = tester.getRect(retry);
+      expect(timeline.contains(retryRect.topLeft), isTrue);
+      expect(timeline.contains(retryRect.bottomRight), isTrue);
+      expect(find.bySemanticsLabel('재시도'), findsOneWidget);
+
+      final Finder failedRemoval = find.byTooltip('실패한 첨부 제거');
+      await tester.ensureVisible(failedRemoval);
+      await tester.pumpAndSettle();
+      expect(failedRemoval.hitTestable(), findsOneWidget);
+      semantics.dispose();
     },
   );
 
