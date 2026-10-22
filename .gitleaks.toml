@@ -1,0 +1,12 @@
+title = "TimeFit local secret scanning"
+
+[extend]
+useDefault = true
+
+# Test-only detector. Fixtures use an unmistakably synthetic credential so
+# failure behavior can be proven without creating a real secret.
+[[rules]]
+id = "timefit-synthetic-canary"
+description = "TimeFit synthetic scanner canary"
+regex = '''TIMEFIT_SYNTHETIC_CREDENTIAL_[A-Z0-9]{24}'''
+keywords = ["TIMEFIT_SYNTHETIC_CREDENTIAL_"]
