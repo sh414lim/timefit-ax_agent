@@ -33,6 +33,10 @@ final class LocalRepositorySession {
   final _stops = <Future<void> Function()>{};
   final _writes = <Future<void>>{};
   final _databases = <AppDatabase>{};
+  final _attachmentDraftMutations = <String, Completer<void>>{};
+  final _attachmentDraftMutationChanges = StreamController<String>.broadcast(
+    sync: true,
+  );
 
   void _checkOpen() {
     if (_closed)
@@ -92,6 +96,45 @@ final class LocalRepositorySession {
             ? LocalRepositoryFailure.sessionClosed
             : LocalRepositoryFailure.readFailed,
       );
+    }
+  }
+
+  bool isAttachmentDraftMutating(String clientMessageId) =>
+      _attachmentDraftMutations.containsKey(clientMessageId);
+
+  Stream<bool> watchAttachmentDraftMutating(String clientMessageId) =>
+      Stream<bool>.multi((events) {
+        events.add(isAttachmentDraftMutating(clientMessageId));
+        final subscription = _attachmentDraftMutationChanges.stream
+            .where((changedId) => changedId == clientMessageId)
+            .listen(
+              (_) => events.add(isAttachmentDraftMutating(clientMessageId)),
+              onDone: events.close,
+            );
+        events.onCancel = subscription.cancel;
+      }).distinct();
+
+  Future<T> withAttachmentDraftMutation<T>(
+    String clientMessageId,
+    Future<T> Function() operation,
+  ) async {
+    _checkOpen();
+    final Future<void> previous =
+        _attachmentDraftMutations[clientMessageId]?.future ??
+        Future<void>.value();
+    final Completer<void> drained = Completer<void>();
+    _attachmentDraftMutations[clientMessageId] = drained;
+    _attachmentDraftMutationChanges.add(clientMessageId);
+    try {
+      await previous;
+      _checkOpen();
+      return await operation();
+    } finally {
+      if (identical(_attachmentDraftMutations[clientMessageId], drained)) {
+        _attachmentDraftMutations.remove(clientMessageId);
+        _attachmentDraftMutationChanges.add(clientMessageId);
+      }
+      drained.complete();
     }
   }
 
@@ -170,7 +213,9 @@ final class LocalRepositorySession {
     await Future.wait([
       ..._stops.toList().map((stop) => stop()),
       ..._writes.toList(),
+      ..._attachmentDraftMutations.values.map((entry) => entry.future),
     ]);
+    await _attachmentDraftMutationChanges.close();
     // Callers may purge only after this future completes. Writes already
     // committing have drained; writes interrupted in the callback rolled back.
   }

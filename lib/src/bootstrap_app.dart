@@ -17,12 +17,14 @@ class TimeFitBootstrapApp extends StatelessWidget {
   const TimeFitBootstrapApp({
     required this.environment,
     this.devDatabaseFactory = openDevChatDatabase,
+    this.devAttachmentRootFactory = openDevAttachmentRoot,
     this.devDisposalObserver,
     super.key,
   });
 
   final AppEnvironment environment;
   final DevChatDatabaseFactory devDatabaseFactory;
+  final DevAttachmentRootFactory devAttachmentRootFactory;
   final DevChatDisposalObserver? devDisposalObserver;
 
   @override
@@ -30,6 +32,7 @@ class TimeFitBootstrapApp extends StatelessWidget {
     return TimeFitApp(
       environment: environment,
       devDatabaseFactory: devDatabaseFactory,
+      devAttachmentRootFactory: devAttachmentRootFactory,
       devDisposalObserver: devDisposalObserver,
     );
   }

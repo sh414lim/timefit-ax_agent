@@ -19,6 +19,9 @@ class ChatScreen extends StatefulWidget {
     this.composerController,
     this.historyController,
     this.onBack,
+    this.onAddAttachment,
+    this.onRemoveQueuedAttachment,
+    this.isSelectingAttachments = false,
     super.key,
   }) : repository = null;
 
@@ -31,6 +34,9 @@ class ChatScreen extends StatefulWidget {
     this.composerController,
     this.historyController,
     this.onBack,
+    this.onAddAttachment,
+    this.onRemoveQueuedAttachment,
+    this.isSelectingAttachments = false,
     super.key,
   }) : messages = null;
 
@@ -43,6 +49,9 @@ class ChatScreen extends StatefulWidget {
   final ComposerController? composerController;
   final HistoryController? historyController;
   final VoidCallback? onBack;
+  final VoidCallback? onAddAttachment;
+  final Future<void> Function(String localId)? onRemoveQueuedAttachment;
+  final bool isSelectingAttachments;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -109,7 +118,12 @@ class _ChatScreenState extends State<ChatScreen> {
           children: <Widget>[
             Expanded(child: _buildBody()),
             if (widget.status == ChatScreenStatus.ready && composer != null)
-              ChatComposer(controller: composer),
+              ChatComposer(
+                controller: composer,
+                onAddAttachment: widget.onAddAttachment,
+                onRemoveQueuedAttachment: widget.onRemoveQueuedAttachment,
+                isSelectingAttachments: widget.isSelectingAttachments,
+              ),
           ],
         ),
       ),

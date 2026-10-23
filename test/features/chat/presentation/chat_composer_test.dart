@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/core/database/app_database.dart';
+import 'package:timefit_native/core/database/local_repository_session.dart';
 import 'package:timefit_native/features/chat/application/composer_controller.dart';
 import 'package:timefit_native/features/chat/application/send_message.dart';
 import 'package:timefit_native/features/chat/domain/chat_message.dart';
@@ -33,6 +34,90 @@ void main() {
     await tester.enterText(find.byType(TextField), 'a' * 10000);
     await tester.pump();
     expect(find.text('10000/12000'), findsOneWidget);
+    expect(_sendButton(tester).onPressed, isNotNull);
+  });
+
+  testWidgets('send is disabled while a private attachment copy is pending', (
+    WidgetTester tester,
+  ) async {
+    final _FakeSubmitter submitter = _FakeSubmitter();
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      submitter: submitter,
+    );
+    addTearDown(controller.dispose);
+    controller.updateDraft('body');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ChatComposer(
+            controller: controller,
+            isSelectingAttachments: true,
+            onAddAttachment: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(_sendButton(tester).onPressed, isNull);
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.send));
+    await tester.pump();
+    expect(submitter.submitCalls, 0);
+  });
+
+  testWidgets('draft mutation unlock refreshes send without another edit', (
+    WidgetTester tester,
+  ) async {
+    final LocalRepositorySession session = LocalRepositorySession();
+    addTearDown(session.dispose);
+    final _MutationAttachmentSource source = _MutationAttachmentSource(session);
+    addTearDown(source.close);
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      attachmentClientMessageId: 'draft',
+      attachmentSource: source,
+      submitter: _FakeSubmitter(),
+    );
+    addTearDown(controller.dispose);
+    controller.updateDraft('body');
+    final Completer<void> release = Completer<void>();
+    Future<void>? removal;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ChatComposer(
+            controller: controller,
+            onRemoveQueuedAttachment: (_) {
+              removal = session.withAttachmentDraftMutation('draft', () async {
+                source.events.add(const <ComposerAttachment>[]);
+                await release.future;
+              });
+              return removal!;
+            },
+          ),
+        ),
+      ),
+    );
+    source.events.add(const <ComposerAttachment>[
+      ComposerAttachment(
+        localId: 'local',
+        contentType: 'application/pdf',
+        state: ComposerAttachmentState.queued,
+        bytesSent: 0,
+        bytesTotal: 8,
+      ),
+    ]);
+    await tester.pump();
+    await tester.tap(find.byTooltip('로컬 첨부 제거'));
+    await tester.pump();
+    expect(_sendButton(tester).onPressed, isNull);
+
+    release.complete();
+    await removal;
+    await tester.pump();
+    await tester.pump();
+
+    expect(controller.canSubmit, isTrue);
     expect(_sendButton(tester).onPressed, isNotNull);
   });
 
@@ -504,6 +589,28 @@ void main() {
     expect(find.text('new draft'), findsOneWidget);
   });
 
+  test(
+    'empty attachment draft does not freeze later text submissions',
+    () async {
+      final _FakeSubmitter submitter = _FakeSubmitter();
+      final ComposerController controller = ComposerController(
+        conversationId: 'conversation',
+        attachmentClientMessageId: 'attachment-draft',
+        attachmentSource: const _EmptyAttachmentSource(),
+        submitter: submitter,
+      );
+      addTearDown(controller.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      controller.updateDraft('first');
+      await controller.submit();
+      controller.updateDraft('second');
+      await controller.submit();
+
+      expect(submitter.submitCalls, 2);
+    },
+  );
+
   test('composer retry requeues the existing outbox identity', () async {
     final DateTime now = DateTime.utc(2026, 10, 20);
     final AppDatabase database = AppDatabase(NativeDatabase.memory());
@@ -599,4 +706,48 @@ final class _FailOnceRetrySubmitter implements TextMessageSubmitter {
     required String conversationId,
     required String bodyText,
   }) => throw UnimplementedError();
+}
+
+final class _EmptyAttachmentSource implements AttachmentComposerSource {
+  const _EmptyAttachmentSource();
+
+  @override
+  Future<void> removeFailed({
+    required String conversationId,
+    required String clientMessageId,
+    required String localId,
+  }) async {}
+
+  @override
+  Stream<List<ComposerAttachment>> watch({
+    required String conversationId,
+    required String clientMessageId,
+  }) => Stream<List<ComposerAttachment>>.value(const <ComposerAttachment>[]);
+}
+
+final class _MutationAttachmentSource
+    implements AttachmentComposerSource, AttachmentDraftMutationState {
+  _MutationAttachmentSource(this.session);
+
+  final LocalRepositorySession session;
+  final StreamController<List<ComposerAttachment>> events =
+      StreamController<List<ComposerAttachment>>();
+
+  bool isAttachmentDraftMutating(String clientMessageId) =>
+      session.isAttachmentDraftMutating(clientMessageId);
+
+  Future<void> close() => events.close();
+
+  @override
+  Future<void> removeFailed({
+    required String conversationId,
+    required String clientMessageId,
+    required String localId,
+  }) async {}
+
+  @override
+  Stream<List<ComposerAttachment>> watch({
+    required String conversationId,
+    required String clientMessageId,
+  }) => events.stream;
 }

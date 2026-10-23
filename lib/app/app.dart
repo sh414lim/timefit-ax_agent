@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/attachments/application/attachment_picker.dart';
 import '../src/app_environment.dart';
 import 'dev_chat_shell.dart';
 import 'router.dart';
@@ -10,12 +11,16 @@ class TimeFitApp extends StatefulWidget {
   const TimeFitApp({
     required this.environment,
     this.devDatabaseFactory = openDevChatDatabase,
+    this.devAttachmentRootFactory = openDevAttachmentRoot,
+    this.devAttachmentPicker,
     this.devDisposalObserver,
     super.key,
   });
 
   final AppEnvironment environment;
   final DevChatDatabaseFactory devDatabaseFactory;
+  final DevAttachmentRootFactory devAttachmentRootFactory;
+  final AttachmentPicker? devAttachmentPicker;
   final DevChatDisposalObserver? devDisposalObserver;
 
   @override
@@ -50,6 +55,8 @@ class _TimeFitAppState extends State<TimeFitApp> {
         title: widget.environment.displayName,
         home: DevChatShell(
           databaseFactory: widget.devDatabaseFactory,
+          attachmentRootFactory: widget.devAttachmentRootFactory,
+          attachmentPicker: widget.devAttachmentPicker,
           disposalObserver: widget.devDisposalObserver,
         ),
       );

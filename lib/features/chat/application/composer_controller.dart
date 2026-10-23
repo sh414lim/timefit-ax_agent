@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'send_message.dart';
 
@@ -38,6 +39,12 @@ final class ComposerController extends ChangeNotifier {
               _notify();
             },
           );
+      if (attachmentSource is AttachmentDraftMutationEvents) {
+        _attachmentMutationSubscription =
+            (attachmentSource as AttachmentDraftMutationEvents)
+                .watchAttachmentDraftMutating(attachmentClientMessageId!)
+                .listen((_) => _notify());
+      }
     }
   }
 
@@ -49,6 +56,8 @@ final class ComposerController extends ChangeNotifier {
   final String? attachmentClientMessageId;
   final AttachmentComposerSource? _attachmentSource;
   StreamSubscription<List<ComposerAttachment>>? _attachmentSubscription;
+  StreamSubscription<bool>? _attachmentMutationSubscription;
+  bool _attachmentMutationFallbackScheduled = false;
 
   String _draft = '';
   int _draftVersion = 0;
@@ -73,14 +82,24 @@ final class ComposerController extends ChangeNotifier {
   bool get hasFailedAttachment => attachments.any(
     (attachment) => attachment.state == ComposerAttachmentState.failed,
   );
-  bool get canSubmit =>
-      conversationId.isNotEmpty &&
-      characterCount <= maximumLength &&
-      !_aggregateSubmitted &&
-      (attachmentClientMessageId == null || _attachmentsLoaded) &&
-      !hasFailedAttachment &&
-      (normalizeLocalTextBody(_draft).trim().isNotEmpty ||
-          attachments.isNotEmpty);
+  bool get canSubmit {
+    final bool attachmentDraftMutating =
+        _attachmentSource is AttachmentDraftMutationState &&
+        (_attachmentSource as AttachmentDraftMutationState)
+            .isAttachmentDraftMutating(attachmentClientMessageId!);
+    if (attachmentDraftMutating &&
+        _attachmentSource is! AttachmentDraftMutationEvents) {
+      _scheduleAttachmentMutationFallback();
+    }
+    return conversationId.isNotEmpty &&
+        characterCount <= maximumLength &&
+        !_aggregateSubmitted &&
+        !attachmentDraftMutating &&
+        (attachmentClientMessageId == null || _attachmentsLoaded) &&
+        !hasFailedAttachment &&
+        (normalizeLocalTextBody(_draft).trim().isNotEmpty ||
+            attachments.isNotEmpty);
+  }
 
   void updateDraft(String value) {
     if (_draft == value) return;
@@ -96,30 +115,26 @@ final class ComposerController extends ChangeNotifier {
 
     final String submittedDraft = _draft;
     final int submittedVersion = _draftVersion;
+    bool submittedWithAttachments = false;
     _lastError = null;
 
     late final Future<void> operation;
     operation =
         Future<Object>.sync(() {
-              if (attachments.isEmpty) {
-                return _submitter.submit(
-                  conversationId: conversationId,
-                  bodyText: submittedDraft,
-                );
+              final source = _attachmentSource;
+              if (source is AttachmentDraftSnapshotSource) {
+                return (source as AttachmentDraftSnapshotSource)
+                    .withStableAttachmentDraftSnapshot(
+                      conversationId: conversationId,
+                      clientMessageId: attachmentClientMessageId!,
+                      operation: (snapshot) {
+                        submittedWithAttachments = snapshot.isNotEmpty;
+                        return _submitSnapshot(submittedDraft, snapshot);
+                      },
+                    );
               }
-              final submitter = _submitter;
-              if (submitter is! AttachmentMessageSubmitter) {
-                throw StateError('Attachment submission is unavailable');
-              }
-              return (submitter as AttachmentMessageSubmitter)
-                  .submitWithAttachments(
-                    clientMessageId: attachmentClientMessageId!,
-                    conversationId: conversationId,
-                    bodyText: submittedDraft,
-                    localAttachmentIds: attachments
-                        .map((attachment) => attachment.localId)
-                        .toList(growable: false),
-                  );
+              submittedWithAttachments = attachments.isNotEmpty;
+              return _submitSnapshot(submittedDraft, attachments);
             })
             .then<void>(
               (_) {
@@ -128,7 +143,7 @@ final class ComposerController extends ChangeNotifier {
                   _draft = '';
                   _draftVersion += 1;
                 }
-                if (attachmentClientMessageId != null) {
+                if (submittedWithAttachments) {
                   _aggregateSubmitted = true;
                 }
               },
@@ -147,6 +162,45 @@ final class ComposerController extends ChangeNotifier {
     _activeSubmit = operation;
     _notify();
     return operation;
+  }
+
+  Future<Object> _submitSnapshot(
+    String submittedDraft,
+    List<ComposerAttachment> snapshot,
+  ) {
+    if (snapshot.isEmpty) {
+      return _submitter.submit(
+        conversationId: conversationId,
+        bodyText: submittedDraft,
+      );
+    }
+    final submitter = _submitter;
+    if (submitter is! AttachmentMessageSubmitter) {
+      throw StateError('Attachment submission is unavailable');
+    }
+    return (submitter as AttachmentMessageSubmitter).submitWithAttachments(
+      clientMessageId: attachmentClientMessageId!,
+      conversationId: conversationId,
+      bodyText: submittedDraft,
+      localAttachmentIds: snapshot
+          .map((attachment) => attachment.localId)
+          .toList(growable: false),
+    );
+  }
+
+  void _scheduleAttachmentMutationFallback() {
+    if (_attachmentMutationFallbackScheduled || _disposed) return;
+    _attachmentMutationFallbackScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _attachmentMutationFallbackScheduled = false;
+      if (_disposed) return;
+      if ((_attachmentSource as AttachmentDraftMutationState)
+          .isAttachmentDraftMutating(attachmentClientMessageId!)) {
+        _scheduleAttachmentMutationFallback();
+        return;
+      }
+      _notify();
+    });
   }
 
   Future<void> removeFailedAttachment(String localId) async {
@@ -185,6 +239,7 @@ final class ComposerController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     unawaited(_attachmentSubscription?.cancel());
+    unawaited(_attachmentMutationSubscription?.cancel());
     super.dispose();
   }
 }
@@ -217,5 +272,21 @@ abstract interface class AttachmentComposerSource {
     required String conversationId,
     required String clientMessageId,
     required String localId,
+  });
+}
+
+abstract interface class AttachmentDraftMutationState {
+  bool isAttachmentDraftMutating(String clientMessageId);
+}
+
+abstract interface class AttachmentDraftMutationEvents {
+  Stream<bool> watchAttachmentDraftMutating(String clientMessageId);
+}
+
+abstract interface class AttachmentDraftSnapshotSource {
+  Future<T> withStableAttachmentDraftSnapshot<T>({
+    required String conversationId,
+    required String clientMessageId,
+    required Future<T> Function(List<ComposerAttachment> attachments) operation,
   });
 }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,10 +12,17 @@ void main() {
     WidgetTester tester,
   ) async {
     var disposalComplete = false;
+    final Directory? attachmentRoot = await tester.runAsync(
+      () => Directory.systemTemp.createTemp('timefit-smoke-attachments-'),
+    );
+    if (attachmentRoot == null) {
+      throw StateError('temp_directory_unavailable');
+    }
     await tester.pumpWidget(
       TimeFitBootstrapApp(
         environment: AppEnvironment.dev,
         devDatabaseFactory: () async => AppDatabase(NativeDatabase.memory()),
+        devAttachmentRootFactory: () async => attachmentRoot,
         devDisposalObserver: (future) {
           future.whenComplete(() => disposalComplete = true);
         },
@@ -32,5 +41,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
     }
     expect(disposalComplete, isTrue);
+    await tester.runAsync(() => attachmentRoot.delete(recursive: true));
   });
 }

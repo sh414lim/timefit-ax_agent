@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/native.dart';
@@ -5,7 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/app.dart';
 import 'package:timefit_native/core/database/app_database.dart';
+import 'package:timefit_native/features/attachments/application/attachment_picker.dart';
+import 'package:timefit_native/features/attachments/domain/attachment_policy.dart';
+import 'package:timefit_native/features/conversations/presentation/widgets/conversation_list_row.dart';
 import 'package:timefit_native/src/app_environment.dart';
+
+const List<int> _pdfFixture = <int>[37, 80, 68, 70, 45, 49, 46, 55];
 
 void main() {
   testWidgets('staging keeps placeholder and never opens the dev database', (
@@ -52,12 +58,15 @@ void main() {
           TimeFitApp(
             environment: AppEnvironment.dev,
             devDatabaseFactory: openDatabase,
+            devAttachmentRootFactory: () =>
+                Directory('${sandbox.path}/attachments').create(),
             devDisposalObserver: (future) {
               future.whenComplete(() => disposalComplete = true);
             },
           ),
         );
         await _settleFileIo(tester);
+        await _pumpUntilFinder(tester, find.text('새 대화 시작'));
 
         expect(find.text('개발용 로컬 모드 · 로그인/서버 연결 없음'), findsOneWidget);
         expect(
@@ -115,6 +124,8 @@ void main() {
           TimeFitApp(
             environment: AppEnvironment.dev,
             devDatabaseFactory: openDatabase,
+            devAttachmentRootFactory: () =>
+                Directory('${sandbox.path}/attachments').create(),
             devDisposalObserver: (future) {
               future.whenComplete(() => disposalComplete = true);
             },
@@ -125,7 +136,7 @@ void main() {
         expect(find.text('새 대화'), findsNWidgets(2));
         expect(find.text('재시작 뒤에도 남는 메시지'), findsOneWidget);
 
-        await tester.tap(find.text('새 대화').first);
+        await tester.tap(find.byType(ConversationListRow).first);
         await _settleFileIo(tester);
         expect(find.text('재시작 뒤에도 남는 메시지'), findsOneWidget);
         expect(find.text('전송 대기 중'), findsOneWidget);
@@ -171,6 +182,8 @@ void main() {
           TimeFitApp(
             environment: AppEnvironment.dev,
             devDatabaseFactory: openDatabase,
+            devAttachmentRootFactory: () =>
+                Directory('${sandbox.path}/attachments').create(),
             devDisposalObserver: (future) {
               future.whenComplete(() => disposalComplete = true);
             },
@@ -181,6 +194,7 @@ void main() {
 
       try {
         await mount();
+        await _pumpUntilFinder(tester, find.text('새 대화 시작'));
         await tester.tap(find.text('새 대화 시작'));
         await _settleFileIo(tester);
         await tester.tap(find.byType(BackButton));
@@ -231,6 +245,7 @@ void main() {
         await _pumpUntil(tester, () => disposalComplete);
         disposalComplete = false;
         await mount();
+        await _pumpUntilFinder(tester, find.text('보관된 대화'));
         await tester.tap(find.text('보관된 대화'));
         await _settleFileIo(tester);
         expect(find.text('로컬 이름'), findsOneWidget);
@@ -251,6 +266,279 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );
+
+  testWidgets(
+    'dev picker cancellation, private draft restore, removal, and barrier',
+    (WidgetTester tester) async {
+      final Directory? sandbox = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('timefit-dev-picker-'),
+      );
+      if (sandbox == null) throw StateError('temp_directory_unavailable');
+      final File databaseFile = File('${sandbox.path}/chat.sqlite');
+      final Directory attachmentRoot = Directory('${sandbox.path}/attachments');
+      final List<AppDatabase> openedDatabases = <AppDatabase>[];
+      AppDatabase? openedDatabase;
+      var disposalComplete = false;
+      final _FakeAttachmentPicker picker = _FakeAttachmentPicker(
+        <List<AttachmentInput>?>[
+          null,
+          <AttachmentInput>[_pdfInput()],
+          <AttachmentInput>[_pdfInput()],
+          <AttachmentInput>[_pdfInput()],
+        ],
+      );
+
+      Future<AppDatabase> openDatabase() async {
+        final AppDatabase database = AppDatabase(NativeDatabase(databaseFile));
+        openedDatabase = database;
+        openedDatabases.add(database);
+        return database;
+      }
+
+      Future<void> mount() async {
+        await tester.pumpWidget(
+          TimeFitApp(
+            environment: AppEnvironment.dev,
+            devDatabaseFactory: openDatabase,
+            devAttachmentRootFactory: () => attachmentRoot.create(),
+            devAttachmentPicker: picker,
+            devDisposalObserver: (Future<void> future) {
+              future.whenComplete(() => disposalComplete = true);
+            },
+          ),
+        );
+        await _settleFileIo(tester);
+      }
+
+      Future<void> pickFile() async {
+        await tester.tap(find.byTooltip('첨부 추가'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('파일 선택'));
+        await _settleFileIo(tester);
+      }
+
+      try {
+        await mount();
+        await _pumpUntilFinder(tester, find.text('새 대화 시작'));
+        await tester.tap(find.text('새 대화 시작'));
+        await _settleFileIo(tester);
+        await _pumpUntilFinder(tester, find.byTooltip('첨부 추가'));
+
+        await pickFile();
+        expect(
+          await _runFileIo(
+            tester,
+            () =>
+                openedDatabase!.select(openedDatabase!.localAttachments).get(),
+          ),
+          isEmpty,
+        );
+
+        await pickFile();
+        await _waitForAttachmentCount(tester, openedDatabase!, 1);
+        final List<LocalAttachment> selected = await _runFileIo(
+          tester,
+          () => openedDatabase!.select(openedDatabase!.localAttachments).get(),
+        );
+        expect(selected, hasLength(1));
+        expect(selected.single.uploadState, 'queued');
+        expect(selected.single.attachmentId, isNull);
+        expect(find.textContaining('로컬 준비됨 · 서버 업로드 안 됨'), findsOneWidget);
+        final File privateCopy = File.fromUri(
+          Uri.parse(selected.single.localFileUri!),
+        );
+        expect(await _runFileIo(tester, privateCopy.exists), isTrue);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _pumpUntil(tester, () => disposalComplete);
+        disposalComplete = false;
+        await mount();
+        await _pumpUntilFinder(tester, find.byType(ConversationListRow));
+        await tester.tap(find.byType(ConversationListRow).first);
+        await _settleFileIo(tester);
+        await _pumpUntilFinder(tester, find.byTooltip('첨부 추가'));
+        expect(
+          await _runFileIo(
+            tester,
+            () =>
+                openedDatabase!.select(openedDatabase!.localAttachments).get(),
+          ),
+          hasLength(1),
+        );
+        await _pumpUntilFinder(
+          tester,
+          find.textContaining('로컬 준비됨 · 서버 업로드 안 됨'),
+        );
+        expect(await _runFileIo(tester, privateCopy.readAsBytes), _pdfFixture);
+
+        await tester.tap(find.byTooltip('로컬 첨부 제거'));
+        await _settleFileIo(tester);
+        expect(
+          await _runFileIo(
+            tester,
+            () =>
+                openedDatabase!.select(openedDatabase!.localAttachments).get(),
+          ),
+          isEmpty,
+        );
+        await _waitForFileExistence(tester, privateCopy, false);
+
+        await pickFile();
+        await _waitForAttachmentCount(tester, openedDatabase!, 1);
+        await tester.enterText(find.byType(TextField), '첨부 로컬 대기');
+        await tester.pump();
+        await tester.tap(find.byTooltip('메시지 보내기'));
+        await _settleFileIo(tester);
+        final List<LocalAttachment> queued = await _runFileIo(
+          tester,
+          () => openedDatabase!.select(openedDatabase!.localAttachments).get(),
+        );
+        final outbox = await _runFileIo(
+          tester,
+          () => openedDatabase!.outboxDao.getAll(),
+        );
+        expect(queued, hasLength(1));
+        expect(queued.single.uploadState, 'queued');
+        expect(queued.single.attachmentId, isNull);
+        expect(outbox, hasLength(1));
+        expect(outbox.single.commandType, 'local_send_message_v2');
+        expect(outbox.single.state, 'queued');
+        final String submittedPayload = outbox.single.payloadJson;
+
+        await pickFile();
+        await _settleFileIo(tester);
+        expect(
+          await _runFileIo(
+            tester,
+            () =>
+                openedDatabase!.select(openedDatabase!.localAttachments).get(),
+          ),
+          hasLength(1),
+        );
+        expect(
+          (await _runFileIo(
+            tester,
+            () => openedDatabase!.outboxDao.getAll(),
+          )).single.payloadJson,
+          submittedPayload,
+        );
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _pumpUntil(tester, () => disposalComplete);
+        await tester.runAsync(() async {
+          for (final AppDatabase database in openedDatabases) {
+            try {
+              await database.close();
+            } on Object {
+              // The shell normally closed it first.
+            }
+          }
+          await sandbox.delete(recursive: true);
+        });
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  testWidgets('late picker result is discarded after shell disposal', (
+    WidgetTester tester,
+  ) async {
+    final Directory? sandbox = await tester.runAsync(
+      () => Directory.systemTemp.createTemp('timefit-dev-picker-dispose-'),
+    );
+    if (sandbox == null) throw StateError('temp_directory_unavailable');
+    final File databaseFile = File('${sandbox.path}/chat.sqlite');
+    final Directory attachmentRoot = Directory('${sandbox.path}/attachments');
+    final _PendingAttachmentPicker picker = _PendingAttachmentPicker();
+    var disposalComplete = false;
+
+    try {
+      await tester.pumpWidget(
+        TimeFitApp(
+          environment: AppEnvironment.dev,
+          devDatabaseFactory: () async =>
+              AppDatabase(NativeDatabase(databaseFile)),
+          devAttachmentRootFactory: () => attachmentRoot.create(),
+          devAttachmentPicker: picker,
+          devDisposalObserver: (Future<void> future) {
+            future.whenComplete(() => disposalComplete = true);
+          },
+        ),
+      );
+      await _settleFileIo(tester);
+      await _pumpUntilFinder(tester, find.text('새 대화 시작'));
+      await tester.tap(find.text('새 대화 시작'));
+      await _settleFileIo(tester);
+      await _pumpUntilFinder(tester, find.byTooltip('첨부 추가'));
+      await tester.tap(find.byTooltip('첨부 추가'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('파일 선택'));
+      await tester.pump();
+      expect(picker.calls, 1);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _pumpUntil(tester, () => disposalComplete);
+      picker.complete(<AttachmentInput>[_pdfInput()]);
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+
+      final AppDatabase reopened = AppDatabase(NativeDatabase(databaseFile));
+      try {
+        expect(
+          await _runFileIo(
+            tester,
+            () => reopened.select(reopened.localAttachments).get(),
+          ),
+          isEmpty,
+        );
+      } finally {
+        await reopened.close();
+      }
+      expect(
+        await _runFileIo(tester, () => attachmentRoot.list().toList()),
+        isEmpty,
+      );
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.runAsync(() async {
+        if (await sandbox.exists()) await sandbox.delete(recursive: true);
+      });
+    }
+  });
+}
+
+AttachmentInput _pdfInput() => AttachmentInput(
+  name: 'synthetic.pdf',
+  declaredMime: 'application/pdf',
+  openRead: () => Stream<List<int>>.value(_pdfFixture),
+);
+
+final class _FakeAttachmentPicker implements AttachmentPicker {
+  _FakeAttachmentPicker(this.results);
+
+  final List<List<AttachmentInput>?> results;
+  var calls = 0;
+
+  @override
+  Future<List<AttachmentInput>?> pick(AttachmentPickerKind kind) async {
+    calls += 1;
+    return results.removeAt(0);
+  }
+}
+
+final class _PendingAttachmentPicker implements AttachmentPicker {
+  final Completer<List<AttachmentInput>?> _result =
+      Completer<List<AttachmentInput>?>();
+  var calls = 0;
+
+  void complete(List<AttachmentInput>? value) => _result.complete(value);
+
+  @override
+  Future<List<AttachmentInput>?> pick(AttachmentPickerKind kind) {
+    calls += 1;
+    return _result.future;
+  }
 }
 
 Future<void> _settleFileIo(WidgetTester tester) async {
@@ -269,12 +557,54 @@ Future<T> _runFileIo<T>(
   return result as T;
 }
 
-Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {
-  for (var attempt = 0; attempt < 20 && !condition(); attempt += 1) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 1)),
+Future<void> _waitForAttachmentCount(
+  WidgetTester tester,
+  AppDatabase database,
+  int expected,
+) async {
+  for (var attempt = 0; attempt < 40; attempt += 1) {
+    final int count = await _runFileIo(
+      tester,
+      () async =>
+          (await database.select(database.localAttachments).get()).length,
     );
-    await tester.pump(const Duration(milliseconds: 1));
+    if (count == expected) return;
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pump(const Duration(milliseconds: 10));
+  }
+  expect(
+    await _runFileIo(
+      tester,
+      () async =>
+          (await database.select(database.localAttachments).get()).length,
+    ),
+    expected,
+  );
+}
+
+Future<void> _waitForFileExistence(
+  WidgetTester tester,
+  File file,
+  bool expected,
+) async {
+  for (var attempt = 0; attempt < 40; attempt += 1) {
+    if (await _runFileIo(tester, file.exists) == expected) return;
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pump(const Duration(milliseconds: 10));
+  }
+  expect(await _runFileIo(tester, file.exists), expected);
+}
+
+Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {
+  for (var attempt = 0; attempt < 100 && !condition(); attempt += 1) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pump(const Duration(milliseconds: 10));
   }
   expect(condition(), isTrue);
 }
