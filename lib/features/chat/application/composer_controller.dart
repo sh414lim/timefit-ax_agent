@@ -77,6 +77,9 @@ final class ComposerController extends ChangeNotifier {
       conversationId.isNotEmpty &&
       characterCount <= maximumLength &&
       !_aggregateSubmitted &&
+      !(_attachmentSource is AttachmentDraftMutationState &&
+          (_attachmentSource as AttachmentDraftMutationState)
+              .isAttachmentDraftMutating(attachmentClientMessageId!)) &&
       (attachmentClientMessageId == null || _attachmentsLoaded) &&
       !hasFailedAttachment &&
       (normalizeLocalTextBody(_draft).trim().isNotEmpty ||
@@ -219,4 +222,8 @@ abstract interface class AttachmentComposerSource {
     required String clientMessageId,
     required String localId,
   });
+}
+
+abstract interface class AttachmentDraftMutationState {
+  bool isAttachmentDraftMutating(String clientMessageId);
 }

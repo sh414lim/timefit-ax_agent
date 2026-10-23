@@ -69,4 +69,53 @@ void main() {
       await subscription.cancel();
     },
   );
+
+  test(
+    'attachment mutation boundary releases after success and failure',
+    () async {
+      final LocalRepositorySession session = LocalRepositorySession();
+      addTearDown(session.dispose);
+
+      await session.withAttachmentDraftMutation('draft', () async {});
+      expect(session.isAttachmentDraftMutating('draft'), isFalse);
+
+      await expectLater(
+        session.withAttachmentDraftMutation<void>(
+          'draft',
+          () => Future<void>.error(StateError('copy_failed')),
+        ),
+        throwsStateError,
+      );
+      expect(session.isAttachmentDraftMutating('draft'), isFalse);
+    },
+  );
+
+  test(
+    'dispose waits for attachment mutation and leaves no active lock',
+    () async {
+      final LocalRepositorySession session = LocalRepositorySession();
+      final Completer<void> started = Completer<void>();
+      final Completer<void> release = Completer<void>();
+      final Future<void> mutation = session.withAttachmentDraftMutation(
+        'draft',
+        () {
+          started.complete();
+          return release.future;
+        },
+      );
+      await started.future;
+      expect(session.isAttachmentDraftMutating('draft'), isTrue);
+
+      var disposed = false;
+      final Future<void> disposal = session.dispose().then(
+        (_) => disposed = true,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(disposed, isFalse);
+      release.complete();
+      await mutation;
+      await disposal;
+      expect(session.isAttachmentDraftMutating('draft'), isFalse);
+    },
+  );
 }

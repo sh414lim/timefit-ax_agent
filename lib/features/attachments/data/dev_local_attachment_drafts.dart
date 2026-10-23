@@ -54,6 +54,21 @@ final class DevLocalAttachmentDrafts {
     required String clientMessageId,
     required List<AttachmentInput>? inputs,
     AttachmentCancellation? cancellation,
+  }) => _session.withAttachmentDraftMutation(
+    clientMessageId,
+    () => _add(
+      conversationId: conversationId,
+      clientMessageId: clientMessageId,
+      inputs: inputs,
+      cancellation: cancellation,
+    ),
+  );
+
+  Future<List<PrivateAttachment>> _add({
+    required String conversationId,
+    required String clientMessageId,
+    required List<AttachmentInput>? inputs,
+    AttachmentCancellation? cancellation,
   }) async {
     await _ensureUnsubmitted(clientMessageId);
     final int existingCount = await _count(
@@ -112,6 +127,19 @@ final class DevLocalAttachmentDrafts {
   }
 
   Future<void> remove({
+    required String conversationId,
+    required String clientMessageId,
+    required String localId,
+  }) => _session.withAttachmentDraftMutation(
+    clientMessageId,
+    () => _remove(
+      conversationId: conversationId,
+      clientMessageId: clientMessageId,
+      localId: localId,
+    ),
+  );
+
+  Future<void> _remove({
     required String conversationId,
     required String clientMessageId,
     required String localId,

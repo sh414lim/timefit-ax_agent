@@ -7,7 +7,8 @@ import 'send_message.dart';
 
 /// Local-only composer membership backed by Drift. Removing a failed chip
 /// excludes it from the logical message without deleting its private file.
-final class DriftAttachmentComposerSource implements AttachmentComposerSource {
+final class DriftAttachmentComposerSource
+    implements AttachmentComposerSource, AttachmentDraftMutationState {
   DriftAttachmentComposerSource({
     required AppDatabase database,
     required DateTime Function() clock,
@@ -19,6 +20,10 @@ final class DriftAttachmentComposerSource implements AttachmentComposerSource {
   final AppDatabase _database;
   final DateTime Function() _clock;
   final LocalRepositorySession _session;
+
+  @override
+  bool isAttachmentDraftMutating(String clientMessageId) =>
+      _session.isAttachmentDraftMutating(clientMessageId);
 
   @override
   Stream<List<ComposerAttachment>> watch({

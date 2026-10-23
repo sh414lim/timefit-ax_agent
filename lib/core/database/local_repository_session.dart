@@ -33,6 +33,7 @@ final class LocalRepositorySession {
   final _stops = <Future<void> Function()>{};
   final _writes = <Future<void>>{};
   final _databases = <AppDatabase>{};
+  final _attachmentDraftMutations = <String, Completer<void>>{};
 
   void _checkOpen() {
     if (_closed)
@@ -92,6 +93,31 @@ final class LocalRepositorySession {
             ? LocalRepositoryFailure.sessionClosed
             : LocalRepositoryFailure.readFailed,
       );
+    }
+  }
+
+  bool isAttachmentDraftMutating(String clientMessageId) =>
+      _attachmentDraftMutations.containsKey(clientMessageId);
+
+  Future<T> withAttachmentDraftMutation<T>(
+    String clientMessageId,
+    Future<T> Function() operation,
+  ) async {
+    _checkOpen();
+    final Future<void> previous =
+        _attachmentDraftMutations[clientMessageId]?.future ??
+        Future<void>.value();
+    final Completer<void> drained = Completer<void>();
+    _attachmentDraftMutations[clientMessageId] = drained;
+    try {
+      await previous;
+      _checkOpen();
+      return await operation();
+    } finally {
+      if (identical(_attachmentDraftMutations[clientMessageId], drained)) {
+        _attachmentDraftMutations.remove(clientMessageId);
+      }
+      drained.complete();
     }
   }
 
@@ -170,6 +196,7 @@ final class LocalRepositorySession {
     await Future.wait([
       ..._stops.toList().map((stop) => stop()),
       ..._writes.toList(),
+      ..._attachmentDraftMutations.values.map((entry) => entry.future),
     ]);
     // Callers may purge only after this future completes. Writes already
     // committing have drained; writes interrupted in the callback rolled back.
