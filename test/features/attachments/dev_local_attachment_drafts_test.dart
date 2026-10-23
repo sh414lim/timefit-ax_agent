@@ -295,6 +295,46 @@ void main() {
   });
 
   test(
+    'submit immediately after copy reads the committed draft snapshot',
+    () async {
+      final ComposerController controller = ComposerController(
+        conversationId: 'conversation-1',
+        attachmentClientMessageId: 'draft-1',
+        attachmentSource: DriftAttachmentComposerSource(
+          database: database,
+          session: session,
+          clock: () => DateTime.utc(2026, 10, 23),
+        ),
+        submitter: SendMessage(
+          database: database,
+          session: session,
+          clock: () => DateTime.utc(2026, 10, 23),
+          clientMessageId: () => 'detached-text-id',
+        ),
+      );
+      addTearDown(controller.dispose);
+      controller.updateDraft('body');
+      await _waitUntil(() => controller.canSubmit);
+
+      await drafts.add(
+        conversationId: 'conversation-1',
+        clientMessageId: 'draft-1',
+        inputs: <AttachmentInput>[_input()],
+      );
+      await controller.submit();
+
+      final messages = await database.messageDao.getAll();
+      expect(messages, hasLength(1));
+      expect(messages.single.clientMessageId, 'draft-1');
+      expect(messages.single.messageKind, 'mixed');
+      final command = LocalAttachmentMessageCommand.decode(
+        (await database.outboxDao.getAll()).single.payloadJson,
+      );
+      expect(command.localAttachmentIds, hasLength(1));
+    },
+  );
+
+  test(
     'failed and cancelled copies release the shared mutation boundary',
     () async {
       await expectLater(

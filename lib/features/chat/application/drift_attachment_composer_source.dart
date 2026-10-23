@@ -8,7 +8,11 @@ import 'send_message.dart';
 /// Local-only composer membership backed by Drift. Removing a failed chip
 /// excludes it from the logical message without deleting its private file.
 final class DriftAttachmentComposerSource
-    implements AttachmentComposerSource, AttachmentDraftMutationState {
+    implements
+        AttachmentComposerSource,
+        AttachmentDraftMutationState,
+        AttachmentDraftMutationEvents,
+        AttachmentDraftSnapshotSource {
   DriftAttachmentComposerSource({
     required AppDatabase database,
     required DateTime Function() clock,
@@ -26,6 +30,29 @@ final class DriftAttachmentComposerSource
       _session.isAttachmentDraftMutating(clientMessageId);
 
   @override
+  Stream<bool> watchAttachmentDraftMutating(String clientMessageId) =>
+      _session.watchAttachmentDraftMutating(clientMessageId);
+
+  @override
+  Future<T> withStableAttachmentDraftSnapshot<T>({
+    required String conversationId,
+    required String clientMessageId,
+    required Future<T> Function(List<ComposerAttachment> attachments) operation,
+  }) => _session.withAttachmentDraftMutation(clientMessageId, () async {
+    final rows =
+        await (_database.select(_database.localAttachments)..where(
+              (row) =>
+                  row.conversationId.equals(conversationId) &
+                  row.clientMessageId.equals(clientMessageId) &
+                  row.composerExcluded.equals(false),
+            ))
+            .get();
+    return operation(
+      List<ComposerAttachment>.unmodifiable(rows.map(_composerAttachment)),
+    );
+  });
+
+  @override
   Stream<List<ComposerAttachment>> watch({
     required String conversationId,
     required String clientMessageId,
@@ -40,15 +67,7 @@ final class DriftAttachmentComposerSource
             .watch()
             .map(
               (rows) => List<ComposerAttachment>.unmodifiable(
-                rows.map(
-                  (row) => ComposerAttachment(
-                    localId: row.localId,
-                    contentType: row.contentType,
-                    state: _composerState(row.uploadState),
-                    bytesSent: row.bytesSent,
-                    bytesTotal: row.bytesTotal,
-                  ),
-                ),
+                rows.map(_composerAttachment),
               ),
             ),
   );
@@ -175,6 +194,15 @@ final class DriftAttachmentComposerSource
     }),
   );
 }
+
+ComposerAttachment _composerAttachment(LocalAttachment row) =>
+    ComposerAttachment(
+      localId: row.localId,
+      contentType: row.contentType,
+      state: _composerState(row.uploadState),
+      bytesSent: row.bytesSent,
+      bytesTotal: row.bytesTotal,
+    );
 
 ComposerAttachmentState _composerState(String value) => switch (value) {
   'failed' => ComposerAttachmentState.failed,

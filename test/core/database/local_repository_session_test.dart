@@ -90,6 +90,29 @@ void main() {
     },
   );
 
+  test('attachment mutation state publishes acquisition and release', () async {
+    final LocalRepositorySession session = LocalRepositorySession();
+    addTearDown(session.dispose);
+    final states = <bool>[];
+    final subscription = session
+        .watchAttachmentDraftMutating('draft')
+        .listen(states.add);
+    addTearDown(subscription.cancel);
+    await Future<void>.delayed(Duration.zero);
+
+    final Completer<void> release = Completer<void>();
+    final mutation = session.withAttachmentDraftMutation(
+      'draft',
+      () => release.future,
+    );
+    await Future<void>.delayed(Duration.zero);
+    release.complete();
+    await mutation;
+    await Future<void>.delayed(Duration.zero);
+
+    expect(states, <bool>[false, true, false]);
+  });
+
   test(
     'dispose waits for attachment mutation and leaves no active lock',
     () async {
