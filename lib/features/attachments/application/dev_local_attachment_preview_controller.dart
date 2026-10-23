@@ -65,17 +65,24 @@ final class PrivateCopyPreviewFileReader implements DevLocalPreviewFileReader {
     required String contentType,
     required String sha256Digest,
   }) async {
-    if (uri.scheme != 'file') {
+    final String expectedId = path.basename(uri.path);
+    if (uri.scheme != 'file' || !_uuid.hasMatch(expectedId)) {
       throw const DevLocalPreviewFileException(DevLocalPreviewError.readFailed);
     }
     final String root = await privateRoot.resolveSymbolicLinks();
-    final File file = File.fromUri(uri);
-    final String target = path.normalize(file.absolute.path);
-    if (path.dirname(target) != root ||
-        !_uuid.hasMatch(path.basename(target))) {
+    final String persistedTarget = path.normalize(
+      File.fromUri(uri).absolute.path,
+    );
+    if (path.basename(persistedTarget) != expectedId) {
       throw const DevLocalPreviewFileException(DevLocalPreviewError.readFailed);
     }
-    if (await FileSystemEntity.type(target, followLinks: false) !=
+    final String currentTarget = path.join(root, expectedId);
+    if (persistedTarget != currentTarget &&
+        !_isRelocatableDevPrivateCopy(persistedTarget, expectedId)) {
+      throw const DevLocalPreviewFileException(DevLocalPreviewError.readFailed);
+    }
+    final File file = File(currentTarget);
+    if (await FileSystemEntity.type(currentTarget, followLinks: false) !=
         FileSystemEntityType.file) {
       throw const DevLocalPreviewFileException(DevLocalPreviewError.missing);
     }
@@ -96,6 +103,24 @@ final class PrivateCopyPreviewFileReader implements DevLocalPreviewFileReader {
       throw const DevLocalPreviewFileException(DevLocalPreviewError.readFailed);
     }
     return file;
+  }
+
+  bool _isRelocatableDevPrivateCopy(String target, String localId) {
+    final List<String> components = path.split(target);
+    const List<String> namespace = <String>[
+      'timefit-native',
+      'dev-local-chat-v1',
+      'attachments',
+    ];
+    if (components.length < namespace.length + 1 ||
+        components.last != localId) {
+      return false;
+    }
+    final int start = components.length - namespace.length - 1;
+    for (int index = 0; index < namespace.length; index += 1) {
+      if (components[start + index] != namespace[index]) return false;
+    }
+    return true;
   }
 }
 
@@ -160,6 +185,12 @@ final class DevLocalAttachmentPreviewController extends ChangeNotifier {
         _setState(const DevLocalPreviewFailed(DevLocalPreviewError.missing));
         return;
       }
+      final Uri persistedUri = Uri.parse(row.localFileUri!);
+      if (persistedUri.scheme != 'file' ||
+          path.basename(persistedUri.path) != row.localId) {
+        _setState(const DevLocalPreviewFailed(DevLocalPreviewError.readFailed));
+        return;
+      }
       final AttachmentPreviewKind? kind = switch (row.contentType) {
         'image/jpeg' ||
         'image/png' ||
@@ -175,10 +206,35 @@ final class DevLocalAttachmentPreviewController extends ChangeNotifier {
       }
       final File file = await _reader.verify(
         privateRoot: _privateRoot,
-        uri: Uri.parse(row.localFileUri!),
+        uri: persistedUri,
         contentType: row.contentType,
         sha256Digest: row.sha256,
       );
+      if (!_current(generation)) return;
+      if (file.uri.toString() != row.localFileUri) {
+        final int migrated = await _session.write(
+          _database,
+          () =>
+              (_database.update(_database.localAttachments)..where(
+                    (candidate) =>
+                        candidate.localId.equals(row.localId) &
+                        candidate.conversationId.equals(row.conversationId) &
+                        candidate.localFileUri.equals(row.localFileUri!) &
+                        candidate.contentType.equals(row.contentType) &
+                        candidate.sha256.equals(row.sha256),
+                  ))
+                  .write(
+                    LocalAttachmentsCompanion(
+                      localFileUri: Value(file.uri.toString()),
+                    ),
+                  ),
+        );
+        if (migrated != 1) {
+          throw const DevLocalPreviewFileException(
+            DevLocalPreviewError.readFailed,
+          );
+        }
+      }
       if (!_current(generation)) return;
       _setState(
         DevLocalPreviewReady(

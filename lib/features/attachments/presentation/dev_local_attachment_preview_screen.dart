@@ -133,10 +133,18 @@ Widget _pdfRenderer(
   BuildContext context,
   File file,
   VoidCallback onReadFailure,
-) => _PrivatePdfRenderer(file: file, onReadFailure: onReadFailure);
+) => _PrivatePdfRenderer(
+  key: ValueKey<String>(file.path),
+  file: file,
+  onReadFailure: onReadFailure,
+);
 
 final class _PrivatePdfRenderer extends StatefulWidget {
-  const _PrivatePdfRenderer({required this.file, required this.onReadFailure});
+  const _PrivatePdfRenderer({
+    required this.file,
+    required this.onReadFailure,
+    super.key,
+  });
   final File file;
   final VoidCallback onReadFailure;
 
@@ -201,19 +209,20 @@ final class DevLocalPdfDocumentOwner {
   }
 
   final Completer<PdfDocument> _viewerCompleter = Completer<PdfDocument>();
-  PdfDocument? _document;
+  _GuardedPdfDocument? _document;
   bool _disposed = false;
   bool _closeRequested = false;
 
   Future<PdfDocument> get viewerDocument => _viewerCompleter.future;
 
   void _opened(PdfDocument document) {
+    final guarded = _GuardedPdfDocument(document);
     if (_disposed) {
-      _closeOnce(document);
+      _closeOnce(guarded);
       return;
     }
-    _document = document;
-    _viewerCompleter.complete(document);
+    _document = guarded;
+    _viewerCompleter.complete(guarded);
   }
 
   void _openFailed(Object error, StackTrace stackTrace) {
@@ -233,6 +242,252 @@ final class DevLocalPdfDocumentOwner {
     _closeRequested = true;
     unawaited(document.close().catchError((Object _) {}));
   }
+}
+
+/// Prevents every native page/texture future from resuming pdfx after its
+/// viewer has detached. Results that arrive late are reclaimed locally.
+final class _GuardedPdfDocument extends PdfDocument {
+  _GuardedPdfDocument(this._delegate)
+    : super(
+        sourceName: _delegate.sourceName,
+        id: _delegate.id,
+        pagesCount: _delegate.pagesCount,
+      );
+
+  final PdfDocument _delegate;
+  final Set<_GuardedPdfPage> _pages = <_GuardedPdfPage>{};
+  bool _disposed = false;
+  Future<void>? _closing;
+
+  @override
+  Future<PdfPage> getPage(int pageNumber, {bool autoCloseAndroid = false}) {
+    final result = Completer<PdfPage>();
+    Future<PdfPage>.sync(
+      () => _delegate.getPage(pageNumber, autoCloseAndroid: autoCloseAndroid),
+    ).then(
+      (page) {
+        if (_disposed) {
+          unawaited(Future<void>.sync(page.close).catchError((Object _) {}));
+          return;
+        }
+        final guarded = _GuardedPdfPage(this, page);
+        _pages.add(guarded);
+        result.complete(guarded);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!_disposed) result.completeError(error, stackTrace);
+      },
+    );
+    return result.future;
+  }
+
+  @override
+  Future<void> close() {
+    final existing = _closing;
+    if (existing != null) return existing;
+    _disposed = true;
+    isClosed = true;
+    for (final page in _pages) {
+      page._documentDisposed();
+    }
+    final closing = Future<void>.sync(_delegate.close);
+    _closing = closing;
+    return closing;
+  }
+
+  @override
+  bool operator ==(Object other) => identical(this, other);
+
+  @override
+  int get hashCode => identityHashCode(this);
+}
+
+final class _GuardedPdfPage extends PdfPage {
+  _GuardedPdfPage(this._owner, this._delegate)
+    : super(
+        document: _owner,
+        id: _delegate.id,
+        pageNumber: _delegate.pageNumber,
+        width: _delegate.width,
+        height: _delegate.height,
+        autoCloseAndroid: _delegate.autoCloseAndroid,
+      );
+
+  final _GuardedPdfDocument _owner;
+  final PdfPage _delegate;
+  final Set<_GuardedPdfTexture> _textures = <_GuardedPdfTexture>{};
+  bool _disposed = false;
+  Future<void>? _closing;
+
+  @override
+  Future<PdfPageImage?> render({
+    required double width,
+    required double height,
+    PdfPageImageFormat format = PdfPageImageFormat.jpeg,
+    String? backgroundColor,
+    Rect? cropRect,
+    int quality = 100,
+    bool forPrint = false,
+    bool removeTempFile = true,
+  }) => _fenced<PdfPageImage?>(
+    Future<PdfPageImage?>.sync(
+      () => _delegate.render(
+        width: width,
+        height: height,
+        format: format,
+        backgroundColor: backgroundColor,
+        cropRect: cropRect,
+        quality: quality,
+        forPrint: forPrint,
+      ),
+    ),
+  );
+
+  @override
+  Future<PdfPageTexture> createTexture() {
+    final result = Completer<PdfPageTexture>();
+    Future<PdfPageTexture>.sync(_delegate.createTexture).then(
+      (texture) {
+        if (_disposed || _owner._disposed) {
+          unawaited(
+            Future<void>.sync(texture.dispose).catchError((Object _) {}),
+          );
+          return;
+        }
+        final guarded = _GuardedPdfTexture(texture);
+        _textures.add(guarded);
+        result.complete(guarded);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!_disposed && !_owner._disposed) {
+          result.completeError(error, stackTrace);
+        }
+      },
+    );
+    return result.future;
+  }
+
+  Future<T> _fenced<T>(Future<T> operation) {
+    final result = Completer<T>();
+    operation.then(
+      (value) {
+        if (!_disposed && !_owner._disposed) result.complete(value);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!_disposed && !_owner._disposed) {
+          result.completeError(error, stackTrace);
+        }
+      },
+    );
+    return result.future;
+  }
+
+  void _documentDisposed() {
+    if (_disposed) return;
+    _disposed = true;
+    isClosed = true;
+    for (final texture in _textures) {
+      texture.dispose();
+    }
+  }
+
+  @override
+  Future<void> close() {
+    final existing = _closing;
+    if (existing != null) return existing;
+    _documentDisposed();
+    final closing = Future<void>.sync(_delegate.close);
+    _closing = closing;
+    return closing;
+  }
+
+  @override
+  bool operator ==(Object other) => identical(this, other);
+
+  @override
+  int get hashCode => identityHashCode(this);
+}
+
+final class _GuardedPdfTexture extends PdfPageTexture {
+  _GuardedPdfTexture(this._delegate)
+    : super(
+        id: _delegate.id,
+        pageId: _delegate.pageId,
+        pageNumber: _delegate.pageNumber,
+      );
+
+  final PdfPageTexture _delegate;
+  bool _disposed = false;
+  Future<void>? _disposing;
+
+  @override
+  int? get textureWidth => _delegate.textureWidth;
+
+  @override
+  int? get textureHeight => _delegate.textureHeight;
+
+  @override
+  bool get hasUpdatedTexture => _delegate.hasUpdatedTexture;
+
+  @override
+  Future<bool> updateRect({
+    required String documentId,
+    int destinationX = 0,
+    int destinationY = 0,
+    int? width,
+    int? height,
+    int sourceX = 0,
+    int sourceY = 0,
+    int? textureWidth,
+    int? textureHeight,
+    double? fullWidth,
+    double? fullHeight,
+    String? backgroundColor,
+    bool allowAntiAliasing = true,
+  }) {
+    final result = Completer<bool>();
+    Future<bool>.sync(
+      () => _delegate.updateRect(
+        documentId: documentId,
+        destinationX: destinationX,
+        destinationY: destinationY,
+        width: width,
+        height: height,
+        sourceX: sourceX,
+        sourceY: sourceY,
+        textureWidth: textureWidth,
+        textureHeight: textureHeight,
+        fullWidth: fullWidth,
+        fullHeight: fullHeight,
+        backgroundColor: backgroundColor,
+        allowAntiAliasing: allowAntiAliasing,
+      ),
+    ).then(
+      (value) {
+        if (!_disposed) result.complete(value);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!_disposed) result.completeError(error, stackTrace);
+      },
+    );
+    return result.future;
+  }
+
+  @override
+  Future<void> dispose() {
+    final existing = _disposing;
+    if (existing != null) return existing;
+    _disposed = true;
+    final disposing = Future<void>.sync(_delegate.dispose);
+    _disposing = disposing;
+    return disposing;
+  }
+
+  @override
+  bool operator ==(Object other) => identical(this, other);
+
+  @override
+  int get hashCode => identityHashCode(this);
 }
 
 final class _LocalPreviewError extends StatelessWidget {

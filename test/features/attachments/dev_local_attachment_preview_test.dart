@@ -27,8 +27,8 @@ void main() {
   setUp(() async {
     sandbox = await Directory.systemTemp.createTemp('local-preview-');
     final Directory created = await Directory(
-      '${sandbox.path}/attachments',
-    ).create();
+      '${sandbox.path}/current/timefit-native/dev-local-chat-v1/attachments',
+    ).create(recursive: true);
     root = Directory(await created.resolveSymbolicLinks());
     database = AppDatabase(NativeDatabase.memory());
     session = LocalRepositorySession.forDatabase(database);
@@ -237,6 +237,81 @@ void main() {
     );
   });
 
+  test(
+    'relocated dev namespace resolves UUID and migrates only its URI',
+    () async {
+      final File current = File('${root.path}/$_localId');
+      await current.writeAsBytes(_pdf);
+      final File old = File(
+        '${sandbox.path}/old/timefit-native/dev-local-chat-v1/attachments/$_localId',
+      );
+      await database
+          .into(database.localAttachments)
+          .insert(
+            LocalAttachmentsCompanion.insert(
+              localId: _localId,
+              conversationId: 'conversation',
+              clientMessageId: 'draft',
+              localFileUri: Value(old.uri.toString()),
+              displayName: const Value('relocated.pdf'),
+              contentType: 'application/pdf',
+              bytesTotal: Value(_pdf.length),
+              sha256: sha256.convert(_pdf).toString(),
+            ),
+          );
+      final beforeMessages = await database.messageDao.getAll();
+      final beforeOutbox = await database.outboxDao.getAll();
+      final subject = controller();
+      addTearDown(subject.dispose);
+
+      await subject.load();
+
+      expect(subject.state, isA<DevLocalPreviewReady>());
+      final LocalAttachment migrated = await database
+          .select(database.localAttachments)
+          .getSingle();
+      expect(migrated.localFileUri, current.uri.toString());
+      expect(await database.messageDao.getAll(), beforeMessages);
+      expect(await database.outboxDao.getAll(), beforeOutbox);
+    },
+  );
+
+  test(
+    'relocation rejects an arbitrary old parent with the same UUID',
+    () async {
+      final File current = File('${root.path}/$_localId');
+      await current.writeAsBytes(_pdf);
+      final File untrusted = File('${sandbox.path}/outside/$_localId');
+      await database
+          .into(database.localAttachments)
+          .insert(
+            LocalAttachmentsCompanion.insert(
+              localId: _localId,
+              conversationId: 'conversation',
+              clientMessageId: 'draft',
+              localFileUri: Value(untrusted.uri.toString()),
+              contentType: 'application/pdf',
+              bytesTotal: Value(_pdf.length),
+              sha256: sha256.convert(_pdf).toString(),
+            ),
+          );
+      final subject = controller();
+      addTearDown(subject.dispose);
+
+      await subject.load();
+
+      expect(
+        (subject.state as DevLocalPreviewFailed).error,
+        DevLocalPreviewError.readFailed,
+      );
+      expect(
+        (await database.select(database.localAttachments).getSingle())
+            .localFileUri,
+        untrusted.uri.toString(),
+      );
+    },
+  );
+
   testWidgets('late native PDF open is fenced and closed after dispose', (
     tester,
   ) async {
@@ -268,10 +343,109 @@ void main() {
     expect(tester.takeException(), equals(null));
   });
 
+  testWidgets('late first-page failure is fenced after PDF dispose', (
+    tester,
+  ) async {
+    final PdfxPlatform original = PdfxPlatform.instance;
+    final _DelayedPdfPlatform platform = _DelayedPdfPlatform();
+    PdfxPlatform.instance = platform;
+    addTearDown(() => PdfxPlatform.instance = original);
+    await tester.runAsync(persist);
+    final subject = controller();
+    await tester.runAsync(subject.load);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DevLocalAttachmentPreviewScreen(
+          controller: subject,
+          autoLoad: false,
+        ),
+      ),
+    );
+    final _DelayedPagePdf document = _DelayedPagePdf();
+    platform.result.complete(document);
+    await tester.pump();
+    await tester.pump();
+    expect(document.pageCalls, 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    document.page.completeError(StateError('synthetic late page failure'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(document.closes, 1);
+    expect(tester.takeException(), equals(null));
+  });
+
+  testWidgets('swapping PDFs attaches a new native renderer', (tester) async {
+    const String secondId = '22345678-1234-4123-8123-123456789abc';
+    await tester.runAsync(() async {
+      await persist();
+      final File file = File('${root.path}/$secondId');
+      await file.writeAsBytes(_pdf);
+      await database
+          .into(database.localAttachments)
+          .insert(
+            LocalAttachmentsCompanion.insert(
+              localId: secondId,
+              conversationId: 'conversation',
+              clientMessageId: 'draft2',
+              localFileUri: Value(file.uri.toString()),
+              contentType: 'application/pdf',
+              sha256: sha256.convert(_pdf).toString(),
+            ),
+          );
+    });
+    final first = controller();
+    final second = DevLocalAttachmentPreviewController(
+      database: database,
+      session: session,
+      privateRoot: root,
+      conversationId: 'conversation',
+      localId: secondId,
+    );
+    await tester.runAsync(first.load);
+    await tester.runAsync(second.load);
+    final a = _DelayedPagePdf();
+    final b = _DelayedPagePdf();
+    final PdfxPlatform original = PdfxPlatform.instance;
+    final platform = _MultiplePdfPlatform(<PdfDocument>[a, b]);
+    PdfxPlatform.instance = platform;
+    addTearDown(() => PdfxPlatform.instance = original);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DevLocalAttachmentPreviewScreen(
+          controller: first,
+          autoLoad: false,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(a.pageCalls, 1);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DevLocalAttachmentPreviewScreen(
+          controller: second,
+          autoLoad: false,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(platform.calls, 2);
+    expect(a.closes, 1);
+    expect(b.pageCalls, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(b.closes, 1);
+  });
+
   test('PDF owner closes normal result once across repeated dispose', () async {
     final _TrackedPdf document = _TrackedPdf();
     final owner = DevLocalPdfDocumentOwner(Future<PdfDocument>.value(document));
-    expect(await owner.viewerDocument, same(document));
+    final PdfDocument guarded = await owner.viewerDocument;
+    expect(guarded.id, document.id);
 
     owner.dispose();
     owner.dispose();
@@ -316,6 +490,48 @@ void main() {
 
     expect(document.closes, 1);
   });
+
+  test(
+    'late texture is reclaimed without resuming a disposed viewer',
+    () async {
+      final _DelayedOperationsPage page = _DelayedOperationsPage();
+      final _SinglePagePdf document = _SinglePagePdf(page);
+      final owner = DevLocalPdfDocumentOwner(
+        Future<PdfDocument>.value(document),
+      );
+      final PdfDocument guarded = await owner.viewerDocument;
+      final PdfPage guardedPage = await guarded.getPage(1);
+      final Future<PdfPageTexture> pending = guardedPage.createTexture();
+      owner.dispose();
+      final _TrackedTexture texture = _TrackedTexture();
+      page.texture.complete(texture);
+
+      await expectLater(
+        pending.timeout(const Duration(milliseconds: 10)),
+        throwsA(isA<TimeoutException>()),
+      );
+      expect(texture.disposes, 1);
+    },
+  );
+
+  test('late render result does not resume a disposed viewer', () async {
+    final _DelayedOperationsPage page = _DelayedOperationsPage();
+    final _SinglePagePdf document = _SinglePagePdf(page);
+    final owner = DevLocalPdfDocumentOwner(Future<PdfDocument>.value(document));
+    final PdfDocument guarded = await owner.viewerDocument;
+    final PdfPage guardedPage = await guarded.getPage(1);
+    final Future<PdfPageImage?> pending = guardedPage.render(
+      width: 10,
+      height: 10,
+    );
+    owner.dispose();
+    page.image.complete(_SyntheticPageImage());
+
+    await expectLater(
+      pending.timeout(const Duration(milliseconds: 10)),
+      throwsA(isA<TimeoutException>()),
+    );
+  });
 }
 
 final class _DelayedPdfPlatform extends PdfxPlatform {
@@ -337,6 +553,16 @@ final class _DelayedPdfPlatform extends PdfxPlatform {
       throw UnimplementedError();
 }
 
+final class _MultiplePdfPlatform extends _DelayedPdfPlatform {
+  _MultiplePdfPlatform(this.documents);
+
+  final List<PdfDocument> documents;
+
+  @override
+  Future<PdfDocument> openFile(String filePath, {String? password}) =>
+      Future<PdfDocument>.value(documents[calls++]);
+}
+
 final class _TrackedPdf extends PdfDocument {
   _TrackedPdf({this.closeFails = false})
     : super(sourceName: 'synthetic', id: 'synthetic-pdf', pagesCount: 1);
@@ -354,6 +580,129 @@ final class _TrackedPdf extends PdfDocument {
   @override
   Future<PdfPage> getPage(int n, {bool autoCloseAndroid = false}) =>
       throw StateError('unexpected page read after dispose');
+}
+
+final class _DelayedPagePdf extends _TrackedPdf {
+  final Completer<PdfPage> page = Completer<PdfPage>();
+  int pageCalls = 0;
+
+  @override
+  Future<PdfPage> getPage(int n, {bool autoCloseAndroid = false}) {
+    pageCalls += 1;
+    return page.future;
+  }
+}
+
+final class _SinglePagePdf extends _TrackedPdf {
+  _SinglePagePdf(this.page);
+
+  final PdfPage page;
+
+  @override
+  Future<PdfPage> getPage(int n, {bool autoCloseAndroid = false}) async => page;
+}
+
+final class _DelayedOperationsPage extends PdfPage {
+  _DelayedOperationsPage()
+    : super(
+        document: _TrackedPdf(),
+        id: 'synthetic-page',
+        pageNumber: 1,
+        width: 10,
+        height: 10,
+        autoCloseAndroid: false,
+      );
+
+  final Completer<PdfPageTexture> texture = Completer<PdfPageTexture>();
+  final Completer<PdfPageImage?> image = Completer<PdfPageImage?>();
+
+  @override
+  Future<void> close() async {
+    isClosed = true;
+  }
+
+  @override
+  Future<PdfPageTexture> createTexture() => texture.future;
+
+  @override
+  Future<PdfPageImage?> render({
+    required double width,
+    required double height,
+    PdfPageImageFormat format = PdfPageImageFormat.jpeg,
+    String? backgroundColor,
+    Rect? cropRect,
+    int quality = 100,
+    bool forPrint = false,
+    bool removeTempFile = true,
+  }) => image.future;
+
+  @override
+  bool operator ==(Object other) => identical(this, other);
+
+  @override
+  int get hashCode => identityHashCode(this);
+}
+
+final class _TrackedTexture extends PdfPageTexture {
+  _TrackedTexture() : super(id: 1, pageId: 'synthetic-page', pageNumber: 1);
+
+  int disposes = 0;
+
+  @override
+  bool get hasUpdatedTexture => false;
+
+  @override
+  int? get textureHeight => 10;
+
+  @override
+  int? get textureWidth => 10;
+
+  @override
+  Future<void> dispose() async {
+    disposes += 1;
+  }
+
+  @override
+  Future<bool> updateRect({
+    required String documentId,
+    int destinationX = 0,
+    int destinationY = 0,
+    int? width,
+    int? height,
+    int sourceX = 0,
+    int sourceY = 0,
+    int? textureWidth,
+    int? textureHeight,
+    double? fullWidth,
+    double? fullHeight,
+    String? backgroundColor,
+    bool allowAntiAliasing = true,
+  }) async => true;
+
+  @override
+  bool operator ==(Object other) => identical(this, other);
+
+  @override
+  int get hashCode => identityHashCode(this);
+}
+
+final class _SyntheticPageImage extends PdfPageImage {
+  _SyntheticPageImage()
+    : super(
+        id: 'synthetic-image',
+        pageNumber: 1,
+        width: 1,
+        height: 1,
+        bytes: Uint8List(1),
+        format: PdfPageImageFormat.png,
+        quality: 100,
+      );
+
+  @override
+  bool operator ==(Object other) => identical(this, other);
+
+  @override
+  int get hashCode => identityHashCode(this);
 }
 
 final class _DelayedReader implements DevLocalPreviewFileReader {
