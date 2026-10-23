@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../application/conversation_list_controller.dart';
 import '../domain/conversation_summary.dart';
+import 'conversation_menu.dart';
 import 'widgets/conversation_list_row.dart';
 import 'widgets/conversation_state_panel.dart';
 import 'widgets/conversation_sync_banner.dart';
@@ -15,6 +16,8 @@ class ConversationListScreen extends StatefulWidget {
     required this.onOpenConversation,
     this.loadOnMount = true,
     this.currentTime,
+    this.onConversationAction,
+    this.isConversationBusy,
     super.key,
   });
 
@@ -25,6 +28,9 @@ class ConversationListScreen extends StatefulWidget {
   final ValueChanged<String> onOpenConversation;
   final bool loadOnMount;
   final DateTime Function()? currentTime;
+  final void Function(ConversationSummary, ConversationMenuAction)?
+  onConversationAction;
+  final bool Function(String conversationId)? isConversationBusy;
 
   @override
   State<ConversationListScreen> createState() => _ConversationListScreenState();
@@ -163,6 +169,15 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
             conversation: conversation,
             updatedAtLabel: _formatUpdatedAt(conversation.updatedAt, now),
             onTap: () => widget.onOpenConversation(conversation.id),
+            trailing: widget.onConversationAction == null
+                ? null
+                : ConversationMenu(
+                    enabled:
+                        !(widget.isConversationBusy?.call(conversation.id) ??
+                            false),
+                    onSelected: (ConversationMenuAction action) =>
+                        widget.onConversationAction!(conversation, action),
+                  ),
           );
         },
       ),

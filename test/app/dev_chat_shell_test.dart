@@ -146,6 +146,111 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );
+
+  testWidgets(
+    'dev entry renames, confirms soft archive, and restores it after restart',
+    (WidgetTester tester) async {
+      final sandbox = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('timefit-dev-actions-'),
+      );
+      if (sandbox == null) throw StateError('temp_directory_unavailable');
+      final file = File('${sandbox.path}/chat.sqlite');
+      final openedDatabases = <AppDatabase>[];
+      AppDatabase? openedDatabase;
+      var disposalComplete = false;
+
+      Future<AppDatabase> openDatabase() async {
+        final database = AppDatabase(NativeDatabase(file));
+        openedDatabase = database;
+        openedDatabases.add(database);
+        return database;
+      }
+
+      Future<void> mount() async {
+        await tester.pumpWidget(
+          TimeFitApp(
+            environment: AppEnvironment.dev,
+            devDatabaseFactory: openDatabase,
+            devDisposalObserver: (future) {
+              future.whenComplete(() => disposalComplete = true);
+            },
+          ),
+        );
+        await _settleFileIo(tester);
+      }
+
+      try {
+        await mount();
+        await tester.tap(find.text('새 대화 시작'));
+        await _settleFileIo(tester);
+        await tester.tap(find.byType(BackButton));
+        await _settleFileIo(tester);
+
+        await tester.tap(find.byTooltip('대화 메뉴'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('이름 변경'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextFormField), '  로컬 이름  ');
+        await tester.tap(find.text('저장'));
+        await _settleFileIo(tester);
+        expect(find.text('로컬 이름'), findsOneWidget);
+        expect(
+          (await _runFileIo(
+            tester,
+            () => openedDatabase!.conversationDao.getAll(),
+          )).single.title,
+          '로컬 이름',
+        );
+
+        await tester.tap(find.byTooltip('대화 메뉴'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('보관'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(TextButton, '취소'));
+        await tester.pumpAndSettle();
+        expect(find.text('로컬 이름'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('대화 메뉴'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('보관'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, '보관'));
+        await _settleFileIo(tester);
+        expect(find.text('로컬 이름'), findsNothing);
+        final archived = (await _runFileIo(
+          tester,
+          () => openedDatabase!.conversationDao.getAll(),
+        )).single;
+        expect(archived.status, 'archived');
+
+        await tester.tap(find.text('보관된 대화'));
+        await _settleFileIo(tester);
+        expect(find.text('로컬 이름'), findsOneWidget);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _pumpUntil(tester, () => disposalComplete);
+        disposalComplete = false;
+        await mount();
+        await tester.tap(find.text('보관된 대화'));
+        await _settleFileIo(tester);
+        expect(find.text('로컬 이름'), findsOneWidget);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _pumpUntil(tester, () => disposalComplete);
+        await tester.runAsync(() async {
+          for (final database in openedDatabases) {
+            try {
+              await database.close();
+            } on Object {
+              // The shell normally closed it first.
+            }
+          }
+          await sandbox.delete(recursive: true);
+        });
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 }
 
 Future<void> _settleFileIo(WidgetTester tester) async {

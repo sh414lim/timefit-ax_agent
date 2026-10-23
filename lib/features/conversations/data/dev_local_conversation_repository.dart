@@ -3,13 +3,14 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/local_repository_session.dart';
+import '../application/conversation_actions.dart';
 import '../domain/conversation_summary.dart';
 import '../domain/repositories/conversation_repository.dart';
 
 /// Development-only local conversation source. It never represents a remote
 /// refresh or a server response.
 final class DevLocalConversationRepository
-    implements LocalConversationRepository {
+    implements LocalConversationRepository, ConversationActionsRepository {
   DevLocalConversationRepository({
     required AppDatabase database,
     required LocalRepositorySession session,
@@ -26,7 +27,7 @@ final class DevLocalConversationRepository
   final String Function() _conversationId;
   Future<String>? _activeCreate;
 
-  Selectable<ConversationSummary> _active() => _database
+  Selectable<ConversationSummary> _byStatus(String status) => _database
       .customSelect(
         '''
 SELECT c.*,
@@ -45,9 +46,10 @@ SELECT c.*,
     LIMIT 1
   ), c.server_updated_at) AS local_updated_at
 FROM local_conversations c
-WHERE c.status = 'active'
+WHERE c.status = ?
 ORDER BY local_updated_at DESC, c.rowid DESC
 ''',
+        variables: <Variable<Object>>[Variable<String>(status)],
         readsFrom: {_database.localConversations, _database.localMessages},
       )
       .map((row) {
@@ -62,11 +64,17 @@ ORDER BY local_updated_at DESC, c.rowid DESC
 
   @override
   Future<List<ConversationSummary>> readCachedConversations() =>
-      _session.read(() => _active().get());
+      _session.read(() => _byStatus('active').get());
 
   @override
   Stream<List<ConversationSummary>> watchCachedConversations() =>
-      _session.watch(() => _active().watch());
+      _session.watch(() => _byStatus('active').watch());
+
+  Future<List<ConversationSummary>> readArchivedConversations() =>
+      _session.read(() => _byStatus('archived').get());
+
+  Stream<List<ConversationSummary>> watchArchivedConversations() =>
+      _session.watch(() => _byStatus('archived').watch());
 
   @override
   Future<List<ConversationSummary>> refreshConversations() =>
@@ -88,7 +96,7 @@ ORDER BY local_updated_at DESC, c.rowid DESC
     await _database.conversationDao.upsert(
       LocalConversationsCompanion.insert(
         id: id,
-        title: const Value('새 대화'),
+        title: const Value(null),
         serverCreatedAt: now,
         serverUpdatedAt: now,
         lastSyncedAt: now,
@@ -97,6 +105,27 @@ ORDER BY local_updated_at DESC, c.rowid DESC
     );
     return id;
   });
+
+  @override
+  Future<void> renameConversation(String conversationId, String? title) =>
+      _session.write(_database, () async {
+        final bool changed = await _database.conversationDao.renameLocal(
+          id: conversationId,
+          title: title,
+          updatedAt: _clock().toUtc(),
+        );
+        if (!changed) throw StateError('local_conversation_not_found');
+      });
+
+  @override
+  Future<void> archiveConversation(String conversationId) =>
+      _session.write(_database, () async {
+        final bool changed = await _database.conversationDao.archiveLocal(
+          id: conversationId,
+          updatedAt: _clock().toUtc(),
+        );
+        if (!changed) throw StateError('local_conversation_not_active');
+      });
 
   /// The shell owns the shared session and database lifecycle.
   @override

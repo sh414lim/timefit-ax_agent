@@ -7,12 +7,14 @@ class ConversationListRow extends StatelessWidget {
     required this.conversation,
     required this.updatedAtLabel,
     required this.onTap,
+    this.trailing,
     super.key,
   });
 
   final ConversationSummary conversation;
   final String updatedAtLabel;
   final VoidCallback onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -22,51 +24,66 @@ class ConversationListRow extends StatelessWidget {
       updatedAtLabel,
     ].join(', ');
 
-    return Semantics(
+    final Widget rowButton = Semantics(
       button: true,
       label: semanticLabel,
       excludeSemantics: true,
       child: InkWell(
         onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 64),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
+        child: Padding(
+          padding: trailing == null
+              ? const EdgeInsets.symmetric(horizontal: 16, vertical: 10)
+              : const EdgeInsets.fromLTRB(16, 10, 8, 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      conversation.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    if (conversation.displayPreview.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 4),
                       Text(
-                        conversation.title,
-                        maxLines: 1,
+                        conversation.displayPreview,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium,
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
-                      if (conversation.displayPreview.isNotEmpty) ...<Widget>[
-                        const SizedBox(height: 4),
-                        Text(
-                          conversation.displayPreview,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
                     ],
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  updatedAtLabel,
-                  style: Theme.of(context).textTheme.labelMedium,
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                updatedAtLabel,
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+            ],
           ),
         ),
       ),
+    );
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 64),
+      child: trailing == null
+          ? rowButton
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(child: rowButton),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, right: 4),
+                  child: trailing!,
+                ),
+              ],
+            ),
     );
   }
 }

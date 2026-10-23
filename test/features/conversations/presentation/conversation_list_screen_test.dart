@@ -12,6 +12,7 @@ import 'package:timefit_native/features/conversations/application/conversation_l
 import 'package:timefit_native/features/conversations/domain/conversation_summary.dart';
 import 'package:timefit_native/features/conversations/domain/repositories/conversation_repository.dart';
 import 'package:timefit_native/features/conversations/presentation/conversation_list_screen.dart';
+import 'package:timefit_native/features/conversations/presentation/conversation_menu.dart';
 import 'package:timefit_native/features/conversations/presentation/widgets/conversation_list_row.dart';
 
 void main() {
@@ -322,6 +323,35 @@ void main() {
     }
   });
 
+  testWidgets('conversation action menu is a separate accessible button', (
+    WidgetTester tester,
+  ) async {
+    final ConversationListController controller = await _loadedController(
+      _FakeConversationRepository(
+        refreshed: <ConversationSummary>[
+          _conversation('actions', minutesAgo: 1),
+        ],
+      ),
+    );
+
+    await _pumpScreen(tester, controller, onConversationAction: (_, _) {});
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    try {
+      expect(find.byTooltip('대화 메뉴'), findsOneWidget);
+      final SemanticsNode menu = tester.getSemantics(
+        find.bySemanticsLabel('대화 메뉴'),
+      );
+      expect(menu.label, '대화 메뉴');
+      expect(menu.flagsCollection.isButton, isTrue);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel(RegExp('대화 actions'))).label,
+        contains('대화 actions'),
+      );
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   testWidgets('320dp and 200 percent text renders without clipping', (
     WidgetTester tester,
   ) async {
@@ -609,6 +639,8 @@ Future<void> _pumpScreen(
   VoidCallback? onOpenSettings,
   VoidCallback? onOpenArchive,
   ValueChanged<String>? onOpenConversation,
+  void Function(ConversationSummary, ConversationMenuAction)?
+  onConversationAction,
   double textScale = 1,
   Brightness brightness = Brightness.light,
 }) async {
@@ -628,6 +660,7 @@ Future<void> _pumpScreen(
           onOpenSettings: onOpenSettings ?? () {},
           onOpenArchive: onOpenArchive ?? () {},
           onOpenConversation: onOpenConversation ?? (_) {},
+          onConversationAction: onConversationAction,
         ),
       ),
     ),
