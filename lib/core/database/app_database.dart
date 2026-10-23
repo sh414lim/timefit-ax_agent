@@ -20,10 +20,10 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
-  MigrationStrategy get migration => schemaV3MigrationStrategy(
+  MigrationStrategy get migration => schemaV4MigrationStrategy(
     upgradeV1ToV2: (migrator) async {
       await migrator.addColumn(
         localAttachments,
@@ -36,6 +36,8 @@ class AppDatabase extends _$AppDatabase {
     },
     upgradeV2ToV3: (migrator) =>
         migrator.addColumn(localAttachments, localAttachments.composerExcluded),
+    upgradeV3ToV4: (migrator) =>
+        migrator.addColumn(localAttachments, localAttachments.displayName),
   );
 
   Future<void> purgeChatData() => transaction(() async {

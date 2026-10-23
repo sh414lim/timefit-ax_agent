@@ -9,9 +9,11 @@ import 'package:path_provider/path_provider.dart';
 import '../core/database/app_database.dart';
 import '../core/database/local_repository_session.dart';
 import '../features/attachments/application/attachment_picker.dart';
+import '../features/attachments/application/dev_local_attachment_preview_controller.dart';
 import '../features/attachments/data/dev_local_attachment_drafts.dart';
 import '../features/attachments/data/local_attachment_store.dart';
 import '../features/attachments/domain/attachment_policy.dart';
+import '../features/attachments/presentation/dev_local_attachment_preview_screen.dart';
 import '../features/chat/application/composer_controller.dart';
 import '../features/chat/application/drift_attachment_composer_source.dart';
 import '../features/chat/application/send_message.dart';
@@ -61,6 +63,8 @@ class DevChatShell extends StatefulWidget {
     this.databaseFactory = openDevChatDatabase,
     this.attachmentRootFactory = openDevAttachmentRoot,
     this.attachmentPicker,
+    this.previewImageRenderer,
+    this.previewPdfRenderer,
     this.disposalObserver,
     super.key,
   });
@@ -68,6 +72,8 @@ class DevChatShell extends StatefulWidget {
   final DevChatDatabaseFactory databaseFactory;
   final DevAttachmentRootFactory attachmentRootFactory;
   final AttachmentPicker? attachmentPicker;
+  final DevLocalFileRenderer? previewImageRenderer;
+  final DevLocalFileRenderer? previewPdfRenderer;
   final DevChatDisposalObserver? disposalObserver;
 
   @override
@@ -83,6 +89,7 @@ class _DevChatShellState extends State<DevChatShell> {
   MessageRepositoryImpl? _messageRepository;
   ComposerController? _composer;
   DevLocalAttachmentDrafts? _attachmentDrafts;
+  Directory? _attachmentRoot;
   late final AttachmentPicker _attachmentPicker =
       widget.attachmentPicker ?? NativeAttachmentPicker();
   final Map<String, String> _draftClientMessageIds = <String, String>{};
@@ -144,6 +151,7 @@ class _DevChatShellState extends State<DevChatShell> {
         _conversationActions = conversationActions;
         _messageRepository = messageRepository;
         _attachmentDrafts = attachmentDrafts;
+        _attachmentRoot = attachmentRoot;
       });
     } on Object catch (error) {
       if (database != null) await database.close();
@@ -310,6 +318,35 @@ class _DevChatShellState extends State<DevChatShell> {
     }
   }
 
+  void _openLocalAttachmentPreview(String localId) {
+    final String? conversationId = _selectedConversationId;
+    final AppDatabase? database = _database;
+    final LocalRepositorySession? session = _session;
+    final Directory? privateRoot = _attachmentRoot;
+    if (conversationId == null ||
+        database == null ||
+        session == null ||
+        privateRoot == null) {
+      return;
+    }
+    final controller = DevLocalAttachmentPreviewController(
+      database: database,
+      session: session,
+      privateRoot: privateRoot,
+      conversationId: conversationId,
+      localId: localId,
+    );
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => DevLocalAttachmentPreviewScreen(
+          controller: controller,
+          imageRenderer: widget.previewImageRenderer,
+          pdfRenderer: widget.previewPdfRenderer,
+        ),
+      ),
+    );
+  }
+
   void _handleActionsState(ConversationActionsState _) {
     if (mounted) setState(() {});
   }
@@ -471,6 +508,7 @@ class _DevChatShellState extends State<DevChatShell> {
                     onBack: _closeConversation,
                     onAddAttachment: () => unawaited(_chooseAttachments()),
                     onRemoveQueuedAttachment: _removeQueuedAttachment,
+                    onOpenAttachment: _openLocalAttachmentPreview,
                     isSelectingAttachments: _selectingAttachments,
                   ),
           ),

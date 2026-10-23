@@ -11,6 +11,9 @@ class LocalAttachments extends Table {
 
   TextColumn get localFileUri => text().nullable()();
 
+  /// Picker-provided display text only. It is never used as a filesystem path.
+  TextColumn get displayName => text().nullable()();
+
   TextColumn get uploadState => text().withDefault(const Constant('queued'))();
 
   IntColumn get bytesTotal => integer().withDefault(const Constant(0))();

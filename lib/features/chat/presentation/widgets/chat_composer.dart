@@ -11,6 +11,7 @@ class ChatComposer extends StatefulWidget {
     required this.controller,
     this.onAddAttachment,
     this.onRemoveQueuedAttachment,
+    this.onOpenAttachment,
     this.isSelectingAttachments = false,
     super.key,
   });
@@ -18,6 +19,7 @@ class ChatComposer extends StatefulWidget {
   final ComposerController controller;
   final VoidCallback? onAddAttachment;
   final Future<void> Function(String localId)? onRemoveQueuedAttachment;
+  final void Function(String localId)? onOpenAttachment;
   final bool isSelectingAttachments;
 
   @override
@@ -150,6 +152,11 @@ class _ChatComposerState extends State<ChatComposer> {
                           padding: const EdgeInsets.only(right: 8),
                           child: ComposerAttachmentChip(
                             attachment: attachment,
+                            onOpen: widget.onOpenAttachment == null
+                                ? null
+                                : () => widget.onOpenAttachment!(
+                                    attachment.localId,
+                                  ),
                             onRemoveFailed: () => unawaited(
                               _removeFailedAttachment(attachment.localId),
                             ),

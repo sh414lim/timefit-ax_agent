@@ -7,12 +7,14 @@ class ComposerAttachmentChip extends StatelessWidget {
     required this.attachment,
     this.onRemoveFailed,
     this.onRemoveQueued,
+    this.onOpen,
     super.key,
   });
 
   final ComposerAttachment attachment;
   final VoidCallback? onRemoveFailed;
   final VoidCallback? onRemoveQueued;
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -47,36 +49,41 @@ class ComposerAttachmentChip extends StatelessWidget {
               liveRegion: true,
               label: '첨부 ${attachment.contentType}, $label',
               excludeSemantics: true,
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: 12,
-                  right: canRemove ? 4 : 12,
-                  top: 8,
-                  bottom: 8,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    if (attachment.state == ComposerAttachmentState.uploading)
-                      SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          value: progress,
+              button: onOpen != null,
+              child: InkWell(
+                onTap: onOpen,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 12,
+                    right: canRemove ? 4 : 12,
+                    top: 8,
+                    bottom: 8,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      if (attachment.state == ComposerAttachmentState.uploading)
+                        SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            value: progress,
+                          ),
+                        )
+                      else
+                        Icon(
+                          attachment.state == ComposerAttachmentState.failed
+                              ? Icons.error_outline
+                              : attachment.state ==
+                                    ComposerAttachmentState.ready
+                              ? Icons.check_circle_outline
+                              : Icons.schedule,
+                          size: 18,
                         ),
-                      )
-                    else
-                      Icon(
-                        attachment.state == ComposerAttachmentState.failed
-                            ? Icons.error_outline
-                            : attachment.state == ComposerAttachmentState.ready
-                            ? Icons.check_circle_outline
-                            : Icons.schedule,
-                        size: 18,
-                      ),
-                    const SizedBox(width: 6),
-                    Text('${attachment.contentType} · $label'),
-                  ],
+                      const SizedBox(width: 6),
+                      Text('${attachment.contentType} · $label'),
+                    ],
+                  ),
                 ),
               ),
             ),

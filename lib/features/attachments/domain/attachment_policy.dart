@@ -58,11 +58,13 @@ final class AttachmentInput {
 final class PrivateAttachment {
   const PrivateAttachment({
     required this.uri,
+    required this.displayName,
     required this.contentType,
     required this.bytesTotal,
     required this.sha256,
   });
   final Uri uri;
+  final String displayName;
   final String contentType;
   final int bytesTotal;
   final String sha256;

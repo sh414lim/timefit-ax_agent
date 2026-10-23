@@ -90,6 +90,7 @@ final class LocalAttachmentStore implements AttachmentStore {
       cancellation.check();
       return PrivateAttachment(
         uri: file.uri,
+        displayName: input.name,
         contentType: mime,
         bytesTotal: count,
         sha256: result.digest.toString(),

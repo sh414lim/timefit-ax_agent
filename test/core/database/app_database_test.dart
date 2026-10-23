@@ -18,7 +18,7 @@ void main() {
 
   tearDown(() => database.close());
 
-  test('schema v3 creates all local chat tables', () async {
+  test('schema v4 creates all local chat tables', () async {
     final tables = await database
         .customSelect(
           "select name from sqlite_master where type = 'table' order by name",
@@ -26,7 +26,7 @@ void main() {
         .map((row) => row.read<String>('name'))
         .get();
 
-    expect(database.schemaVersion, 3);
+    expect(database.schemaVersion, 4);
     expect(
       tables,
       containsAll(<String>[
@@ -568,7 +568,7 @@ void main() {
       final recreated = await recovery.recreateAfterConfirmedCorruption();
       addTearDown(recreated.close);
       expect(deletionCount, 1);
-      expect(recreated.schemaVersion, 3);
+      expect(recreated.schemaVersion, 4);
     },
   );
 }
