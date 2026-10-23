@@ -110,7 +110,7 @@ void main() {
         expect(outbox.single.state, 'queued');
         expect(find.text('전송 대기 중'), findsOneWidget);
 
-        await tester.tap(find.byType(BackButton));
+        await tester.tap(find.byType(BackButton).last);
         await _settleFileIo(tester);
         await _pumpUntilFinder(tester, find.text('재시작 뒤에도 남는 메시지'));
         expect(find.text('새 대화'), findsNWidgets(2));
@@ -197,7 +197,7 @@ void main() {
         await _pumpUntilFinder(tester, find.text('새 대화 시작'));
         await tester.tap(find.text('새 대화 시작'));
         await _settleFileIo(tester);
-        await tester.tap(find.byType(BackButton));
+        await tester.tap(find.byType(BackButton).last);
         await _settleFileIo(tester);
 
         await tester.tap(find.byTooltip('대화 메뉴'));
@@ -302,6 +302,8 @@ void main() {
             devDatabaseFactory: openDatabase,
             devAttachmentRootFactory: () => attachmentRoot.create(),
             devAttachmentPicker: picker,
+            devPreviewPdfRenderer: (_, File file, _) =>
+                Text('private-preview:${file.uri.pathSegments.last}'),
             devDisposalObserver: (Future<void> future) {
               future.whenComplete(() => disposalComplete = true);
             },
@@ -343,11 +345,23 @@ void main() {
         expect(selected, hasLength(1));
         expect(selected.single.uploadState, 'queued');
         expect(selected.single.attachmentId, isNull);
+        expect(selected.single.displayName, 'synthetic.pdf');
         expect(find.textContaining('로컬 준비됨 · 서버 업로드 안 됨'), findsOneWidget);
         final File privateCopy = File.fromUri(
           Uri.parse(selected.single.localFileUri!),
         );
         expect(await _runFileIo(tester, privateCopy.exists), isTrue);
+
+        await tester.tap(find.text('application/pdf · 대기 중'));
+        await _pumpUntilFinder(tester, find.text('synthetic.pdf'));
+        expect(find.text('synthetic.pdf'), findsOneWidget);
+        expect(find.text('로컬 파일 미리보기 · 서버 미업로드'), findsOneWidget);
+        expect(
+          find.text('private-preview:${selected.single.localId}'),
+          findsOneWidget,
+        );
+        await tester.tap(find.byType(BackButton).last);
+        await tester.pumpAndSettle();
 
         await tester.pumpWidget(const SizedBox.shrink());
         await _pumpUntil(tester, () => disposalComplete);
@@ -370,6 +384,15 @@ void main() {
           find.textContaining('로컬 준비됨 · 서버 업로드 안 됨'),
         );
         expect(await _runFileIo(tester, privateCopy.readAsBytes), _pdfFixture);
+        await tester.tap(find.text('application/pdf · 대기 중'));
+        await _pumpUntilFinder(tester, find.text('synthetic.pdf'));
+        expect(find.text('synthetic.pdf'), findsOneWidget);
+        expect(
+          find.text('private-preview:${selected.single.localId}'),
+          findsOneWidget,
+        );
+        await tester.tap(find.byType(BackButton).last);
+        await tester.pumpAndSettle();
 
         await tester.tap(find.byTooltip('로컬 첨부 제거'));
         await _settleFileIo(tester);

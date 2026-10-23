@@ -150,6 +150,7 @@ final class AttachmentUploadExecutor implements CommandExecutor {
         clientMessageId: row.clientMessageId,
         file: PrivateAttachment(
           uri: uri,
+          displayName: row.displayName ?? 'attachment',
           contentType: row.contentType,
           bytesTotal: row.bytesTotal,
           sha256: row.sha256,

@@ -41,3 +41,19 @@ MigrationStrategy schemaV3MigrationStrategy({
     await upgradeV2ToV3(migrator);
   },
 );
+
+MigrationStrategy schemaV4MigrationStrategy({
+  required Future<void> Function(Migrator) upgradeV1ToV2,
+  required Future<void> Function(Migrator) upgradeV2ToV3,
+  required Future<void> Function(Migrator) upgradeV3ToV4,
+}) => MigrationStrategy(
+  onCreate: (migrator) => migrator.createAll(),
+  onUpgrade: (migrator, from, to) async {
+    if (to != 4 || from < 1 || from > 3) {
+      throw UnsupportedSchemaMigration(from, to);
+    }
+    if (from == 1) await upgradeV1ToV2(migrator);
+    if (from <= 2) await upgradeV2ToV3(migrator);
+    await upgradeV3ToV4(migrator);
+  },
+);

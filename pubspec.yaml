@@ -30,6 +30,7 @@ dependencies:
   path: 1.9.1
   crypto: 3.0.7
   characters: 1.4.0
+  pdfx: 2.11.0
 
 dev_dependencies:
   flutter_test:

@@ -101,6 +101,7 @@ final class DevLocalAttachmentDrafts {
                     conversationId: conversationId,
                     clientMessageId: clientMessageId,
                     localFileUri: Value(attachment.uri.toString()),
+                    displayName: Value(attachment.displayName),
                     uploadState: const Value('queued'),
                     bytesTotal: Value(attachment.bytesTotal),
                     contentType: attachment.contentType,

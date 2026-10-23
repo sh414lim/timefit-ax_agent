@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/attachments/application/attachment_picker.dart';
+import '../features/attachments/presentation/dev_local_attachment_preview_screen.dart';
 import '../src/app_environment.dart';
 import 'dev_chat_shell.dart';
 import 'router.dart';
@@ -13,6 +14,8 @@ class TimeFitApp extends StatefulWidget {
     this.devDatabaseFactory = openDevChatDatabase,
     this.devAttachmentRootFactory = openDevAttachmentRoot,
     this.devAttachmentPicker,
+    this.devPreviewImageRenderer,
+    this.devPreviewPdfRenderer,
     this.devDisposalObserver,
     super.key,
   });
@@ -21,6 +24,8 @@ class TimeFitApp extends StatefulWidget {
   final DevChatDatabaseFactory devDatabaseFactory;
   final DevAttachmentRootFactory devAttachmentRootFactory;
   final AttachmentPicker? devAttachmentPicker;
+  final DevLocalFileRenderer? devPreviewImageRenderer;
+  final DevLocalFileRenderer? devPreviewPdfRenderer;
   final DevChatDisposalObserver? devDisposalObserver;
 
   @override
@@ -57,6 +62,8 @@ class _TimeFitAppState extends State<TimeFitApp> {
           databaseFactory: widget.devDatabaseFactory,
           attachmentRootFactory: widget.devAttachmentRootFactory,
           attachmentPicker: widget.devAttachmentPicker,
+          previewImageRenderer: widget.devPreviewImageRenderer,
+          previewPdfRenderer: widget.devPreviewPdfRenderer,
           disposalObserver: widget.devDisposalObserver,
         ),
       );

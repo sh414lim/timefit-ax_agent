@@ -366,6 +366,7 @@ void main() {
       store.delete(
         PrivateAttachment(
           uri: outside.uri,
+          displayName: 'fixture.pdf',
           contentType: 'application/pdf',
           bytesTotal: 4,
           sha256: 'unused',

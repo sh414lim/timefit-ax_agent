@@ -1403,6 +1403,17 @@ class $LocalAttachmentsTable extends LocalAttachments
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _displayNameMeta = const VerificationMeta(
+    'displayName',
+  );
+  @override
+  late final GeneratedColumn<String> displayName = GeneratedColumn<String>(
+    'display_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _uploadStateMeta = const VerificationMeta(
     'uploadState',
   );
@@ -1514,6 +1525,7 @@ class $LocalAttachmentsTable extends LocalAttachments
     conversationId,
     clientMessageId,
     localFileUri,
+    displayName,
     uploadState,
     bytesTotal,
     bytesSent,
@@ -1581,6 +1593,15 @@ class $LocalAttachmentsTable extends LocalAttachments
         localFileUri.isAcceptableOrUnknown(
           data['local_file_uri']!,
           _localFileUriMeta,
+        ),
+      );
+    }
+    if (data.containsKey('display_name')) {
+      context.handle(
+        _displayNameMeta,
+        displayName.isAcceptableOrUnknown(
+          data['display_name']!,
+          _displayNameMeta,
         ),
       );
     }
@@ -1689,6 +1710,10 @@ class $LocalAttachmentsTable extends LocalAttachments
         DriftSqlType.string,
         data['${effectivePrefix}local_file_uri'],
       ),
+      displayName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}display_name'],
+      ),
       uploadState: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}upload_state'],
@@ -1740,6 +1765,9 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
   final String conversationId;
   final String clientMessageId;
   final String? localFileUri;
+
+  /// Picker-provided display text only. It is never used as a filesystem path.
+  final String? displayName;
   final String uploadState;
   final int bytesTotal;
   final int bytesSent;
@@ -1758,6 +1786,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     required this.conversationId,
     required this.clientMessageId,
     this.localFileUri,
+    this.displayName,
     required this.uploadState,
     required this.bytesTotal,
     required this.bytesSent,
@@ -1779,6 +1808,9 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     map['client_message_id'] = Variable<String>(clientMessageId);
     if (!nullToAbsent || localFileUri != null) {
       map['local_file_uri'] = Variable<String>(localFileUri);
+    }
+    if (!nullToAbsent || displayName != null) {
+      map['display_name'] = Variable<String>(displayName);
     }
     map['upload_state'] = Variable<String>(uploadState);
     map['bytes_total'] = Variable<int>(bytesTotal);
@@ -1807,6 +1839,9 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
       localFileUri: localFileUri == null && nullToAbsent
           ? const Value.absent()
           : Value(localFileUri),
+      displayName: displayName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(displayName),
       uploadState: Value(uploadState),
       bytesTotal: Value(bytesTotal),
       bytesSent: Value(bytesSent),
@@ -1834,6 +1869,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
       conversationId: serializer.fromJson<String>(json['conversationId']),
       clientMessageId: serializer.fromJson<String>(json['clientMessageId']),
       localFileUri: serializer.fromJson<String?>(json['localFileUri']),
+      displayName: serializer.fromJson<String?>(json['displayName']),
       uploadState: serializer.fromJson<String>(json['uploadState']),
       bytesTotal: serializer.fromJson<int>(json['bytesTotal']),
       bytesSent: serializer.fromJson<int>(json['bytesSent']),
@@ -1856,6 +1892,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
       'conversationId': serializer.toJson<String>(conversationId),
       'clientMessageId': serializer.toJson<String>(clientMessageId),
       'localFileUri': serializer.toJson<String?>(localFileUri),
+      'displayName': serializer.toJson<String?>(displayName),
       'uploadState': serializer.toJson<String>(uploadState),
       'bytesTotal': serializer.toJson<int>(bytesTotal),
       'bytesSent': serializer.toJson<int>(bytesSent),
@@ -1874,6 +1911,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     String? conversationId,
     String? clientMessageId,
     Value<String?> localFileUri = const Value.absent(),
+    Value<String?> displayName = const Value.absent(),
     String? uploadState,
     int? bytesTotal,
     int? bytesSent,
@@ -1889,6 +1927,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     conversationId: conversationId ?? this.conversationId,
     clientMessageId: clientMessageId ?? this.clientMessageId,
     localFileUri: localFileUri.present ? localFileUri.value : this.localFileUri,
+    displayName: displayName.present ? displayName.value : this.displayName,
     uploadState: uploadState ?? this.uploadState,
     bytesTotal: bytesTotal ?? this.bytesTotal,
     bytesSent: bytesSent ?? this.bytesSent,
@@ -1916,6 +1955,9 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
       localFileUri: data.localFileUri.present
           ? data.localFileUri.value
           : this.localFileUri,
+      displayName: data.displayName.present
+          ? data.displayName.value
+          : this.displayName,
       uploadState: data.uploadState.present
           ? data.uploadState.value
           : this.uploadState,
@@ -1950,6 +1992,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
           ..write('conversationId: $conversationId, ')
           ..write('clientMessageId: $clientMessageId, ')
           ..write('localFileUri: $localFileUri, ')
+          ..write('displayName: $displayName, ')
           ..write('uploadState: $uploadState, ')
           ..write('bytesTotal: $bytesTotal, ')
           ..write('bytesSent: $bytesSent, ')
@@ -1970,6 +2013,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
     conversationId,
     clientMessageId,
     localFileUri,
+    displayName,
     uploadState,
     bytesTotal,
     bytesSent,
@@ -1989,6 +2033,7 @@ class LocalAttachment extends DataClass implements Insertable<LocalAttachment> {
           other.conversationId == this.conversationId &&
           other.clientMessageId == this.clientMessageId &&
           other.localFileUri == this.localFileUri &&
+          other.displayName == this.displayName &&
           other.uploadState == this.uploadState &&
           other.bytesTotal == this.bytesTotal &&
           other.bytesSent == this.bytesSent &&
@@ -2006,6 +2051,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
   final Value<String> conversationId;
   final Value<String> clientMessageId;
   final Value<String?> localFileUri;
+  final Value<String?> displayName;
   final Value<String> uploadState;
   final Value<int> bytesTotal;
   final Value<int> bytesSent;
@@ -2022,6 +2068,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     this.conversationId = const Value.absent(),
     this.clientMessageId = const Value.absent(),
     this.localFileUri = const Value.absent(),
+    this.displayName = const Value.absent(),
     this.uploadState = const Value.absent(),
     this.bytesTotal = const Value.absent(),
     this.bytesSent = const Value.absent(),
@@ -2039,6 +2086,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     required String conversationId,
     required String clientMessageId,
     this.localFileUri = const Value.absent(),
+    this.displayName = const Value.absent(),
     this.uploadState = const Value.absent(),
     this.bytesTotal = const Value.absent(),
     this.bytesSent = const Value.absent(),
@@ -2060,6 +2108,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     Expression<String>? conversationId,
     Expression<String>? clientMessageId,
     Expression<String>? localFileUri,
+    Expression<String>? displayName,
     Expression<String>? uploadState,
     Expression<int>? bytesTotal,
     Expression<int>? bytesSent,
@@ -2077,6 +2126,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
       if (conversationId != null) 'conversation_id': conversationId,
       if (clientMessageId != null) 'client_message_id': clientMessageId,
       if (localFileUri != null) 'local_file_uri': localFileUri,
+      if (displayName != null) 'display_name': displayName,
       if (uploadState != null) 'upload_state': uploadState,
       if (bytesTotal != null) 'bytes_total': bytesTotal,
       if (bytesSent != null) 'bytes_sent': bytesSent,
@@ -2097,6 +2147,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     Value<String>? conversationId,
     Value<String>? clientMessageId,
     Value<String?>? localFileUri,
+    Value<String?>? displayName,
     Value<String>? uploadState,
     Value<int>? bytesTotal,
     Value<int>? bytesSent,
@@ -2114,6 +2165,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
       conversationId: conversationId ?? this.conversationId,
       clientMessageId: clientMessageId ?? this.clientMessageId,
       localFileUri: localFileUri ?? this.localFileUri,
+      displayName: displayName ?? this.displayName,
       uploadState: uploadState ?? this.uploadState,
       bytesTotal: bytesTotal ?? this.bytesTotal,
       bytesSent: bytesSent ?? this.bytesSent,
@@ -2144,6 +2196,9 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
     }
     if (localFileUri.present) {
       map['local_file_uri'] = Variable<String>(localFileUri.value);
+    }
+    if (displayName.present) {
+      map['display_name'] = Variable<String>(displayName.value);
     }
     if (uploadState.present) {
       map['upload_state'] = Variable<String>(uploadState.value);
@@ -2186,6 +2241,7 @@ class LocalAttachmentsCompanion extends UpdateCompanion<LocalAttachment> {
           ..write('conversationId: $conversationId, ')
           ..write('clientMessageId: $clientMessageId, ')
           ..write('localFileUri: $localFileUri, ')
+          ..write('displayName: $displayName, ')
           ..write('uploadState: $uploadState, ')
           ..write('bytesTotal: $bytesTotal, ')
           ..write('bytesSent: $bytesSent, ')
@@ -3675,6 +3731,7 @@ typedef $$LocalAttachmentsTableCreateCompanionBuilder =
       required String conversationId,
       required String clientMessageId,
       Value<String?> localFileUri,
+      Value<String?> displayName,
       Value<String> uploadState,
       Value<int> bytesTotal,
       Value<int> bytesSent,
@@ -3693,6 +3750,7 @@ typedef $$LocalAttachmentsTableUpdateCompanionBuilder =
       Value<String> conversationId,
       Value<String> clientMessageId,
       Value<String?> localFileUri,
+      Value<String?> displayName,
       Value<String> uploadState,
       Value<int> bytesTotal,
       Value<int> bytesSent,
@@ -3736,6 +3794,11 @@ class $$LocalAttachmentsTableFilterComposer
 
   ColumnFilters<String> get localFileUri => $composableBuilder(
     column: $table.localFileUri,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get displayName => $composableBuilder(
+    column: $table.displayName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3819,6 +3882,11 @@ class $$LocalAttachmentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get uploadState => $composableBuilder(
     column: $table.uploadState,
     builder: (column) => ColumnOrderings(column),
@@ -3894,6 +3962,11 @@ class $$LocalAttachmentsTableAnnotationComposer
 
   GeneratedColumn<String> get localFileUri => $composableBuilder(
     column: $table.localFileUri,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get displayName => $composableBuilder(
+    column: $table.displayName,
     builder: (column) => column,
   );
 
@@ -3981,6 +4054,7 @@ class $$LocalAttachmentsTableTableManager
                 Value<String> conversationId = const Value.absent(),
                 Value<String> clientMessageId = const Value.absent(),
                 Value<String?> localFileUri = const Value.absent(),
+                Value<String?> displayName = const Value.absent(),
                 Value<String> uploadState = const Value.absent(),
                 Value<int> bytesTotal = const Value.absent(),
                 Value<int> bytesSent = const Value.absent(),
@@ -3997,6 +4071,7 @@ class $$LocalAttachmentsTableTableManager
                 conversationId: conversationId,
                 clientMessageId: clientMessageId,
                 localFileUri: localFileUri,
+                displayName: displayName,
                 uploadState: uploadState,
                 bytesTotal: bytesTotal,
                 bytesSent: bytesSent,
@@ -4015,6 +4090,7 @@ class $$LocalAttachmentsTableTableManager
                 required String conversationId,
                 required String clientMessageId,
                 Value<String?> localFileUri = const Value.absent(),
+                Value<String?> displayName = const Value.absent(),
                 Value<String> uploadState = const Value.absent(),
                 Value<int> bytesTotal = const Value.absent(),
                 Value<int> bytesSent = const Value.absent(),
@@ -4031,6 +4107,7 @@ class $$LocalAttachmentsTableTableManager
                 conversationId: conversationId,
                 clientMessageId: clientMessageId,
                 localFileUri: localFileUri,
+                displayName: displayName,
                 uploadState: uploadState,
                 bytesTotal: bytesTotal,
                 bytesSent: bytesSent,
