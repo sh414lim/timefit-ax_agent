@@ -48,6 +48,7 @@ class ComposerAttachmentChip extends StatelessWidget {
               container: true,
               liveRegion: true,
               label: '첨부 ${attachment.contentType}, $label',
+              hint: onOpen == null ? null : '미리보기 열기',
               excludeSemantics: true,
               button: onOpen != null,
               child: InkWell(

@@ -193,6 +193,143 @@ void main() {
     expect(find.byType(HtmlElementView), findsNothing);
   });
 
+  testWidgets(
+    'long filename preview keeps close and content operable at 320dp 200 percent',
+    (WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.runAsync(
+        () => persist(displayName: '매우 긴 한글 파일 이름 미리보기 접근성 확인용 문서.pdf'),
+      );
+      final subject = controller();
+      await tester.runAsync(subject.load);
+      final SemanticsHandle semantics = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 480),
+              textScaler: TextScaler.linear(2),
+              padding: EdgeInsets.only(top: 24, bottom: 34),
+            ),
+            child: DevLocalAttachmentPreviewScreen(
+              controller: subject,
+              autoLoad: false,
+              pdfRenderer: (_, _, _) => const Text('PDF 페이지 1'),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), null);
+      final Finder close = find.byType(BackButton);
+      expect(close, findsOneWidget);
+      expect(tester.getSize(close).shortestSide, greaterThanOrEqualTo(44));
+      expect(find.bySemanticsLabel('로컬 파일 미리보기, 서버 미업로드'), findsOneWidget);
+      expect(
+        tester
+            .getSemantics(
+              find.byKey(const ValueKey<String>('local-pdf-preview-semantics')),
+            )
+            .label,
+        contains('PDF 미리보기, 확대 및 이동 가능'),
+      );
+      semantics.dispose();
+    },
+  );
+
+  testWidgets('local PDF preview renders the responsive theme matrix', (
+    WidgetTester tester,
+  ) async {
+    await tester.runAsync(() => persist(displayName: '긴 한글 파일명 접근성 확인 문서.pdf'));
+    final subject = controller();
+    await tester.runAsync(subject.load);
+
+    for (final double width in <double>[320, 390, 430]) {
+      for (final double scale in <double>[1, 1.5, 2]) {
+        for (final Brightness brightness in Brightness.values) {
+          await tester.binding.setSurfaceSize(Size(width, 640));
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: ThemeData(brightness: brightness),
+              home: MediaQuery(
+                data: MediaQueryData(
+                  size: Size(width, 640),
+                  textScaler: TextScaler.linear(scale),
+                  padding: const EdgeInsets.only(
+                    top: 24,
+                    left: 16,
+                    right: 16,
+                    bottom: 34,
+                  ),
+                ),
+                child: DevLocalAttachmentPreviewScreen(
+                  controller: subject,
+                  autoLoad: false,
+                  pdfRenderer: (_, _, _) =>
+                      const Center(child: Text('PDF 페이지 1 · 확대 가능')),
+                ),
+              ),
+            ),
+          );
+          await tester.pump();
+          expect(
+            tester.takeException(),
+            null,
+            reason: '$width/${scale}x/${brightness.name}',
+          );
+          expect(find.byTooltip('미리보기 닫기'), findsOneWidget);
+          expect(find.text('PDF 페이지 1 · 확대 가능'), findsOneWidget);
+        }
+      }
+    }
+    await tester.binding.setSurfaceSize(null);
+  });
+
+  testWidgets(
+    'preview failure is one live status with icon and operable recovery',
+    (WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final subject = controller();
+      await tester.runAsync(subject.load);
+      final SemanticsHandle semantics = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 480),
+              textScaler: TextScaler.linear(2),
+              padding: EdgeInsets.only(top: 24, bottom: 34),
+            ),
+            child: DevLocalAttachmentPreviewScreen(
+              controller: subject,
+              autoLoad: false,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), null);
+      final Finder status = find.byKey(
+        const ValueKey<String>('local-preview-error-semantics'),
+      );
+      expect(status, findsOneWidget);
+      final statusNode = tester.getSemantics(status);
+      expect(statusNode.label, contains('로컬 첨부 파일이 없습니다.'));
+      expect(statusNode.flagsCollection.isLiveRegion, isTrue);
+      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      final Finder retry = find.widgetWithText(FilledButton, '다시 시도');
+      expect(retry, findsOneWidget);
+      expect(tester.getSize(retry).shortestSide, greaterThanOrEqualTo(44));
+      semantics.dispose();
+    },
+  );
+
   test('dispose fences late read and reader releases its operation', () async {
     await persist();
     final _DelayedReader reader = _DelayedReader();

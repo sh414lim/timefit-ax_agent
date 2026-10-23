@@ -442,6 +442,7 @@ void main() {
             body: ComposerAttachmentChip(
               attachment: _attachment('failed', ComposerAttachmentState.failed),
               onRemoveFailed: () {},
+              onOpen: () {},
             ),
           ),
         ),
@@ -449,7 +450,9 @@ void main() {
 
       final Finder status = find.bySemanticsLabel('첨부 image/png, 업로드 실패');
       expect(status, findsOneWidget);
-      expect(tester.getSemantics(status).flagsCollection.isLiveRegion, isTrue);
+      final SemanticsNode statusNode = tester.getSemantics(status);
+      expect(statusNode.flagsCollection.isLiveRegion, isTrue);
+      expect(statusNode.hint, '미리보기 열기');
       final Finder remove = find.byTooltip('실패한 첨부 제거');
       expect(remove, findsOneWidget);
       expect(tester.getSize(remove).shortestSide, greaterThanOrEqualTo(44));
