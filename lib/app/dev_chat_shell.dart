@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../core/database/app_database.dart';
 import '../core/database/local_repository_session.dart';
 import '../features/attachments/application/attachment_picker.dart';
+import '../features/attachments/application/dev_local_attachment_observability.dart';
 import '../features/attachments/application/dev_local_attachment_preview_controller.dart';
 import '../features/attachments/data/dev_local_attachment_drafts.dart';
 import '../features/attachments/data/local_attachment_store.dart';
@@ -65,6 +66,7 @@ class DevChatShell extends StatefulWidget {
     this.attachmentPicker,
     this.previewImageRenderer,
     this.previewPdfRenderer,
+    this.attachmentObservability,
     this.disposalObserver,
     super.key,
   });
@@ -74,6 +76,7 @@ class DevChatShell extends StatefulWidget {
   final AttachmentPicker? attachmentPicker;
   final DevLocalFileRenderer? previewImageRenderer;
   final DevLocalFileRenderer? previewPdfRenderer;
+  final DevLocalAttachmentObservability? attachmentObservability;
   final DevChatDisposalObserver? disposalObserver;
 
   @override
@@ -142,6 +145,7 @@ class _DevChatShellState extends State<DevChatShell> {
         database: database,
         session: session,
         store: LocalAttachmentStore(privateRoot: attachmentRoot),
+        observability: widget.attachmentObservability,
       );
       setState(() {
         _database = database;
@@ -335,6 +339,7 @@ class _DevChatShellState extends State<DevChatShell> {
       privateRoot: privateRoot,
       conversationId: conversationId,
       localId: localId,
+      observability: widget.attachmentObservability,
     );
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(

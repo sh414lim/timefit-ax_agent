@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/local_repository_session.dart';
+import '../application/dev_local_attachment_observability.dart';
 import '../application/select_attachments.dart';
 import '../domain/attachment_policy.dart';
 import 'local_attachment_store.dart';
@@ -14,17 +15,20 @@ final class DevLocalAttachmentDrafts {
     required AppDatabase database,
     required LocalRepositorySession session,
     required LocalAttachmentStore store,
+    DevLocalAttachmentObservability? observability,
     String Function()? uuid,
   }) : _database = database,
        _session = session,
        _store = store,
        _select = SelectAttachments(store),
+       _observability = observability,
        _uuid = uuid ?? (() => const Uuid().v4());
 
   final AppDatabase _database;
   final LocalRepositorySession _session;
   final LocalAttachmentStore _store;
   final SelectAttachments _select;
+  final DevLocalAttachmentObservability? _observability;
   final String Function() _uuid;
 
   Future<String?> findDraftClientMessageId(String conversationId) async {
@@ -42,7 +46,10 @@ final class DevLocalAttachmentDrafts {
       final OutboxCommand? submitted = await (_database.select(
         _database.outboxCommands,
       )..where((row) => row.id.equals(candidate))).getSingleOrNull();
-      if (submitted == null) return candidate;
+      if (submitted == null) {
+        _observability?.draftRestored(candidate);
+        return candidate;
+      }
     }
     return null;
   }
@@ -75,12 +82,25 @@ final class DevLocalAttachmentDrafts {
       conversationId: conversationId,
       clientMessageId: clientMessageId,
     );
-    final List<PrivateAttachment> copied = await _select.select(
-      inputs,
-      existingCount: existingCount,
-      cancellation: cancellation,
-    );
-    if (copied.isEmpty) return copied;
+    late final List<PrivateAttachment> copied;
+    try {
+      copied = await _select.select(
+        inputs,
+        existingCount: existingCount,
+        cancellation: cancellation,
+      );
+    } on Object catch (error) {
+      _observability?.privateCopyFailed(
+        exception: error,
+        clientMessageId: clientMessageId,
+        persistFailure: false,
+      );
+      rethrow;
+    }
+    if (copied.isEmpty) {
+      _observability?.pickerCancelled(clientMessageId);
+      return copied;
+    }
     try {
       await _session.write(
         _database,
@@ -111,9 +131,28 @@ final class DevLocalAttachmentDrafts {
           }
         }),
       );
+      for (final PrivateAttachment attachment in copied) {
+        _observability?.privateCopyReady(
+          clientMessageId: clientMessageId,
+          attachmentId: attachment.uri.pathSegments.last,
+        );
+      }
       return copied;
-    } on Object {
-      await _cleanupCopies(copied);
+    } on Object catch (error) {
+      try {
+        await _cleanupCopies(copied);
+      } on Object catch (cleanupError) {
+        _observability?.cleanupFailed(
+          exception: cleanupError,
+          clientMessageId: clientMessageId,
+        );
+        rethrow;
+      }
+      _observability?.privateCopyFailed(
+        exception: error,
+        clientMessageId: clientMessageId,
+        persistFailure: true,
+      );
       rethrow;
     }
   }
@@ -169,7 +208,7 @@ final class DevLocalAttachmentDrafts {
     if (removed == null) return;
     try {
       await _store.deletePersisted(Uri.parse(removed.localFileUri!));
-    } on Object {
+    } on Object catch (error) {
       // Preserve a retryable local reference if filesystem cleanup fails.
       await _session.write(
         _database,
@@ -179,6 +218,11 @@ final class DevLocalAttachmentDrafts {
               removed.toCompanion(false),
               mode: InsertMode.insertOrIgnore,
             ),
+      );
+      _observability?.cleanupFailed(
+        exception: error,
+        clientMessageId: clientMessageId,
+        attachmentId: localId,
       );
       rethrow;
     }

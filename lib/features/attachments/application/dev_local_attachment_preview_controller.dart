@@ -9,6 +9,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/database/app_database.dart';
 import '../../../core/database/local_repository_session.dart';
 import 'attachment_download_controller.dart';
+import 'dev_local_attachment_observability.dart';
 
 enum DevLocalPreviewError { missing, readFailed, unsupportedType }
 
@@ -148,15 +149,18 @@ final class DevLocalAttachmentPreviewController extends ChangeNotifier {
     required this.conversationId,
     required this.localId,
     DevLocalPreviewFileReader reader = const PrivateCopyPreviewFileReader(),
+    DevLocalAttachmentObservability? observability,
   }) : _database = database,
        _session = session,
        _privateRoot = privateRoot,
-       _reader = reader;
+       _reader = reader,
+       _observability = observability;
 
   final AppDatabase _database;
   final LocalRepositorySession _session;
   final Directory _privateRoot;
   final DevLocalPreviewFileReader _reader;
+  final DevLocalAttachmentObservability? _observability;
   final String conversationId;
   final String localId;
 
@@ -182,12 +186,14 @@ final class DevLocalAttachmentPreviewController extends ChangeNotifier {
       );
       if (!_current(generation)) return;
       if (row == null || row.localFileUri == null) {
+        _recordFailure(DevLocalPreviewError.missing);
         _setState(const DevLocalPreviewFailed(DevLocalPreviewError.missing));
         return;
       }
       final Uri persistedUri = Uri.parse(row.localFileUri!);
       if (persistedUri.scheme != 'file' ||
           path.basename(persistedUri.path) != row.localId) {
+        _recordFailure(DevLocalPreviewError.readFailed);
         _setState(const DevLocalPreviewFailed(DevLocalPreviewError.readFailed));
         return;
       }
@@ -199,6 +205,7 @@ final class DevLocalAttachmentPreviewController extends ChangeNotifier {
         _ => null,
       };
       if (kind == null) {
+        _recordFailure(DevLocalPreviewError.unsupportedType);
         _setState(
           const DevLocalPreviewFailed(DevLocalPreviewError.unsupportedType),
         );
@@ -243,16 +250,20 @@ final class DevLocalAttachmentPreviewController extends ChangeNotifier {
           kind: kind,
         ),
       );
+      _observability?.previewReady(localId);
     } on DevLocalPreviewFileException catch (error) {
       if (_current(generation)) {
+        _recordFailure(error.error, exception: error);
         _setState(DevLocalPreviewFailed(error.error));
       }
-    } on LocalRepositoryException {
+    } on LocalRepositoryException catch (error) {
       if (_current(generation)) {
+        _recordFailure(DevLocalPreviewError.readFailed, exception: error);
         _setState(const DevLocalPreviewFailed(DevLocalPreviewError.readFailed));
       }
-    } on Object {
+    } on Object catch (error) {
       if (_current(generation)) {
+        _recordFailure(DevLocalPreviewError.readFailed, exception: error);
         _setState(const DevLocalPreviewFailed(DevLocalPreviewError.readFailed));
       }
     }
@@ -261,7 +272,27 @@ final class DevLocalAttachmentPreviewController extends ChangeNotifier {
   void reportRenderFailure() {
     if (_disposed) return;
     _generation += 1;
+    _recordFailure(DevLocalPreviewError.readFailed);
     _setState(const DevLocalPreviewFailed(DevLocalPreviewError.readFailed));
+  }
+
+  void _recordFailure(
+    DevLocalPreviewError error, {
+    Object exception = const DevLocalPreviewFileException(
+      DevLocalPreviewError.readFailed,
+    ),
+  }) {
+    final DevLocalPreviewFailure failure = switch (error) {
+      DevLocalPreviewError.missing => DevLocalPreviewFailure.missing,
+      DevLocalPreviewError.readFailed => DevLocalPreviewFailure.readFailed,
+      DevLocalPreviewError.unsupportedType =>
+        DevLocalPreviewFailure.unsupportedType,
+    };
+    _observability?.previewFailed(
+      exception: exception,
+      attachmentId: localId,
+      failure: failure,
+    );
   }
 
   bool _current(int generation) => !_disposed && generation == _generation;

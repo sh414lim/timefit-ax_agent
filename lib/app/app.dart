@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/observability/observability_boundary.dart';
 import '../features/attachments/application/attachment_picker.dart';
+import '../features/attachments/application/dev_local_attachment_observability.dart';
 import '../features/attachments/presentation/dev_local_attachment_preview_screen.dart';
 import '../src/app_environment.dart';
 import 'dev_chat_shell.dart';
@@ -16,6 +18,7 @@ class TimeFitApp extends StatefulWidget {
     this.devAttachmentPicker,
     this.devPreviewImageRenderer,
     this.devPreviewPdfRenderer,
+    this.devAttachmentObservability,
     this.devDisposalObserver,
     super.key,
   });
@@ -26,6 +29,7 @@ class TimeFitApp extends StatefulWidget {
   final AttachmentPicker? devAttachmentPicker;
   final DevLocalFileRenderer? devPreviewImageRenderer;
   final DevLocalFileRenderer? devPreviewPdfRenderer;
+  final DevLocalAttachmentObservability? devAttachmentObservability;
   final DevChatDisposalObserver? devDisposalObserver;
 
   @override
@@ -34,6 +38,8 @@ class TimeFitApp extends StatefulWidget {
 
 class _TimeFitAppState extends State<TimeFitApp> {
   GoRouter? _router;
+  late final DevLocalAttachmentObservability _defaultAttachmentObservability =
+      _createDefaultAttachmentObservability();
 
   @override
   void initState() {
@@ -64,6 +70,9 @@ class _TimeFitAppState extends State<TimeFitApp> {
           attachmentPicker: widget.devAttachmentPicker,
           previewImageRenderer: widget.devPreviewImageRenderer,
           previewPdfRenderer: widget.devPreviewPdfRenderer,
+          attachmentObservability:
+              widget.devAttachmentObservability ??
+              _defaultAttachmentObservability,
           disposalObserver: widget.devDisposalObserver,
         ),
       );
@@ -77,4 +86,19 @@ class _TimeFitAppState extends State<TimeFitApp> {
       title: widget.environment.displayName,
     );
   }
+}
+
+DevLocalAttachmentObservability _createDefaultAttachmentObservability() {
+  final AppLogger logger = AppLogger(
+    context: AppLogContext(
+      environment: 'local',
+      app: 'timefit-native',
+      build: '0.1.0+1',
+    ),
+    sink: const NoOpAppLogSink(),
+  );
+  return DevLocalAttachmentObservability(
+    logger: logger,
+    crashReporter: LocalCrashReporter(logger),
+  );
 }
