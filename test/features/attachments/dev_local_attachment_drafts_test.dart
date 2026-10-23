@@ -188,4 +188,55 @@ void main() {
       );
     },
   );
+
+  test(
+    'submitted aggregate rejects another picker result without reading it',
+    () async {
+      await drafts.add(
+        conversationId: 'conversation-1',
+        clientMessageId: 'draft-1',
+        inputs: <AttachmentInput>[_input()],
+      );
+      final LocalAttachment row = await database
+          .select(database.localAttachments)
+          .getSingle();
+      await SendMessage(
+        database: database,
+        session: session,
+        clock: () => DateTime.utc(2026, 10, 23),
+      ).submitWithAttachments(
+        clientMessageId: 'draft-1',
+        conversationId: 'conversation-1',
+        bodyText: 'body',
+        localAttachmentIds: <String>[row.localId],
+      );
+      final String payload =
+          (await database.outboxDao.getAll()).single.payloadJson;
+      var opened = 0;
+      final AttachmentInput lateInput = AttachmentInput(
+        name: 'late.pdf',
+        declaredMime: 'application/pdf',
+        openRead: () {
+          opened += 1;
+          return Stream<List<int>>.value(_pdf);
+        },
+      );
+
+      await expectLater(
+        drafts.add(
+          conversationId: 'conversation-1',
+          clientMessageId: 'draft-1',
+          inputs: <AttachmentInput>[lateInput],
+        ),
+        throwsA(isA<StateError>()),
+      );
+      expect(opened, 0);
+      expect(
+        await database.select(database.localAttachments).get(),
+        hasLength(1),
+      );
+      expect((await database.outboxDao.getAll()).single.payloadJson, payload);
+      expect(await root.list().toList(), hasLength(1));
+    },
+  );
 }

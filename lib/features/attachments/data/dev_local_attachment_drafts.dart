@@ -55,6 +55,7 @@ final class DevLocalAttachmentDrafts {
     required List<AttachmentInput>? inputs,
     AttachmentCancellation? cancellation,
   }) async {
+    await _ensureUnsubmitted(clientMessageId);
     final int existingCount = await _count(
       conversationId: conversationId,
       clientMessageId: clientMessageId,
@@ -69,6 +70,7 @@ final class DevLocalAttachmentDrafts {
       await _session.write(
         _database,
         () => _database.transaction(() async {
+          await _ensureUnsubmitted(clientMessageId);
           final int latestCount = await _count(
             conversationId: conversationId,
             clientMessageId: clientMessageId,
@@ -97,6 +99,15 @@ final class DevLocalAttachmentDrafts {
     } on Object {
       await _cleanupCopies(copied);
       rethrow;
+    }
+  }
+
+  Future<void> _ensureUnsubmitted(String clientMessageId) async {
+    final OutboxCommand? submitted = await (_database.select(
+      _database.outboxCommands,
+    )..where((row) => row.id.equals(clientMessageId))).getSingleOrNull();
+    if (submitted != null) {
+      throw StateError('attachment_draft_submitted');
     }
   }
 

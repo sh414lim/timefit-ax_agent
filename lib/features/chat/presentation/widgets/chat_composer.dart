@@ -236,7 +236,10 @@ class _ChatComposerState extends State<ChatComposer> {
                         width: 48,
                         height: 48,
                       ),
-                      onPressed: controller.canSubmit ? _submit : null,
+                      onPressed:
+                          controller.canSubmit && !widget.isSelectingAttachments
+                          ? _submit
+                          : null,
                       icon: controller.isSubmitting
                           ? const SizedBox.square(
                               dimension: 20,

@@ -36,6 +36,34 @@ void main() {
     expect(_sendButton(tester).onPressed, isNotNull);
   });
 
+  testWidgets('send is disabled while a private attachment copy is pending', (
+    WidgetTester tester,
+  ) async {
+    final _FakeSubmitter submitter = _FakeSubmitter();
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      submitter: submitter,
+    );
+    addTearDown(controller.dispose);
+    controller.updateDraft('body');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ChatComposer(
+            controller: controller,
+            isSelectingAttachments: true,
+            onAddAttachment: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(_sendButton(tester).onPressed, isNull);
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.send));
+    await tester.pump();
+    expect(submitter.submitCalls, 0);
+  });
+
   testWidgets('input is enforced at 12000 characters', (
     WidgetTester tester,
   ) async {

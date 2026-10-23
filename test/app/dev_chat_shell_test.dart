@@ -284,6 +284,7 @@ void main() {
           null,
           <AttachmentInput>[_pdfInput()],
           <AttachmentInput>[_pdfInput()],
+          <AttachmentInput>[_pdfInput()],
         ],
       );
 
@@ -402,6 +403,25 @@ void main() {
         expect(outbox, hasLength(1));
         expect(outbox.single.commandType, 'local_send_message_v2');
         expect(outbox.single.state, 'queued');
+        final String submittedPayload = outbox.single.payloadJson;
+
+        await pickFile();
+        await _settleFileIo(tester);
+        expect(
+          await _runFileIo(
+            tester,
+            () =>
+                openedDatabase!.select(openedDatabase!.localAttachments).get(),
+          ),
+          hasLength(1),
+        );
+        expect(
+          (await _runFileIo(
+            tester,
+            () => openedDatabase!.outboxDao.getAll(),
+          )).single.payloadJson,
+          submittedPayload,
+        );
       } finally {
         await tester.pumpWidget(const SizedBox.shrink());
         await _pumpUntil(tester, () => disposalComplete);
