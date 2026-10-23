@@ -75,19 +75,36 @@ final class _DevLocalAttachmentPreviewScreenState
         : '첨부 미리보기';
     return Scaffold(
       appBar: AppBar(
+        leading: Semantics(
+          button: true,
+          label: '미리보기 닫기',
+          onTap: () => Navigator.maybePop(context),
+          excludeSemantics: true,
+          child: Tooltip(
+            message: '미리보기 닫기',
+            child: BackButton(onPressed: () => Navigator.maybePop(context)),
+          ),
+        ),
         title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
-      body: Column(
-        children: <Widget>[
-          const Material(
-            child: Padding(
-              padding: EdgeInsets.all(12),
-              child: Text('로컬 파일 미리보기 · 서버 미업로드'),
+      body: state is DevLocalPreviewFailed
+          ? SingleChildScrollView(
+              child: Column(
+                children: <Widget>[
+                  _localOnlyBanner(),
+                  _LocalPreviewError(
+                    error: state.error,
+                    onRetry: widget.controller.load,
+                  ),
+                ],
+              ),
+            )
+          : Column(
+              children: <Widget>[
+                _localOnlyBanner(),
+                Expanded(child: _body(context, state)),
+              ],
             ),
-          ),
-          Expanded(child: _body(context, state)),
-        ],
-      ),
     );
   }
 
@@ -97,14 +114,21 @@ final class _DevLocalAttachmentPreviewScreenState
           child: CircularProgressIndicator(),
         ),
         DevLocalPreviewReady(:final file, :final kind) => switch (kind) {
-          AttachmentPreviewKind.image =>
-            (widget.imageRenderer ?? _imageRenderer)(
+          AttachmentPreviewKind.image => Semantics(
+            key: const ValueKey<String>('local-image-preview-semantics'),
+            label: '이미지 미리보기, 확대 및 이동 가능',
+            container: true,
+            child: (widget.imageRenderer ?? _imageRenderer)(
               context,
               file,
               widget.controller.reportRenderFailure,
             ),
-          AttachmentPreviewKind.pdf =>
-            widget.pdfRenderer != null
+          ),
+          AttachmentPreviewKind.pdf => Semantics(
+            key: const ValueKey<String>('local-pdf-preview-semantics'),
+            label: 'PDF 미리보기, 확대 및 이동 가능',
+            container: true,
+            child: widget.pdfRenderer != null
                 ? widget.pdfRenderer!(
                     context,
                     file,
@@ -117,6 +141,7 @@ final class _DevLocalAttachmentPreviewScreenState
                     documentOpener:
                         widget.pdfDocumentOpener ?? PdfDocument.openFile,
                   ),
+          ),
         },
         DevLocalPreviewFailed(:final error) => _LocalPreviewError(
           error: error,
@@ -124,6 +149,17 @@ final class _DevLocalAttachmentPreviewScreenState
         ),
       };
 }
+
+Widget _localOnlyBanner() => Semantics(
+  label: '로컬 파일 미리보기, 서버 미업로드',
+  excludeSemantics: true,
+  child: const Material(
+    child: Padding(
+      padding: EdgeInsets.all(12),
+      child: Text('로컬 파일 미리보기 · 서버 미업로드'),
+    ),
+  ),
+);
 
 Widget _imageRenderer(
   BuildContext context,
@@ -519,18 +555,37 @@ final class _LocalPreviewError extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(switch (error) {
-          DevLocalPreviewError.missing => '로컬 첨부 파일이 없습니다.',
-          DevLocalPreviewError.readFailed => '로컬 첨부 파일을 읽을 수 없습니다.',
-          DevLocalPreviewError.unsupportedType => '지원하지 않는 첨부 형식입니다.',
-        }),
-        const SizedBox(height: 8),
-        TextButton(onPressed: onRetry, child: const Text('다시 시도')),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final String message = switch (error) {
+      DevLocalPreviewError.missing => '로컬 첨부 파일이 없습니다.',
+      DevLocalPreviewError.readFailed => '로컬 첨부 파일을 읽을 수 없습니다.',
+      DevLocalPreviewError.unsupportedType => '지원하지 않는 첨부 형식입니다.',
+    };
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Semantics(
+              key: const ValueKey<String>('local-preview-error-semantics'),
+              container: true,
+              liveRegion: true,
+              label: message,
+              excludeSemantics: true,
+              child: Column(
+                children: <Widget>[
+                  const Icon(Icons.error_outline, size: 40),
+                  const SizedBox(height: 8),
+                  Text(message, textAlign: TextAlign.center),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: onRetry, child: const Text('다시 시도')),
+          ],
+        ),
+      ),
+    );
+  }
 }

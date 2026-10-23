@@ -16,6 +16,11 @@ CHAT-070은 REL-001, REL-002, CHAT-053, CHAT-062에 의해 전체 완료가 차�
 - [x] 업로드 byte 진행률이 연속 변경되어도 상태 semantics node와 label이 불필요하게 변경되지 않는지 구조적으로 확인한다.
 - [x] 실패 첨부 제거와 메시지 보내기 조작 영역이 최소 44×44dp인지 확인한다.
 - [x] 기존 목록·채팅 light/dark 및 text-scale golden 회귀를 실행한다.
+- [x] PR #31 이후 추가된 dev-local PDF preview를 320/390/430dp × 글자 100/150/200% × light/dark 18개 조합에서 render smoke로 확인한다. 이 행렬은 golden 18개가 아니다.
+- [x] 긴 한글 파일명의 PDF preview를 320dp, 글자 200%, safe area 조건에서 표시하고, 닫기 조작을 44×44dp 이상으로 유지한다.
+- [x] 로컬 preview에서 서버 미업로드 상태와 image/PDF 확대·이동 힌트를 semantics로 구분한다.
+- [x] 미리보기 실패를 text·error icon·단일 live-region으로 표시하고, 320dp·200% 글자에서 44dp 이상의 `다시 시도` 조작을 유지한다.
+- [x] 열 수 있는 attachment chip은 상태 live-region과 분리된 `미리보기 열기` semantics hint를 제공하고, 제거 action은 별도 button node로 유지한다.
 
 ## 실제 기기 수동 검증 필요
 
@@ -25,6 +30,8 @@ CHAT-070은 REL-001, REL-002, CHAT-053, CHAT-062에 의해 전체 완료가 차�
 - [ ] 실패 상태가 나타난 뒤 재시도 action으로 예측 가능하게 이동하고, 실행 후 focus가 유실되지 않는지 확인한다.
 - [ ] 실제 소프트 키보드, 제스처 내비게이션 영역, 노치·홈 인디케이터에서 composer와 첨부 제거 action이 가려지지 않는지 확인한다.
 - [ ] image/PDF 실제 renderer의 확대·스크롤·닫기 focus 순서를 확인한다.
+- [ ] iOS Files picker와 Android document picker에서 선택·취소·재선택 후 focus가 attachment chip 또는 composer로 예측 가능하게 복귀하는지 확인한다.
+- [ ] PDF의 현재 페이지, 확대·이동 가능 상태와 preview 닫기가 VoiceOver/TalkBack에서 중복 없이 낭독되는지 확인한다.
 - [ ] iOS와 Android의 light/dark 고대비 설정에서 상태 label과 icon이 식별 가능한지 확인한다.
 
 자동 widget/semantics/golden 테스트는 VoiceOver 또는 TalkBack의 실제 음성 출력, 플랫폼별 focus 이동, 실제 키보드·safe-area 동작을 대체하지 않는다. 양 플랫폼 영상과 수동 결과가 없으므로 CHAT-070 전체 완료 증거는 아직 충족되지 않았다.
