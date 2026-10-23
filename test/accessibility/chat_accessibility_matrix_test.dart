@@ -434,6 +434,7 @@ void main() {
   testWidgets('attachment progress is announced once and removal is separate', (
     WidgetTester tester,
   ) async {
+    var openCount = 0;
     final SemanticsHandle semantics = tester.ensureSemantics();
     try {
       await tester.pumpWidget(
@@ -442,7 +443,7 @@ void main() {
             body: ComposerAttachmentChip(
               attachment: _attachment('failed', ComposerAttachmentState.failed),
               onRemoveFailed: () {},
-              onOpen: () {},
+              onOpen: () => openCount += 1,
             ),
           ),
         ),
@@ -453,6 +454,13 @@ void main() {
       final SemanticsNode statusNode = tester.getSemantics(status);
       expect(statusNode.flagsCollection.isLiveRegion, isTrue);
       expect(statusNode.hint, '미리보기 열기');
+      expect(
+        statusNode.getSemanticsData().hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+      tester.semantics.tap(find.semantics.byLabel('첨부 image/png, 업로드 실패'));
+      await tester.pump();
+      expect(openCount, 1);
       final Finder remove = find.byTooltip('실패한 첨부 제거');
       expect(remove, findsOneWidget);
       expect(tester.getSize(remove).shortestSide, greaterThanOrEqualTo(44));
