@@ -21,6 +21,43 @@ class ConversationDao extends DatabaseAccessor<AppDatabase>
 
   Future<List<LocalConversation>> getAll() => select(localConversations).get();
 
+  Future<bool> renameLocal({
+    required String id,
+    required String? title,
+    required DateTime updatedAt,
+  }) async {
+    final int changed =
+        await (update(
+          localConversations,
+        )..where((row) => row.id.equals(id))).write(
+          LocalConversationsCompanion(
+            title: Value(title),
+            serverUpdatedAt: Value(updatedAt),
+            lastSyncedAt: Value(updatedAt),
+            syncState: const Value('stale'),
+          ),
+        );
+    return changed == 1;
+  }
+
+  Future<bool> archiveLocal({
+    required String id,
+    required DateTime updatedAt,
+  }) async {
+    final int changed =
+        await (update(localConversations)
+              ..where((row) => row.id.equals(id) & row.status.equals('active')))
+            .write(
+              LocalConversationsCompanion(
+                status: const Value('archived'),
+                serverUpdatedAt: Value(updatedAt),
+                lastSyncedAt: Value(updatedAt),
+                syncState: const Value('stale'),
+              ),
+            );
+    return changed == 1;
+  }
+
   Selectable<CachedConversationRow> _active() =>
       customSelect(
         "SELECT c.*, m.body_text AS cached_preview FROM local_conversations c LEFT JOIN local_messages m ON m.server_id = c.last_message_id AND m.conversation_id = c.id WHERE c.status = 'active' ORDER BY c.server_updated_at DESC, c.id DESC",

@@ -12,9 +12,13 @@ import '../features/chat/application/composer_controller.dart';
 import '../features/chat/application/send_message.dart';
 import '../features/chat/data/message_repository_impl.dart';
 import '../features/chat/presentation/chat_screen.dart';
+import '../features/conversations/application/conversation_actions.dart';
 import '../features/conversations/application/conversation_list_controller.dart';
 import '../features/conversations/data/dev_local_conversation_repository.dart';
+import '../features/conversations/domain/conversation_summary.dart';
+import '../features/conversations/presentation/archived_conversation_screen.dart';
 import '../features/conversations/presentation/conversation_list_screen.dart';
+import '../features/conversations/presentation/conversation_menu.dart';
 
 typedef DevChatDatabaseFactory = Future<AppDatabase> Function();
 typedef DevChatDisposalObserver = void Function(Future<void> disposal);
@@ -51,11 +55,13 @@ class _DevChatShellState extends State<DevChatShell> {
   LocalRepositorySession? _session;
   DevLocalConversationRepository? _conversationRepository;
   ConversationListController? _listController;
+  ConversationActions? _conversationActions;
   MessageRepositoryImpl? _messageRepository;
   ComposerController? _composer;
   String? _selectedConversationId;
   Object? _initializationError;
   bool _creatingConversation = false;
+  bool _showingArchive = false;
   bool _disposed = false;
 
   @override
@@ -81,6 +87,10 @@ class _DevChatShellState extends State<DevChatShell> {
         repository: conversationRepository,
         localOnly: true,
       );
+      final conversationActions = ConversationActions(
+        repository: conversationRepository,
+      );
+      conversationActions.addListener(_handleActionsState);
       final messageRepository = MessageRepositoryImpl(
         database: database,
         session: session,
@@ -90,6 +100,7 @@ class _DevChatShellState extends State<DevChatShell> {
         _session = session;
         _conversationRepository = conversationRepository;
         _listController = listController;
+        _conversationActions = conversationActions;
         _messageRepository = messageRepository;
       });
     } on Object catch (error) {
@@ -140,6 +151,96 @@ class _DevChatShellState extends State<DevChatShell> {
     });
   }
 
+  void _handleActionsState(ConversationActionsState _) {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _handleConversationAction(
+    ConversationSummary conversation,
+    ConversationMenuAction action,
+  ) async {
+    switch (action) {
+      case ConversationMenuAction.rename:
+        await _renameConversation(conversation);
+      case ConversationMenuAction.archive:
+        await _archiveConversation(conversation);
+    }
+  }
+
+  Future<void> _renameConversation(ConversationSummary conversation) async {
+    String editedTitle = conversation.title;
+    final String? title = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('대화 이름 변경'),
+        content: TextFormField(
+          initialValue: conversation.title,
+          autofocus: true,
+          maxLength: ConversationTitle.maximumCharacters,
+          decoration: const InputDecoration(labelText: '대화 이름'),
+          onChanged: (String value) => editedTitle = value,
+          onFieldSubmitted: (String value) => Navigator.of(context).pop(value),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(editedTitle),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+    if (title == null || !mounted) return;
+    final bool succeeded = await _conversationActions!.rename(
+      conversation.id,
+      title,
+    );
+    if (!succeeded &&
+        mounted &&
+        _conversationActions!.state.errorMessage != null) {
+      _showActionError();
+    }
+  }
+
+  Future<void> _archiveConversation(ConversationSummary conversation) async {
+    final bool confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (BuildContext context) => AlertDialog(
+            title: const Text('대화를 보관할까요?'),
+            content: Text('“${conversation.title}” 대화를 보관 목록으로 이동합니다.'),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('취소'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('보관'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+    final bool succeeded = await _conversationActions!.archive(conversation.id);
+    if (!succeeded &&
+        mounted &&
+        _conversationActions!.state.errorMessage != null) {
+      _showActionError();
+    }
+  }
+
+  void _showActionError() {
+    final ConversationActions actions = _conversationActions!;
+    final String message = actions.state.errorMessage ?? '작업을 완료하지 못했습니다.';
+    actions.clearError();
+    _showLocalNotice(message);
+  }
+
   void _showLocalNotice(String message) {
     ScaffoldMessenger.of(
       context,
@@ -150,6 +251,8 @@ class _DevChatShellState extends State<DevChatShell> {
   void dispose() {
     _disposed = true;
     _composer?.dispose();
+    _conversationActions?.removeListener(_handleActionsState);
+    _conversationActions?.dispose();
     final controller = _listController;
     final session = _session;
     final database = _database;
@@ -208,12 +311,23 @@ class _DevChatShellState extends State<DevChatShell> {
         ],
       );
     }
+    if (_showingArchive) {
+      return ArchivedConversationScreen(
+        conversations: _conversationRepository!.watchArchivedConversations(),
+        onBack: () => setState(() => _showingArchive = false),
+        onOpenConversation: _openConversation,
+      );
+    }
     return ConversationListScreen(
       controller: controller,
       onNewConversation: () => unawaited(_createConversation()),
       onOpenSettings: () => _showLocalNotice('설정은 로컬 개발 모드에서 비활성화되어 있습니다.'),
-      onOpenArchive: () => _showLocalNotice('보관 기능은 로컬 개발 모드에서 비활성화되어 있습니다.'),
+      onOpenArchive: () => setState(() => _showingArchive = true),
       onOpenConversation: _openConversation,
+      onConversationAction: (conversation, action) =>
+          unawaited(_handleConversationAction(conversation, action)),
+      isConversationBusy: (String id) =>
+          _conversationActions?.state.isBusy(id) ?? false,
     );
   }
 }
