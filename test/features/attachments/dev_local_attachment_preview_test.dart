@@ -532,6 +532,42 @@ void main() {
       throwsA(isA<TimeoutException>()),
     );
   });
+
+  test(
+    'failing texture cleanup is contained and does not stop peers',
+    () async {
+      final List<Object> errors = <Object>[];
+      final done = Completer<void>();
+      runZonedGuarded(() async {
+        final failing = _TrackedTexture(disposeFails: true);
+        final succeeding = _TrackedTexture();
+        final page = _MultipleTexturePage(<PdfPageTexture>[
+          failing,
+          succeeding,
+        ]);
+        final document = _SinglePagePdf(page);
+        final owner = DevLocalPdfDocumentOwner(
+          Future<PdfDocument>.value(document),
+        );
+        final PdfPage guardedPage = await (await owner.viewerDocument).getPage(
+          1,
+        );
+        await guardedPage.createTexture();
+        await guardedPage.createTexture();
+
+        owner.dispose();
+        owner.dispose();
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        expect(document.closes, 1);
+        expect(failing.disposes, 1);
+        expect(succeeding.disposes, 1);
+        done.complete();
+      }, (Object error, StackTrace stackTrace) => errors.add(error));
+      await done.future.timeout(const Duration(seconds: 2));
+      expect(errors, isEmpty);
+    },
+  );
 }
 
 final class _DelayedPdfPlatform extends PdfxPlatform {
@@ -644,8 +680,10 @@ final class _DelayedOperationsPage extends PdfPage {
 }
 
 final class _TrackedTexture extends PdfPageTexture {
-  _TrackedTexture() : super(id: 1, pageId: 'synthetic-page', pageNumber: 1);
+  _TrackedTexture({this.disposeFails = false})
+    : super(id: 1, pageId: 'synthetic-page', pageNumber: 1);
 
+  final bool disposeFails;
   int disposes = 0;
 
   @override
@@ -660,6 +698,7 @@ final class _TrackedTexture extends PdfPageTexture {
   @override
   Future<void> dispose() async {
     disposes += 1;
+    if (disposeFails) throw StateError('synthetic texture dispose failed');
   }
 
   @override
@@ -678,6 +717,47 @@ final class _TrackedTexture extends PdfPageTexture {
     String? backgroundColor,
     bool allowAntiAliasing = true,
   }) async => true;
+
+  @override
+  bool operator ==(Object other) => identical(this, other);
+
+  @override
+  int get hashCode => identityHashCode(this);
+}
+
+final class _MultipleTexturePage extends PdfPage {
+  _MultipleTexturePage(this.textures)
+    : super(
+        document: _TrackedPdf(),
+        id: 'synthetic-multiple-page',
+        pageNumber: 1,
+        width: 10,
+        height: 10,
+        autoCloseAndroid: false,
+      );
+
+  final List<PdfPageTexture> textures;
+  int _nextTexture = 0;
+
+  @override
+  Future<void> close() async {
+    isClosed = true;
+  }
+
+  @override
+  Future<PdfPageTexture> createTexture() async => textures[_nextTexture++];
+
+  @override
+  Future<PdfPageImage?> render({
+    required double width,
+    required double height,
+    PdfPageImageFormat format = PdfPageImageFormat.jpeg,
+    String? backgroundColor,
+    Rect? cropRect,
+    int quality = 100,
+    bool forPrint = false,
+    bool removeTempFile = true,
+  }) => throw UnimplementedError();
 
   @override
   bool operator ==(Object other) => identical(this, other);

@@ -290,7 +290,9 @@ final class _GuardedPdfDocument extends PdfDocument {
     for (final page in _pages) {
       page._documentDisposed();
     }
-    final closing = Future<void>.sync(_delegate.close);
+    final closing = Future<void>.sync(
+      _delegate.close,
+    ).catchError((Object _) {});
     _closing = closing;
     return closing;
   }
@@ -387,7 +389,7 @@ final class _GuardedPdfPage extends PdfPage {
     _disposed = true;
     isClosed = true;
     for (final texture in _textures) {
-      texture.dispose();
+      unawaited(texture.dispose());
     }
   }
 
@@ -396,7 +398,9 @@ final class _GuardedPdfPage extends PdfPage {
     final existing = _closing;
     if (existing != null) return existing;
     _documentDisposed();
-    final closing = Future<void>.sync(_delegate.close);
+    final closing = Future<void>.sync(
+      _delegate.close,
+    ).catchError((Object _) {});
     _closing = closing;
     return closing;
   }
@@ -478,7 +482,9 @@ final class _GuardedPdfTexture extends PdfPageTexture {
     final existing = _disposing;
     if (existing != null) return existing;
     _disposed = true;
-    final disposing = Future<void>.sync(_delegate.dispose);
+    final disposing = Future<void>.sync(
+      _delegate.dispose,
+    ).catchError((Object _) {});
     _disposing = disposing;
     return disposing;
   }
