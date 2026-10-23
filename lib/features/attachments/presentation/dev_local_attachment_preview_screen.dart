@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -144,22 +145,29 @@ final class _PrivatePdfRenderer extends StatefulWidget {
 }
 
 final class _PrivatePdfRendererState extends State<_PrivatePdfRenderer> {
+  late DevLocalPdfDocumentOwner _documentOwner = _newDocumentOwner();
   late PdfControllerPinch _controller = _newController();
 
+  DevLocalPdfDocumentOwner _newDocumentOwner() =>
+      DevLocalPdfDocumentOwner(PdfDocument.openFile(widget.file.path));
+
   PdfControllerPinch _newController() =>
-      PdfControllerPinch(document: PdfDocument.openFile(widget.file.path));
+      PdfControllerPinch(document: _documentOwner.viewerDocument);
 
   @override
   void didUpdateWidget(_PrivatePdfRenderer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.file.path == widget.file.path) return;
     _controller.dispose();
+    _documentOwner.dispose();
+    _documentOwner = _newDocumentOwner();
     _controller = _newController();
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _documentOwner.dispose();
     super.dispose();
   }
 
@@ -178,6 +186,53 @@ final class _PrivatePdfRendererState extends State<_PrivatePdfRenderer> {
       },
     ),
   );
+}
+
+/// Owns the native document independently from pdfx's viewer controller.
+///
+/// pdfx does not cancel its pending document future when a viewer detaches.
+/// Completing that future after detach makes its loader dereference a missing
+/// view state. This owner therefore withholds late results from the viewer and
+/// closes every successfully opened native document exactly once.
+@visibleForTesting
+final class DevLocalPdfDocumentOwner {
+  DevLocalPdfDocumentOwner(Future<PdfDocument> opening) {
+    opening.then(_opened, onError: _openFailed);
+  }
+
+  final Completer<PdfDocument> _viewerCompleter = Completer<PdfDocument>();
+  PdfDocument? _document;
+  bool _disposed = false;
+  bool _closeRequested = false;
+
+  Future<PdfDocument> get viewerDocument => _viewerCompleter.future;
+
+  void _opened(PdfDocument document) {
+    if (_disposed) {
+      _closeOnce(document);
+      return;
+    }
+    _document = document;
+    _viewerCompleter.complete(document);
+  }
+
+  void _openFailed(Object error, StackTrace stackTrace) {
+    if (_disposed) return;
+    _viewerCompleter.completeError(error, stackTrace);
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    final PdfDocument? document = _document;
+    if (document != null) _closeOnce(document);
+  }
+
+  void _closeOnce(PdfDocument document) {
+    if (_closeRequested) return;
+    _closeRequested = true;
+    unawaited(document.close().catchError((Object _) {}));
+  }
 }
 
 final class _LocalPreviewError extends StatelessWidget {

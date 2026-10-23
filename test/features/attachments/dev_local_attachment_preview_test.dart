@@ -6,6 +6,8 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pdfx/pdfx.dart';
+import 'package:pdfx/src/renderer/interfaces/platform.dart';
 import 'package:timefit_native/core/database/app_database.dart';
 import 'package:timefit_native/core/database/local_repository_session.dart';
 import 'package:timefit_native/features/attachments/application/attachment_download_controller.dart';
@@ -234,6 +236,124 @@ void main() {
       DevLocalPreviewError.readFailed,
     );
   });
+
+  testWidgets('late native PDF open is fenced and closed after dispose', (
+    tester,
+  ) async {
+    final PdfxPlatform original = PdfxPlatform.instance;
+    final _DelayedPdfPlatform platform = _DelayedPdfPlatform();
+    PdfxPlatform.instance = platform;
+    addTearDown(() => PdfxPlatform.instance = original);
+    await tester.runAsync(persist);
+    final subject = controller();
+    await tester.runAsync(subject.load);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DevLocalAttachmentPreviewScreen(
+          controller: subject,
+          autoLoad: false,
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(platform.calls, 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    final _TrackedPdf document = _TrackedPdf();
+    platform.result.complete(document);
+    await tester.pump();
+    await tester.pump();
+
+    expect(document.closes, 1);
+    expect(tester.takeException(), equals(null));
+  });
+
+  test('PDF owner closes normal result once across repeated dispose', () async {
+    final _TrackedPdf document = _TrackedPdf();
+    final owner = DevLocalPdfDocumentOwner(Future<PdfDocument>.value(document));
+    expect(await owner.viewerDocument, same(document));
+
+    owner.dispose();
+    owner.dispose();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(document.closes, 1);
+  });
+
+  test('PDF owner forwards active open errors without a close', () async {
+    final owner = DevLocalPdfDocumentOwner(
+      Future<PdfDocument>.error(StateError('synthetic open failure')),
+    );
+    await expectLater(owner.viewerDocument, throwsStateError);
+
+    owner.dispose();
+  });
+
+  test(
+    'PDF owner suppresses a late open error after repeated dispose',
+    () async {
+      final opening = Completer<PdfDocument>();
+      final owner = DevLocalPdfDocumentOwner(opening.future);
+      owner.dispose();
+      owner.dispose();
+
+      opening.completeError(StateError('synthetic late failure'));
+      await expectLater(
+        owner.viewerDocument.timeout(const Duration(milliseconds: 10)),
+        throwsA(isA<TimeoutException>()),
+      );
+    },
+  );
+
+  test('PDF owner attempts a failing native close only once', () async {
+    final _TrackedPdf document = _TrackedPdf(closeFails: true);
+    final owner = DevLocalPdfDocumentOwner(Future<PdfDocument>.value(document));
+    await owner.viewerDocument;
+
+    owner.dispose();
+    owner.dispose();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(document.closes, 1);
+  });
+}
+
+final class _DelayedPdfPlatform extends PdfxPlatform {
+  final Completer<PdfDocument> result = Completer<PdfDocument>();
+  int calls = 0;
+
+  @override
+  Future<PdfDocument> openFile(String filePath, {String? password}) {
+    calls += 1;
+    return result.future;
+  }
+
+  @override
+  Future<PdfDocument> openAsset(String name, {String? password}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<PdfDocument> openData(FutureOr<Uint8List> data, {String? password}) =>
+      throw UnimplementedError();
+}
+
+final class _TrackedPdf extends PdfDocument {
+  _TrackedPdf({this.closeFails = false})
+    : super(sourceName: 'synthetic', id: 'synthetic-pdf', pagesCount: 1);
+
+  final bool closeFails;
+  int closes = 0;
+
+  @override
+  Future<void> close() async {
+    closes += 1;
+    if (closeFails) throw StateError('synthetic close failure');
+    isClosed = true;
+  }
+
+  @override
+  Future<PdfPage> getPage(int n, {bool autoCloseAndroid = false}) =>
+      throw StateError('unexpected page read after dispose');
 }
 
 final class _DelayedReader implements DevLocalPreviewFileReader {
