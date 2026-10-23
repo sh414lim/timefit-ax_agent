@@ -1,10 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/features/conversations/application/conversation_actions.dart';
 
 void main() {
-  test('title trims, maps blank to null, and rejects 121 characters', () {
+  test('title trims, maps blank to null, and rejects 121 graphemes', () {
     expect(ConversationTitle.normalize('  직접 입력  '), '직접 입력');
     expect(ConversationTitle.normalize('   \n '), isNull);
     expect(
@@ -17,6 +18,64 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('title counts composed characters and ZWJ emoji as graphemes', () {
+    const String combiningCharacter = 'e\u0301';
+    const String familyEmoji = '👩‍👩‍👧‍👦';
+
+    final String combining120 = List<String>.filled(
+      120,
+      combiningCharacter,
+    ).join();
+    final String emoji120 = List<String>.filled(120, familyEmoji).join();
+    expect(ConversationTitle.normalize(combining120), combining120);
+    expect(ConversationTitle.normalize(emoji120), emoji120);
+
+    for (final String value in <String>[
+      combining120 + combiningCharacter,
+      emoji120 + familyEmoji,
+    ]) {
+      expect(
+        () => ConversationTitle.normalize(value),
+        throwsA(
+          isA<ConversationTitleException>().having(
+            (ConversationTitleException error) => error.failure,
+            'failure',
+            ConversationTitleFailure.tooLong,
+          ),
+        ),
+      );
+    }
+  });
+
+  testWidgets('UI and domain share the visible character boundary', (
+    WidgetTester tester,
+  ) async {
+    final TextEditingController controller = TextEditingController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TextFormField(
+            controller: controller,
+            maxLength: ConversationTitle.maximumCharacters,
+          ),
+        ),
+      ),
+    );
+
+    for (final String grapheme in <String>['e\u0301', '👩‍👩‍👧‍👦']) {
+      final String atLimit = List<String>.filled(120, grapheme).join();
+      await tester.enterText(find.byType(TextFormField), atLimit);
+      await tester.pump();
+      expect(controller.text, atLimit);
+      expect(ConversationTitle.normalize(controller.text), atLimit);
+
+      await tester.enterText(find.byType(TextFormField), atLimit + grapheme);
+      await tester.pump();
+      expect(controller.text, atLimit);
+    }
   });
 
   test(

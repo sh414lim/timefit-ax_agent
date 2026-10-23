@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:characters/characters.dart';
+
 abstract interface class ConversationActionsRepository {
   Future<void> renameConversation(String conversationId, String? title);
 
@@ -19,7 +21,7 @@ abstract final class ConversationTitle {
 
   static String? normalize(String value) {
     final String trimmed = value.trim();
-    if (trimmed.runes.length > maximumCharacters) {
+    if (trimmed.characters.length > maximumCharacters) {
       throw const ConversationTitleException(ConversationTitleFailure.tooLong);
     }
     return trimmed.isEmpty ? null : trimmed;
