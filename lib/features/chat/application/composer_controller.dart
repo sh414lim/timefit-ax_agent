@@ -96,6 +96,7 @@ final class ComposerController extends ChangeNotifier {
 
     final String submittedDraft = _draft;
     final int submittedVersion = _draftVersion;
+    final bool submittedWithAttachments = attachments.isNotEmpty;
     _lastError = null;
 
     late final Future<void> operation;
@@ -128,7 +129,7 @@ final class ComposerController extends ChangeNotifier {
                   _draft = '';
                   _draftVersion += 1;
                 }
-                if (attachmentClientMessageId != null) {
+                if (submittedWithAttachments) {
                   _aggregateSubmitted = true;
                 }
               },

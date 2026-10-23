@@ -6,11 +6,13 @@ class ComposerAttachmentChip extends StatelessWidget {
   const ComposerAttachmentChip({
     required this.attachment,
     this.onRemoveFailed,
+    this.onRemoveQueued,
     super.key,
   });
 
   final ComposerAttachment attachment;
   final VoidCallback? onRemoveFailed;
+  final VoidCallback? onRemoveQueued;
 
   @override
   Widget build(BuildContext context) {
@@ -23,9 +25,12 @@ class ComposerAttachmentChip extends StatelessWidget {
     final progress = attachment.bytesTotal <= 0
         ? null
         : attachment.bytesSent / attachment.bytesTotal;
-    final bool canRemove =
-        attachment.state == ComposerAttachmentState.failed &&
-        onRemoveFailed != null;
+    final VoidCallback? remove = switch (attachment.state) {
+      ComposerAttachmentState.failed => onRemoveFailed,
+      ComposerAttachmentState.queued => onRemoveQueued,
+      _ => null,
+    };
+    final bool canRemove = remove != null;
     return Material(
       key: ValueKey<String>('attachment-${attachment.localId}'),
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -77,13 +82,15 @@ class ComposerAttachmentChip extends StatelessWidget {
             ),
             if (canRemove)
               IconButton(
-                tooltip: '실패한 첨부 제거',
+                tooltip: attachment.state == ComposerAttachmentState.failed
+                    ? '실패한 첨부 제거'
+                    : '로컬 첨부 제거',
                 constraints: const BoxConstraints.tightFor(
                   width: 44,
                   height: 44,
                 ),
                 padding: EdgeInsets.zero,
-                onPressed: onRemoveFailed,
+                onPressed: remove,
                 icon: const Icon(Icons.close, size: 20),
               ),
           ],

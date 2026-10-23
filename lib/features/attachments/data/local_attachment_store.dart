@@ -171,4 +171,36 @@ final class LocalAttachmentStore implements AttachmentStore {
   @override
   Future<void> delete(PrivateAttachment attachment) =>
       _deletePath(attachment.uri);
+
+  /// Deletes a private copy recovered from the local database after restart.
+  /// Only direct-child UUID v4 files are eligible; arbitrary persisted paths
+  /// never become deletion authority.
+  Future<void> deletePersisted(Uri uri) async {
+    final String root = await _root();
+    if (uri.scheme != 'file') {
+      throw const AttachmentException(AttachmentFailure.unsafePath);
+    }
+    final String target = path.normalize(File.fromUri(uri).absolute.path);
+    final String id = path.basename(target);
+    if (path.dirname(target) != root ||
+        !RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+        ).hasMatch(id)) {
+      throw const AttachmentException(AttachmentFailure.unsafePath);
+    }
+    final FileSystemEntityType type = await FileSystemEntity.type(
+      target,
+      followLinks: false,
+    );
+    if (type == FileSystemEntityType.notFound) return;
+    if (type != FileSystemEntityType.file) {
+      throw const AttachmentException(AttachmentFailure.unsafePath);
+    }
+    final String resolved = await File(target).resolveSymbolicLinks();
+    if (path.dirname(resolved) != root) {
+      throw const AttachmentException(AttachmentFailure.unsafePath);
+    }
+    await File(target).delete();
+    _owned.remove(target);
+  }
 }

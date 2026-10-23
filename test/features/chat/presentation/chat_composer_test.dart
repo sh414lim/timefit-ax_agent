@@ -504,6 +504,28 @@ void main() {
     expect(find.text('new draft'), findsOneWidget);
   });
 
+  test(
+    'empty attachment draft does not freeze later text submissions',
+    () async {
+      final _FakeSubmitter submitter = _FakeSubmitter();
+      final ComposerController controller = ComposerController(
+        conversationId: 'conversation',
+        attachmentClientMessageId: 'attachment-draft',
+        attachmentSource: const _EmptyAttachmentSource(),
+        submitter: submitter,
+      );
+      addTearDown(controller.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      controller.updateDraft('first');
+      await controller.submit();
+      controller.updateDraft('second');
+      await controller.submit();
+
+      expect(submitter.submitCalls, 2);
+    },
+  );
+
   test('composer retry requeues the existing outbox identity', () async {
     final DateTime now = DateTime.utc(2026, 10, 20);
     final AppDatabase database = AppDatabase(NativeDatabase.memory());
@@ -599,4 +621,21 @@ final class _FailOnceRetrySubmitter implements TextMessageSubmitter {
     required String conversationId,
     required String bodyText,
   }) => throw UnimplementedError();
+}
+
+final class _EmptyAttachmentSource implements AttachmentComposerSource {
+  const _EmptyAttachmentSource();
+
+  @override
+  Future<void> removeFailed({
+    required String conversationId,
+    required String clientMessageId,
+    required String localId,
+  }) async {}
+
+  @override
+  Stream<List<ComposerAttachment>> watch({
+    required String conversationId,
+    required String clientMessageId,
+  }) => Stream<List<ComposerAttachment>>.value(const <ComposerAttachment>[]);
 }

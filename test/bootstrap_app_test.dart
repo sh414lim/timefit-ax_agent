@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,10 +12,17 @@ void main() {
     WidgetTester tester,
   ) async {
     var disposalComplete = false;
+    final Directory? attachmentRoot = await tester.runAsync(
+      () => Directory.systemTemp.createTemp('timefit-bootstrap-attachments-'),
+    );
+    if (attachmentRoot == null) {
+      throw StateError('temp_directory_unavailable');
+    }
     await tester.pumpWidget(
       TimeFitBootstrapApp(
         environment: AppEnvironment.dev,
         devDatabaseFactory: () async => AppDatabase(NativeDatabase.memory()),
+        devAttachmentRootFactory: () async => attachmentRoot,
         devDisposalObserver: (future) {
           future.whenComplete(() => disposalComplete = true);
         },
@@ -25,6 +34,7 @@ void main() {
     expect(find.text('아직 대화가 없습니다'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await _pumpUntil(tester, () => disposalComplete);
+    await tester.runAsync(() => attachmentRoot.delete(recursive: true));
   });
 
   testWidgets('staging bootstrap renders an explicit environment label', (

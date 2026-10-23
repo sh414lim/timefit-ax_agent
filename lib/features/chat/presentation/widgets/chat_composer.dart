@@ -7,9 +7,18 @@ import '../../application/composer_controller.dart';
 import 'attachment_chip.dart';
 
 class ChatComposer extends StatefulWidget {
-  const ChatComposer({required this.controller, super.key});
+  const ChatComposer({
+    required this.controller,
+    this.onAddAttachment,
+    this.onRemoveQueuedAttachment,
+    this.isSelectingAttachments = false,
+    super.key,
+  });
 
   final ComposerController controller;
+  final VoidCallback? onAddAttachment;
+  final Future<void> Function(String localId)? onRemoveQueuedAttachment;
+  final bool isSelectingAttachments;
 
   @override
   State<ChatComposer> createState() => _ChatComposerState();
@@ -81,6 +90,24 @@ class _ChatComposerState extends State<ChatComposer> {
     }
   }
 
+  Future<void> _removeQueuedAttachment(String localId) async {
+    final Future<void> Function(String localId)? remove =
+        widget.onRemoveQueuedAttachment;
+    if (remove == null) return;
+    final ComposerController controller = widget.controller;
+    final int controllerGeneration = _controllerGeneration;
+    try {
+      await remove(localId);
+    } on Object {
+      return;
+    }
+    if (mounted &&
+        identical(widget.controller, controller) &&
+        _controllerGeneration == controllerGeneration) {
+      _focusNode.requestFocus();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ComposerController controller = widget.controller;
@@ -102,6 +129,17 @@ class _ChatComposerState extends State<ChatComposer> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
+              if (widget.onRemoveQueuedAttachment != null &&
+                  controller.attachments.any(
+                    (ComposerAttachment attachment) =>
+                        attachment.state == ComposerAttachmentState.queued,
+                  )) ...<Widget>[
+                const Text(
+                  '로컬 준비됨 · 서버 업로드 안 됨',
+                  key: ValueKey<String>('local-attachment-status'),
+                ),
+                const SizedBox(height: 6),
+              ],
               if (controller.attachments.isNotEmpty) ...<Widget>[
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -115,6 +153,12 @@ class _ChatComposerState extends State<ChatComposer> {
                             onRemoveFailed: () => unawaited(
                               _removeFailedAttachment(attachment.localId),
                             ),
+                            onRemoveQueued:
+                                widget.onRemoveQueuedAttachment == null
+                                ? null
+                                : () => unawaited(
+                                    _removeQueuedAttachment(attachment.localId),
+                                  ),
                           ),
                         ),
                     ],
@@ -125,6 +169,33 @@ class _ChatComposerState extends State<ChatComposer> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: <Widget>[
+                  if (widget.onAddAttachment != null) ...<Widget>[
+                    Semantics(
+                      button: true,
+                      label: widget.isSelectingAttachments
+                          ? '첨부 선택 중'
+                          : '첨부 추가',
+                      child: IconButton.outlined(
+                        tooltip: '첨부 추가',
+                        constraints: const BoxConstraints.tightFor(
+                          width: 48,
+                          height: 48,
+                        ),
+                        onPressed: widget.isSelectingAttachments
+                            ? null
+                            : widget.onAddAttachment,
+                        icon: widget.isSelectingAttachments
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.attach_file),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   Expanded(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxHeight: 144),

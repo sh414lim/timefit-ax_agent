@@ -8,7 +8,12 @@ import 'package:path_provider/path_provider.dart';
 
 import '../core/database/app_database.dart';
 import '../core/database/local_repository_session.dart';
+import '../features/attachments/application/attachment_picker.dart';
+import '../features/attachments/data/dev_local_attachment_drafts.dart';
+import '../features/attachments/data/local_attachment_store.dart';
+import '../features/attachments/domain/attachment_policy.dart';
 import '../features/chat/application/composer_controller.dart';
+import '../features/chat/application/drift_attachment_composer_source.dart';
 import '../features/chat/application/send_message.dart';
 import '../features/chat/data/message_repository_impl.dart';
 import '../features/chat/presentation/chat_screen.dart';
@@ -21,6 +26,7 @@ import '../features/conversations/presentation/conversation_list_screen.dart';
 import '../features/conversations/presentation/conversation_menu.dart';
 
 typedef DevChatDatabaseFactory = Future<AppDatabase> Function();
+typedef DevAttachmentRootFactory = Future<Directory> Function();
 typedef DevChatDisposalObserver = void Function(Future<void> disposal);
 
 Future<AppDatabase> openDevChatDatabase() async {
@@ -34,16 +40,34 @@ Future<AppDatabase> openDevChatDatabase() async {
   );
 }
 
+Future<Directory> openDevAttachmentRoot() async {
+  final Directory support = await getApplicationSupportDirectory();
+  final Directory root = Directory(
+    path.join(
+      support.path,
+      'timefit-native',
+      'dev-local-chat-v1',
+      'attachments',
+    ),
+  );
+  await root.create(recursive: true);
+  return root;
+}
+
 /// Local development composition root. It owns one database and one local
 /// repository session and deliberately starts no worker or remote adapter.
 class DevChatShell extends StatefulWidget {
   const DevChatShell({
     this.databaseFactory = openDevChatDatabase,
+    this.attachmentRootFactory = openDevAttachmentRoot,
+    this.attachmentPicker,
     this.disposalObserver,
     super.key,
   });
 
   final DevChatDatabaseFactory databaseFactory;
+  final DevAttachmentRootFactory attachmentRootFactory;
+  final AttachmentPicker? attachmentPicker;
   final DevChatDisposalObserver? disposalObserver;
 
   @override
@@ -58,11 +82,18 @@ class _DevChatShellState extends State<DevChatShell> {
   ConversationActions? _conversationActions;
   MessageRepositoryImpl? _messageRepository;
   ComposerController? _composer;
+  DevLocalAttachmentDrafts? _attachmentDrafts;
+  late final AttachmentPicker _attachmentPicker =
+      widget.attachmentPicker ?? NativeAttachmentPicker();
+  final Map<String, String> _draftClientMessageIds = <String, String>{};
+  AttachmentCancellation? _attachmentCancellation;
   String? _selectedConversationId;
   Object? _initializationError;
   bool _creatingConversation = false;
   bool _showingArchive = false;
+  bool _selectingAttachments = false;
   bool _disposed = false;
+  int _conversationGeneration = 0;
 
   @override
   void initState() {
@@ -79,6 +110,11 @@ class _DevChatShellState extends State<DevChatShell> {
         return;
       }
       final session = LocalRepositorySession.forDatabase(database);
+      final Directory attachmentRoot = await widget.attachmentRootFactory();
+      if (_disposed) {
+        await database.close();
+        return;
+      }
       final conversationRepository = DevLocalConversationRepository(
         database: database,
         session: session,
@@ -95,6 +131,11 @@ class _DevChatShellState extends State<DevChatShell> {
         database: database,
         session: session,
       );
+      final attachmentDrafts = DevLocalAttachmentDrafts(
+        database: database,
+        session: session,
+        store: LocalAttachmentStore(privateRoot: attachmentRoot),
+      );
       setState(() {
         _database = database;
         _session = session;
@@ -102,6 +143,7 @@ class _DevChatShellState extends State<DevChatShell> {
         _listController = listController;
         _conversationActions = conversationActions;
         _messageRepository = messageRepository;
+        _attachmentDrafts = attachmentDrafts;
       });
     } on Object catch (error) {
       if (database != null) await database.close();
@@ -126,13 +168,40 @@ class _DevChatShellState extends State<DevChatShell> {
   }
 
   void _openConversation(String conversationId) {
+    unawaited(_prepareConversation(conversationId));
+  }
+
+  Future<void> _prepareConversation(String conversationId) async {
+    final int generation = ++_conversationGeneration;
+    _attachmentCancellation?.cancel();
     _composer?.dispose();
     final database = _database!;
     final session = _session!;
     setState(() {
       _selectedConversationId = conversationId;
+      _composer = null;
+      _selectingAttachments = false;
+    });
+    final DevLocalAttachmentDrafts drafts = _attachmentDrafts!;
+    final String clientMessageId =
+        _draftClientMessageIds[conversationId] ??
+        await drafts.findDraftClientMessageId(conversationId) ??
+        drafts.newDraftClientMessageId();
+    if (!mounted ||
+        generation != _conversationGeneration ||
+        _selectedConversationId != conversationId) {
+      return;
+    }
+    _draftClientMessageIds[conversationId] = clientMessageId;
+    setState(() {
       _composer = ComposerController(
         conversationId: conversationId,
+        attachmentClientMessageId: clientMessageId,
+        attachmentSource: DriftAttachmentComposerSource(
+          database: database,
+          clock: DateTime.now,
+          session: session,
+        ),
         submitter: SendMessage(
           database: database,
           clock: DateTime.now,
@@ -143,12 +212,102 @@ class _DevChatShellState extends State<DevChatShell> {
   }
 
   void _closeConversation() {
+    _conversationGeneration += 1;
+    _attachmentCancellation?.cancel();
+    _attachmentCancellation = null;
     _composer?.dispose();
     setState(() {
       _creatingConversation = false;
       _composer = null;
       _selectedConversationId = null;
+      _selectingAttachments = false;
     });
+  }
+
+  Future<void> _chooseAttachments() async {
+    if (_selectingAttachments || _composer == null) return;
+    final AttachmentPickerKind? kind =
+        await showModalBottomSheet<AttachmentPickerKind>(
+          context: context,
+          builder: (BuildContext context) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('이미지 선택'),
+                  subtitle: const Text('JPEG, PNG, WebP'),
+                  onTap: () =>
+                      Navigator.of(context).pop(AttachmentPickerKind.images),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.insert_drive_file_outlined),
+                  title: const Text('파일 선택'),
+                  subtitle: const Text('JPEG, PNG, WebP, PDF'),
+                  onTap: () =>
+                      Navigator.of(context).pop(AttachmentPickerKind.files),
+                ),
+              ],
+            ),
+          ),
+        );
+    if (kind == null || !mounted || _composer == null) return;
+
+    final int generation = _conversationGeneration;
+    final String conversationId = _selectedConversationId!;
+    final String clientMessageId = _composer!.attachmentClientMessageId!;
+    final AttachmentCancellation cancellation = AttachmentCancellation();
+    _attachmentCancellation?.cancel();
+    _attachmentCancellation = cancellation;
+    setState(() => _selectingAttachments = true);
+    try {
+      final inputs = await _attachmentPicker.pick(kind);
+      if (!mounted ||
+          generation != _conversationGeneration ||
+          _selectedConversationId != conversationId ||
+          cancellation != _attachmentCancellation) {
+        return;
+      }
+      await _attachmentDrafts!.add(
+        conversationId: conversationId,
+        clientMessageId: clientMessageId,
+        inputs: inputs,
+        cancellation: cancellation,
+      );
+    } on AttachmentException catch (error) {
+      if (mounted && generation == _conversationGeneration) {
+        _showLocalNotice(_attachmentFailureMessage(error.failure));
+      }
+    } on Object {
+      if (mounted && generation == _conversationGeneration) {
+        _showLocalNotice('첨부를 로컬에 준비하지 못했습니다.');
+      }
+    } finally {
+      if (mounted &&
+          generation == _conversationGeneration &&
+          identical(_attachmentCancellation, cancellation)) {
+        setState(() => _selectingAttachments = false);
+        _attachmentCancellation = null;
+      }
+    }
+  }
+
+  Future<void> _removeQueuedAttachment(String localId) async {
+    final int generation = _conversationGeneration;
+    final String? conversationId = _selectedConversationId;
+    final String? clientMessageId = _composer?.attachmentClientMessageId;
+    if (conversationId == null || clientMessageId == null) return;
+    try {
+      await _attachmentDrafts!.remove(
+        conversationId: conversationId,
+        clientMessageId: clientMessageId,
+        localId: localId,
+      );
+    } on Object {
+      if (mounted && generation == _conversationGeneration) {
+        _showLocalNotice('로컬 첨부를 제거하지 못했습니다.');
+      }
+    }
   }
 
   void _handleActionsState(ConversationActionsState _) {
@@ -250,6 +409,7 @@ class _DevChatShellState extends State<DevChatShell> {
   @override
   void dispose() {
     _disposed = true;
+    _attachmentCancellation?.cancel();
     _composer?.dispose();
     _conversationActions?.removeListener(_handleActionsState);
     _conversationActions?.dispose();
@@ -291,6 +451,7 @@ class _DevChatShellState extends State<DevChatShell> {
     }
     final conversationId = _selectedConversationId;
     if (conversationId != null) {
+      final ComposerController? composer = _composer;
       return Column(
         children: <Widget>[
           const Material(
@@ -300,13 +461,18 @@ class _DevChatShellState extends State<DevChatShell> {
             ),
           ),
           Expanded(
-            child: ChatScreen.repository(
-              title: '로컬 대화',
-              repository: _messageRepository!,
-              conversationId: conversationId,
-              composerController: _composer,
-              onBack: _closeConversation,
-            ),
+            child: composer == null
+                ? const Center(child: CircularProgressIndicator())
+                : ChatScreen.repository(
+                    title: '로컬 대화',
+                    repository: _messageRepository!,
+                    conversationId: conversationId,
+                    composerController: composer,
+                    onBack: _closeConversation,
+                    onAddAttachment: () => unawaited(_chooseAttachments()),
+                    onRemoveQueuedAttachment: _removeQueuedAttachment,
+                    isSelectingAttachments: _selectingAttachments,
+                  ),
           ),
         ],
       );
@@ -331,6 +497,17 @@ class _DevChatShellState extends State<DevChatShell> {
     );
   }
 }
+
+String _attachmentFailureMessage(AttachmentFailure failure) =>
+    switch (failure) {
+      AttachmentFailure.invalidCount => '첨부는 메시지당 최대 5개까지 선택할 수 있습니다.',
+      AttachmentFailure.invalidSize => '첨부는 1 byte에서 20 MiB까지 허용됩니다.',
+      AttachmentFailure.unsupportedType ||
+      AttachmentFailure.mimeMismatch => 'JPEG, PNG, WebP, PDF 파일만 허용됩니다.',
+      AttachmentFailure.unsafeName ||
+      AttachmentFailure.unsafePath => '안전하지 않은 첨부 파일입니다.',
+      AttachmentFailure.cancelled => '첨부 준비가 취소됐습니다.',
+    };
 
 class _DevLocalModeBanner extends StatelessWidget {
   const _DevLocalModeBanner();
