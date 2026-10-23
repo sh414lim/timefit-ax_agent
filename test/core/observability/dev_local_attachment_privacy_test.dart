@@ -194,6 +194,63 @@ void main() {
     expect(exported, isNot(contains('canary-fragment')));
   });
 
+  test(
+    'valid IDs reach a throwing sink without blocking draft or preview',
+    () async {
+      final _ThrowingSink throwingSink = _ThrowingSink();
+      final AppLogger throwingLogger = AppLogger(
+        context: AppLogContext(
+          environment: 'test',
+          app: 'timefit-native',
+          build: '1.0.0',
+        ),
+        sink: throwingSink,
+      );
+      final DevLocalAttachmentObservability throwingObservability =
+          DevLocalAttachmentObservability(
+            logger: throwingLogger,
+            crashReporter: LocalCrashReporter(throwingLogger),
+          );
+      final DevLocalAttachmentDrafts throwingDrafts = DevLocalAttachmentDrafts(
+        database: database,
+        session: session,
+        store: LocalAttachmentStore(
+          privateRoot: privateRoot,
+          uuid: () => _attachmentId,
+        ),
+        observability: throwingObservability,
+      );
+
+      final List<PrivateAttachment> copied = await throwingDrafts.add(
+        conversationId: _conversationId,
+        clientMessageId: _messageId,
+        inputs: <AttachmentInput>[
+          AttachmentInput(
+            name: 'sink-canary.pdf',
+            openRead: () => Stream<List<int>>.value(_pdf),
+          ),
+        ],
+      );
+      expect(copied, hasLength(1));
+
+      final DevLocalAttachmentPreviewController preview =
+          DevLocalAttachmentPreviewController(
+            database: database,
+            session: session,
+            privateRoot: privateRoot,
+            conversationId: _conversationId,
+            localId: _attachmentId,
+            observability: throwingObservability,
+          );
+      addTearDown(preview.dispose);
+      await preview.load();
+
+      expect(preview.state, isA<DevLocalPreviewReady>());
+      expect(throwingSink.writeCount, 2);
+      expect(await database.select(database.outboxCommands).get(), isEmpty);
+    },
+  );
+
   test('malformed names, unsafe ids, and failing sinks never escape', () async {
     await expectLater(
       drafts.add(
@@ -238,6 +295,11 @@ void main() {
 }
 
 final class _ThrowingSink implements AppLogSink {
+  int writeCount = 0;
+
   @override
-  void write(AppLogRecord record) => throw StateError('sink-canary');
+  void write(AppLogRecord record) {
+    writeCount += 1;
+    throw StateError('sink-canary');
+  }
 }

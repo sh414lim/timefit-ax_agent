@@ -4,9 +4,10 @@ enum DevLocalPreviewFailure { missing, readFailed, unsupportedType }
 
 /// Typed, local-only observability adapter for the dev attachment flow.
 ///
-/// Callers provide correlation identifiers and stable codes only. File names,
-/// paths, URIs, picker payloads, exception text, and stack traces never cross
-/// this boundary.
+/// Callers provide correlation identifiers and stable codes only. Exception
+/// objects may be passed to the local reporter, but neither this adapter nor
+/// the reporter reads or exports their text or stack. File names, paths, URIs,
+/// and picker payloads are never added to structured fields.
 final class DevLocalAttachmentObservability {
   const DevLocalAttachmentObservability({
     required AppLogger logger,
