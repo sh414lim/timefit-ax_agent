@@ -328,7 +328,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\n\ngenerated_xcconfig=\"${PROJECT_DIR}/Flutter/Generated.xcconfig\"\nif [ ! -f \"${generated_xcconfig}\" ]; then\n  echo \"error: Missing Flutter/Generated.xcconfig.\" >&2\n  exit 1\nfi\n\nactual_target=\"$(sed -n 's/^FLUTTER_TARGET=//p' \"${generated_xcconfig}\" | tail -n 1)\"\nif [ \"${actual_target}\" != \"${TIMEFIT_EXPECTED_FLUTTER_TARGET}\" ]; then\n  echo \"error: ${TIMEFIT_ENVIRONMENT} requires ${TIMEFIT_EXPECTED_FLUTTER_TARGET}; got ${actual_target}.\" >&2\n  exit 1\nfi\n";
+			shellScript = "\"${PROJECT_DIR}/../scripts/ci/validate_ios_environment.sh\"\n";
 		};
 		868FAB13C55B1F77D2D9A5FE /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;

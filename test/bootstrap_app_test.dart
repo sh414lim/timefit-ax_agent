@@ -1,4 +1,7 @@
+import 'package:drift/native.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:timefit_native/core/database/app_database.dart';
 import 'package:timefit_native/src/app_environment.dart';
 import 'package:timefit_native/src/bootstrap_app.dart';
 
@@ -6,11 +9,22 @@ void main() {
   testWidgets('dev bootstrap renders an explicit environment label', (
     WidgetTester tester,
   ) async {
+    var disposalComplete = false;
     await tester.pumpWidget(
-      const TimeFitBootstrapApp(environment: AppEnvironment.dev),
+      TimeFitBootstrapApp(
+        environment: AppEnvironment.dev,
+        devDatabaseFactory: () async => AppDatabase(NativeDatabase.memory()),
+        devDisposalObserver: (future) {
+          future.whenComplete(() => disposalComplete = true);
+        },
+      ),
     );
+    await tester.pumpAndSettle();
 
-    expect(find.text('TimeFit Dev'), findsOneWidget);
+    expect(find.text('개발용 로컬 모드 · 로그인/서버 연결 없음'), findsOneWidget);
+    expect(find.text('아직 대화가 없습니다'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pumpUntil(tester, () => disposalComplete);
   });
 
   testWidgets('staging bootstrap renders an explicit environment label', (
@@ -35,4 +49,14 @@ void main() {
       ),
     );
   });
+}
+
+Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {
+  for (var attempt = 0; attempt < 20 && !condition(); attempt += 1) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 1)),
+    );
+    await tester.pump(const Duration(milliseconds: 1));
+  }
+  expect(condition(), isTrue);
 }

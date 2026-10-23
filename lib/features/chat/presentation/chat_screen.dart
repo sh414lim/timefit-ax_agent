@@ -18,6 +18,7 @@ class ChatScreen extends StatefulWidget {
     this.scrollController,
     this.composerController,
     this.historyController,
+    this.onBack,
     super.key,
   }) : repository = null;
 
@@ -29,6 +30,7 @@ class ChatScreen extends StatefulWidget {
     this.scrollController,
     this.composerController,
     this.historyController,
+    this.onBack,
     super.key,
   }) : messages = null;
 
@@ -40,6 +42,7 @@ class ChatScreen extends StatefulWidget {
   final ScrollController? scrollController;
   final ComposerController? composerController;
   final HistoryController? historyController;
+  final VoidCallback? onBack;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -95,7 +98,12 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     final ComposerController? composer = _matchingComposer;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(
+        leading: widget.onBack == null
+            ? null
+            : BackButton(onPressed: widget.onBack),
+        title: Text(widget.title),
+      ),
       body: SafeArea(
         child: Column(
           children: <Widget>[

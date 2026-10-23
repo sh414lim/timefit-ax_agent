@@ -27,12 +27,15 @@ class ConversationListState {
 typedef ConversationListListener = void Function(ConversationListState state);
 
 class ConversationListController {
-  ConversationListController({required ConversationRepository repository})
-    : _repository = repository;
+  ConversationListController({
+    required ConversationRepository repository,
+    this.localOnly = false,
+  }) : _repository = repository;
 
   // Injected repositories are owned by the session/composition scope. This
   // controller only owns and cancels its subscription.
   final ConversationRepository _repository;
+  final bool localOnly;
   final Set<ConversationListListener> _listeners = <ConversationListListener>{};
 
   ConversationListState _state = const ConversationListState.loading();
@@ -86,6 +89,7 @@ class ConversationListController {
 
   Future<void> _synchronize({required bool showInitialLoading}) async {
     final int requestEpoch = ++_requestEpoch;
+    final int cacheRevisionAtReadStart = _cacheRevision;
     List<ConversationSummary> retained = _state.conversations;
     if (showInitialLoading) {
       _emit(const ConversationListState.loading());
@@ -100,17 +104,41 @@ class ConversationListController {
       }
       // Once the watch has emitted it is the authoritative cache snapshot.
       // A slower point-in-time read must never replace that newer state.
-      if (_repository is LocalConversationRepository && _cacheRevision > 0) {
+      if (_repository is LocalConversationRepository &&
+          _cacheRevision != cacheRevisionAtReadStart) {
         retained = _state.conversations;
       } else if (cached.isNotEmpty) {
         // An empty cache is not proof that the server-side list is empty. Keep
         // the in-memory result until a successful refresh confirms that state.
         retained = cached;
+      } else if (localOnly) {
+        // With no remote source, an uncontested empty local read is also an
+        // authoritative snapshot. A concurrent watch emission is protected
+        // by the revision check above.
+        retained = cached;
       }
     } on Object {
       // A cache read failure must not prevent a remote recovery attempt.
+      // If the watch advanced while that read was pending, preserve its
+      // authoritative snapshot on the failure path too.
+      if (_repository is LocalConversationRepository &&
+          _cacheRevision != cacheRevisionAtReadStart) {
+        retained = _state.conversations;
+      }
     }
     if (!_isCurrent(requestEpoch)) {
+      return;
+    }
+
+    if (localOnly) {
+      _emit(
+        retained.isEmpty
+            ? const ConversationListState(phase: ConversationListPhase.empty)
+            : ConversationListState(
+                phase: ConversationListPhase.ready,
+                conversations: retained,
+              ),
+      );
       return;
     }
 
