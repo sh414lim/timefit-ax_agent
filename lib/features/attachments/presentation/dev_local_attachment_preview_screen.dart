@@ -13,12 +13,15 @@ typedef DevLocalFileRenderer =
       File file,
       VoidCallback onReadFailure,
     );
+typedef DevLocalPdfDocumentOpener =
+    Future<PdfDocument> Function(String filePath);
 
 final class DevLocalAttachmentPreviewScreen extends StatefulWidget {
   const DevLocalAttachmentPreviewScreen({
     required this.controller,
     this.imageRenderer,
     this.pdfRenderer,
+    this.pdfDocumentOpener,
     this.autoLoad = true,
     super.key,
   });
@@ -26,6 +29,7 @@ final class DevLocalAttachmentPreviewScreen extends StatefulWidget {
   final DevLocalAttachmentPreviewController controller;
   final DevLocalFileRenderer? imageRenderer;
   final DevLocalFileRenderer? pdfRenderer;
+  final DevLocalPdfDocumentOpener? pdfDocumentOpener;
   final bool autoLoad;
 
   @override
@@ -99,11 +103,20 @@ final class _DevLocalAttachmentPreviewScreenState
               file,
               widget.controller.reportRenderFailure,
             ),
-          AttachmentPreviewKind.pdf => (widget.pdfRenderer ?? _pdfRenderer)(
-            context,
-            file,
-            widget.controller.reportRenderFailure,
-          ),
+          AttachmentPreviewKind.pdf =>
+            widget.pdfRenderer != null
+                ? widget.pdfRenderer!(
+                    context,
+                    file,
+                    widget.controller.reportRenderFailure,
+                  )
+                : _pdfRenderer(
+                    context,
+                    file,
+                    widget.controller.reportRenderFailure,
+                    documentOpener:
+                        widget.pdfDocumentOpener ?? PdfDocument.openFile,
+                  ),
         },
         DevLocalPreviewFailed(:final error) => _LocalPreviewError(
           error: error,
@@ -132,21 +145,25 @@ Widget _imageRenderer(
 Widget _pdfRenderer(
   BuildContext context,
   File file,
-  VoidCallback onReadFailure,
-) => _PrivatePdfRenderer(
+  VoidCallback onReadFailure, {
+  required DevLocalPdfDocumentOpener documentOpener,
+}) => _PrivatePdfRenderer(
   key: ValueKey<String>(file.path),
   file: file,
   onReadFailure: onReadFailure,
+  documentOpener: documentOpener,
 );
 
 final class _PrivatePdfRenderer extends StatefulWidget {
   const _PrivatePdfRenderer({
     required this.file,
     required this.onReadFailure,
+    required this.documentOpener,
     super.key,
   });
   final File file;
   final VoidCallback onReadFailure;
+  final DevLocalPdfDocumentOpener documentOpener;
 
   @override
   State<_PrivatePdfRenderer> createState() => _PrivatePdfRendererState();
@@ -157,7 +174,7 @@ final class _PrivatePdfRendererState extends State<_PrivatePdfRenderer> {
   late PdfControllerPinch _controller = _newController();
 
   DevLocalPdfDocumentOwner _newDocumentOwner() =>
-      DevLocalPdfDocumentOwner(PdfDocument.openFile(widget.file.path));
+      DevLocalPdfDocumentOwner(widget.documentOpener(widget.file.path));
 
   PdfControllerPinch _newController() =>
       PdfControllerPinch(document: _documentOwner.viewerDocument);

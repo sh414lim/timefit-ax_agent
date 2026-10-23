@@ -7,7 +7,6 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pdfx/pdfx.dart';
-import 'package:pdfx/src/renderer/interfaces/platform.dart';
 import 'package:timefit_native/core/database/app_database.dart';
 import 'package:timefit_native/core/database/local_repository_session.dart';
 import 'package:timefit_native/features/attachments/application/attachment_download_controller.dart';
@@ -315,10 +314,7 @@ void main() {
   testWidgets('late native PDF open is fenced and closed after dispose', (
     tester,
   ) async {
-    final PdfxPlatform original = PdfxPlatform.instance;
     final _DelayedPdfPlatform platform = _DelayedPdfPlatform();
-    PdfxPlatform.instance = platform;
-    addTearDown(() => PdfxPlatform.instance = original);
     await tester.runAsync(persist);
     final subject = controller();
     await tester.runAsync(subject.load);
@@ -327,6 +323,7 @@ void main() {
         home: DevLocalAttachmentPreviewScreen(
           controller: subject,
           autoLoad: false,
+          pdfDocumentOpener: platform.openFile,
         ),
       ),
     );
@@ -346,10 +343,7 @@ void main() {
   testWidgets('late first-page failure is fenced after PDF dispose', (
     tester,
   ) async {
-    final PdfxPlatform original = PdfxPlatform.instance;
     final _DelayedPdfPlatform platform = _DelayedPdfPlatform();
-    PdfxPlatform.instance = platform;
-    addTearDown(() => PdfxPlatform.instance = original);
     await tester.runAsync(persist);
     final subject = controller();
     await tester.runAsync(subject.load);
@@ -358,6 +352,7 @@ void main() {
         home: DevLocalAttachmentPreviewScreen(
           controller: subject,
           autoLoad: false,
+          pdfDocumentOpener: platform.openFile,
         ),
       ),
     );
@@ -407,16 +402,14 @@ void main() {
     await tester.runAsync(second.load);
     final a = _DelayedPagePdf();
     final b = _DelayedPagePdf();
-    final PdfxPlatform original = PdfxPlatform.instance;
     final platform = _MultiplePdfPlatform(<PdfDocument>[a, b]);
-    PdfxPlatform.instance = platform;
-    addTearDown(() => PdfxPlatform.instance = original);
 
     await tester.pumpWidget(
       MaterialApp(
         home: DevLocalAttachmentPreviewScreen(
           controller: first,
           autoLoad: false,
+          pdfDocumentOpener: platform.openFile,
         ),
       ),
     );
@@ -428,6 +421,7 @@ void main() {
         home: DevLocalAttachmentPreviewScreen(
           controller: second,
           autoLoad: false,
+          pdfDocumentOpener: platform.openFile,
         ),
       ),
     );
@@ -570,23 +564,14 @@ void main() {
   );
 }
 
-final class _DelayedPdfPlatform extends PdfxPlatform {
+class _DelayedPdfPlatform {
   final Completer<PdfDocument> result = Completer<PdfDocument>();
   int calls = 0;
 
-  @override
   Future<PdfDocument> openFile(String filePath, {String? password}) {
     calls += 1;
     return result.future;
   }
-
-  @override
-  Future<PdfDocument> openAsset(String name, {String? password}) =>
-      throw UnimplementedError();
-
-  @override
-  Future<PdfDocument> openData(FutureOr<Uint8List> data, {String? password}) =>
-      throw UnimplementedError();
 }
 
 final class _MultiplePdfPlatform extends _DelayedPdfPlatform {
@@ -594,7 +579,6 @@ final class _MultiplePdfPlatform extends _DelayedPdfPlatform {
 
   final List<PdfDocument> documents;
 
-  @override
   Future<PdfDocument> openFile(String filePath, {String? password}) =>
       Future<PdfDocument>.value(documents[calls++]);
 }
