@@ -76,7 +76,7 @@ void main() {
       await tester.pump();
 
       expect(tester.takeException(), isNull);
-      expect(tester.widget<TextField>(find.byType(TextField)).maxLines, 1);
+      expect(tester.widget<TextField>(find.byType(TextField)).maxLines, isNull);
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         draft,
@@ -89,6 +89,28 @@ void main() {
       expect(tester.getBottomRight(send).dy, lessThanOrEqualTo(177));
       expect(await _runFileIo(tester, database.messageDao.getAll), isEmpty);
       expect(await _runFileIo(tester, database.outboxDao.getAll), isEmpty);
+
+      await tester.tap(find.byType(TextField));
+      await tester.showKeyboard(find.byType(TextField));
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).textInputAction,
+        TextInputAction.newline,
+      );
+      tester.testTextInput.updateEditingValue(
+        TextEditingValue(
+          text: '$draft\n',
+          selection: TextSelection.collapsed(offset: draft.length + 1),
+        ),
+      );
+      await tester.pump();
+      await tester.testTextInput.receiveAction(TextInputAction.newline);
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '$draft\n',
+      );
+      expect(tester.binding.focusManager.primaryFocus, isNotNull);
+      expect(tester.takeException(), isNull);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await _settleFileIo(tester);

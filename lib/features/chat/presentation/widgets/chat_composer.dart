@@ -222,12 +222,14 @@ class _ChatComposerState extends State<ChatComposer> {
                   ],
                   Expanded(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 144),
+                      constraints: BoxConstraints(
+                        maxHeight: useCompactInput ? 48 : 144,
+                      ),
                       child: TextField(
                         controller: _textController,
                         focusNode: _focusNode,
                         minLines: 1,
-                        maxLines: useCompactInput ? 1 : 5,
+                        maxLines: useCompactInput ? null : 5,
                         inputFormatters: const <TextInputFormatter>[
                           _RuneLengthLimitingFormatter(
                             ComposerController.maximumLength,

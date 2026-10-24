@@ -417,7 +417,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(tester.widget<TextField>(find.byType(TextField)).maxLines, 1);
+      expect(tester.widget<TextField>(find.byType(TextField)).maxLines, isNull);
       expect(tester.takeException(), isNull);
       expect(controller.draft, draft);
       expect(find.text(draft), findsOneWidget);
