@@ -83,7 +83,8 @@ class DevChatShell extends StatefulWidget {
   State<DevChatShell> createState() => _DevChatShellState();
 }
 
-class _DevChatShellState extends State<DevChatShell> {
+class _DevChatShellState extends State<DevChatShell>
+    with WidgetsBindingObserver {
   AppDatabase? _database;
   LocalRepositorySession? _session;
   DevLocalConversationRepository? _conversationRepository;
@@ -108,6 +109,7 @@ class _DevChatShellState extends State<DevChatShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_initialize());
   }
 
@@ -450,6 +452,7 @@ class _DevChatShellState extends State<DevChatShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _disposed = true;
     _attachmentCancellation?.cancel();
     _composer?.dispose();
@@ -470,17 +473,29 @@ class _DevChatShellState extends State<DevChatShell> {
 
   @override
   Widget build(BuildContext context) {
+    final bool compactKeyboardLayout =
+        MediaQuery.orientationOf(context) == Orientation.landscape &&
+        View.of(context).viewInsets.bottom > 0;
     return Scaffold(
       body: Column(
         children: <Widget>[
-          const _DevLocalModeBanner(),
-          Expanded(child: _buildContent()),
+          _DevLocalModeBanner(
+            compact: compactKeyboardLayout,
+            includesWaitingStatus:
+                compactKeyboardLayout && _selectedConversationId != null,
+          ),
+          Expanded(child: _buildContent(compactKeyboardLayout)),
         ],
       ),
     );
   }
 
-  Widget _buildContent() {
+  @override
+  void didChangeMetrics() {
+    if (mounted) setState(() {});
+  }
+
+  Widget _buildContent(bool compactKeyboardLayout) {
     if (_initializationError != null) {
       return const _LocalState(
         title: '로컬 저장소를 열지 못했습니다',
@@ -496,12 +511,17 @@ class _DevChatShellState extends State<DevChatShell> {
       final ComposerController? composer = _composer;
       return Column(
         children: <Widget>[
-          const Material(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text('서버 미연결 · 이 기기에 대기 중'),
+          if (!compactKeyboardLayout)
+            const Material(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text(
+                  '서버 미연결 · 이 기기에 대기 중',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ),
-          ),
           Expanded(
             child: composer == null
                 ? const Center(child: CircularProgressIndicator())
@@ -515,6 +535,7 @@ class _DevChatShellState extends State<DevChatShell> {
                     onRemoveQueuedAttachment: _removeQueuedAttachment,
                     onOpenAttachment: _openLocalAttachmentPreview,
                     isSelectingAttachments: _selectingAttachments,
+                    compactKeyboardLayout: compactKeyboardLayout,
                   ),
           ),
         ],
@@ -553,21 +574,34 @@ String _attachmentFailureMessage(AttachmentFailure failure) =>
     };
 
 class _DevLocalModeBanner extends StatelessWidget {
-  const _DevLocalModeBanner();
+  const _DevLocalModeBanner({
+    required this.compact,
+    required this.includesWaitingStatus,
+  });
+
+  final bool compact;
+  final bool includesWaitingStatus;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Theme.of(context).colorScheme.tertiaryContainer,
-      child: const SafeArea(
+      child: SafeArea(
         bottom: false,
         child: SizedBox(
           width: double.infinity,
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: compact ? 0 : 8,
+            ),
             child: Text(
-              '개발용 로컬 모드 · 로그인/서버 연결 없음',
+              includesWaitingStatus
+                  ? '개발 로컬 · 로그인/서버 없음 · 이 기기에 대기 중'
+                  : '개발용 로컬 모드 · 로그인/서버 연결 없음',
               textAlign: TextAlign.center,
+              maxLines: compact ? 1 : null,
+              overflow: compact ? TextOverflow.ellipsis : TextOverflow.clip,
             ),
           ),
         ),

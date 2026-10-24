@@ -370,6 +370,84 @@ void main() {
     expect(tester.getSize(find.byType(ChatComposer)).height, lessThan(200));
   });
 
+  testWidgets(
+    'long draft compacts without data loss after landscape keyboard rotation',
+    (WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final ComposerController controller = ComposerController(
+        conversationId: 'conversation',
+        submitter: _FakeSubmitter(),
+      );
+      addTearDown(controller.dispose);
+      final String draft = List<String>.filled(464, '긴').join();
+
+      Widget app({required Size size, required double keyboardInset}) =>
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(
+                size: size,
+                viewInsets: EdgeInsets.only(bottom: keyboardInset),
+                textScaler: const TextScaler.linear(2),
+              ),
+              child: Scaffold(
+                body: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: ChatComposer(
+                    controller: controller,
+                    onAddAttachment: () {},
+                  ),
+                ),
+              ),
+            ),
+          );
+
+      await tester.pumpWidget(
+        app(size: const Size(390, 700), keyboardInset: 0),
+      );
+      await tester.enterText(find.byType(TextField), draft);
+      await tester.pump();
+      expect(tester.getSize(find.byType(ChatComposer)).height, greaterThan(80));
+
+      await tester.binding.setSurfaceSize(const Size(700, 320));
+      tester.view.viewInsets = const FakeViewPadding(bottom: 180);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpWidget(
+        app(size: const Size(700, 320), keyboardInset: 180),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<TextField>(find.byType(TextField)).maxLines, isNull);
+      expect(tester.takeException(), isNull);
+      expect(controller.draft, draft);
+      expect(find.text(draft), findsOneWidget);
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey<String>('composer-input-row')))
+            .height,
+        lessThanOrEqualTo(80),
+      );
+      expect(_sendButton(tester).onPressed, isNotNull);
+      expect(
+        tester
+            .widget<IconButton>(
+              find.widgetWithIcon(IconButton, Icons.attach_file),
+            )
+            .onPressed,
+        isNotNull,
+      );
+
+      await tester.binding.setSurfaceSize(const Size(390, 700));
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pumpWidget(
+        app(size: const Size(390, 700), keyboardInset: 0),
+      );
+      await tester.pumpAndSettle();
+      expect(controller.draft, draft);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   test('retry delegates the same client message identity', () async {
     final _FakeSubmitter submitter = _FakeSubmitter();
     final ComposerController controller = ComposerController(

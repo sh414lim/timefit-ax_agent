@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/app.dart';
 import 'package:timefit_native/core/database/app_database.dart';
@@ -33,6 +34,97 @@ void main() {
     expect(find.text('개발용 로컬 모드 · 로그인/서버 연결 없음'), findsNothing);
     expect(opens, 0);
   });
+
+  testWidgets(
+    'full dev chrome keeps long draft actions above landscape keyboard',
+    (WidgetTester tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(393, 852);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final AppDatabase database = AppDatabase(NativeDatabase.memory());
+      final Directory? createdRoot = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('timefit-landscape-keyboard-'),
+      );
+      if (createdRoot == null) throw StateError('temp_directory_unavailable');
+      final Directory attachmentRoot = createdRoot;
+      addTearDown(() async {
+        if (await attachmentRoot.exists()) {
+          await attachmentRoot.delete(recursive: true);
+        }
+      });
+
+      await tester.pumpWidget(
+        TimeFitApp(
+          environment: AppEnvironment.dev,
+          devDatabaseFactory: () async => database,
+          devAttachmentRootFactory: () async => attachmentRoot,
+        ),
+      );
+      await _settleFileIo(tester);
+      await _pumpUntilFinder(tester, find.text('새 대화 시작'));
+      await tester.tap(find.text('새 대화 시작'));
+      await _settleFileIo(tester);
+      await _pumpUntilFinder(tester, find.byType(TextField));
+      final String draft = List<String>.filled(464, '긴').join();
+      await tester.enterText(find.byType(TextField), draft);
+      await tester.pump();
+
+      tester.view.physicalSize = const Size(852, 393);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 216);
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(tester.widget<TextField>(find.byType(TextField)).maxLines, isNull);
+      final RenderEditable editable = tester
+          .state<EditableTextState>(find.byType(EditableText))
+          .renderEditable;
+      expect(
+        editable.size.height,
+        greaterThanOrEqualTo(editable.preferredLineHeight),
+      );
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        draft,
+      );
+      final Finder attach = find.byTooltip('첨부 추가');
+      final Finder send = find.byTooltip('메시지 보내기');
+      expect(attach, findsOneWidget);
+      expect(send, findsOneWidget);
+      expect(tester.getBottomRight(attach).dy, lessThanOrEqualTo(177));
+      expect(tester.getBottomRight(send).dy, lessThanOrEqualTo(177));
+      expect(await _runFileIo(tester, database.messageDao.getAll), isEmpty);
+      expect(await _runFileIo(tester, database.outboxDao.getAll), isEmpty);
+
+      await tester.tap(find.byType(TextField));
+      await tester.showKeyboard(find.byType(TextField));
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).textInputAction,
+        TextInputAction.newline,
+      );
+      tester.testTextInput.updateEditingValue(
+        TextEditingValue(
+          text: '$draft\n',
+          selection: TextSelection.collapsed(offset: draft.length + 1),
+        ),
+      );
+      await tester.pump();
+      await tester.testTextInput.receiveAction(TextInputAction.newline);
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '$draft\n',
+      );
+      expect(tester.binding.focusManager.primaryFocus, isNotNull);
+      expect(tester.takeException(), isNull);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _settleFileIo(tester);
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
 
   testWidgets(
     'dev entry creates on tap, fences double tap, and persists queued message',
