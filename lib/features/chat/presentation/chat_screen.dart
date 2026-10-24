@@ -23,6 +23,7 @@ class ChatScreen extends StatefulWidget {
     this.onRemoveQueuedAttachment,
     this.onOpenAttachment,
     this.isSelectingAttachments = false,
+    this.compactKeyboardLayout = false,
     super.key,
   }) : repository = null;
 
@@ -39,6 +40,7 @@ class ChatScreen extends StatefulWidget {
     this.onRemoveQueuedAttachment,
     this.onOpenAttachment,
     this.isSelectingAttachments = false,
+    this.compactKeyboardLayout = false,
     super.key,
   }) : messages = null;
 
@@ -55,6 +57,7 @@ class ChatScreen extends StatefulWidget {
   final Future<void> Function(String localId)? onRemoveQueuedAttachment;
   final void Function(String localId)? onOpenAttachment;
   final bool isSelectingAttachments;
+  final bool compactKeyboardLayout;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -111,6 +114,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final ComposerController? composer = _matchingComposer;
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: widget.compactKeyboardLayout ? 48 : null,
         leading: widget.onBack == null
             ? null
             : BackButton(onPressed: widget.onBack),
@@ -127,6 +131,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 onRemoveQueuedAttachment: widget.onRemoveQueuedAttachment,
                 onOpenAttachment: widget.onOpenAttachment,
                 isSelectingAttachments: widget.isSelectingAttachments,
+                compactKeyboardLayout: widget.compactKeyboardLayout,
               ),
           ],
         ),

@@ -35,6 +35,68 @@ void main() {
   });
 
   testWidgets(
+    'full dev chrome keeps long draft actions above landscape keyboard',
+    (WidgetTester tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(393, 852);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final AppDatabase database = AppDatabase(NativeDatabase.memory());
+      final Directory? createdRoot = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('timefit-landscape-keyboard-'),
+      );
+      if (createdRoot == null) throw StateError('temp_directory_unavailable');
+      final Directory attachmentRoot = createdRoot;
+      addTearDown(() async {
+        if (await attachmentRoot.exists()) {
+          await attachmentRoot.delete(recursive: true);
+        }
+      });
+
+      await tester.pumpWidget(
+        TimeFitApp(
+          environment: AppEnvironment.dev,
+          devDatabaseFactory: () async => database,
+          devAttachmentRootFactory: () async => attachmentRoot,
+        ),
+      );
+      await _settleFileIo(tester);
+      await _pumpUntilFinder(tester, find.text('새 대화 시작'));
+      await tester.tap(find.text('새 대화 시작'));
+      await _settleFileIo(tester);
+      await _pumpUntilFinder(tester, find.byType(TextField));
+      final String draft = List<String>.filled(464, '긴').join();
+      await tester.enterText(find.byType(TextField), draft);
+      await tester.pump();
+
+      tester.view.physicalSize = const Size(852, 393);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 216);
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(tester.widget<TextField>(find.byType(TextField)).maxLines, 1);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        draft,
+      );
+      final Finder attach = find.byTooltip('첨부 추가');
+      final Finder send = find.byTooltip('메시지 보내기');
+      expect(attach, findsOneWidget);
+      expect(send, findsOneWidget);
+      expect(tester.getBottomRight(attach).dy, lessThanOrEqualTo(177));
+      expect(tester.getBottomRight(send).dy, lessThanOrEqualTo(177));
+      expect(await _runFileIo(tester, database.messageDao.getAll), isEmpty);
+      expect(await _runFileIo(tester, database.outboxDao.getAll), isEmpty);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _settleFileIo(tester);
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
+
+  testWidgets(
     'dev entry creates on tap, fences double tap, and persists queued message',
     (WidgetTester tester) async {
       final sandbox = await tester.runAsync(

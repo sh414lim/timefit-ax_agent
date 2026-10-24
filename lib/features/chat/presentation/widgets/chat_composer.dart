@@ -13,6 +13,7 @@ class ChatComposer extends StatefulWidget {
     this.onRemoveQueuedAttachment,
     this.onOpenAttachment,
     this.isSelectingAttachments = false,
+    this.compactKeyboardLayout = false,
     super.key,
   });
 
@@ -21,6 +22,7 @@ class ChatComposer extends StatefulWidget {
   final Future<void> Function(String localId)? onRemoveQueuedAttachment;
   final void Function(String localId)? onOpenAttachment;
   final bool isSelectingAttachments;
+  final bool compactKeyboardLayout;
 
   @override
   State<ChatComposer> createState() => _ChatComposerState();
@@ -119,8 +121,9 @@ class _ChatComposerState extends State<ChatComposer> {
     // field scroll internally until the keyboard is dismissed or the device
     // returns to portrait.
     final bool useCompactInput =
-        mediaQuery.orientation == Orientation.landscape &&
-        View.of(context).viewInsets.bottom > 0;
+        widget.compactKeyboardLayout ||
+        (mediaQuery.orientation == Orientation.landscape &&
+            View.of(context).viewInsets.bottom > 0);
     final List<ComposerAttachment> visibleAttachments = <ComposerAttachment>[
       ...controller.attachments.where(
         (attachment) => attachment.state == ComposerAttachmentState.failed,
@@ -134,7 +137,12 @@ class _ChatComposerState extends State<ChatComposer> {
       child: Material(
         color: Theme.of(context).colorScheme.surface,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          padding: EdgeInsets.fromLTRB(
+            12,
+            useCompactInput ? 4 : 8,
+            8,
+            useCompactInput ? 4 : 8,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
