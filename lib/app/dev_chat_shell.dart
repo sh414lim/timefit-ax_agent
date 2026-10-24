@@ -536,6 +536,7 @@ class _DevChatShellState extends State<DevChatShell>
                     onOpenAttachment: _openLocalAttachmentPreview,
                     isSelectingAttachments: _selectingAttachments,
                     compactKeyboardLayout: compactKeyboardLayout,
+                    savesLocallyOnly: true,
                   ),
           ),
         ],

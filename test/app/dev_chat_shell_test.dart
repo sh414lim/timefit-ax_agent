@@ -90,9 +90,10 @@ void main() {
         draft,
       );
       final Finder attach = find.byTooltip('첨부 추가');
-      final Finder send = find.byTooltip('메시지 보내기');
+      final Finder send = find.byTooltip('메시지 저장');
       expect(attach, findsOneWidget);
       expect(send, findsOneWidget);
+      expect(find.bySemanticsLabel('메시지 저장'), findsOneWidget);
       expect(tester.getBottomRight(attach).dy, lessThanOrEqualTo(177));
       expect(tester.getBottomRight(send).dy, lessThanOrEqualTo(177));
       expect(await _runFileIo(tester, database.messageDao.getAll), isEmpty);
@@ -183,7 +184,7 @@ void main() {
 
         await tester.enterText(find.byType(TextField), '재시작 뒤에도 남는 메시지');
         await tester.pump();
-        await tester.tap(find.byTooltip('메시지 보내기'));
+        await tester.tap(find.byTooltip('메시지 저장'));
         await _settleFileIo(tester);
 
         final messages = await _runFileIo(
@@ -438,7 +439,7 @@ void main() {
         expect(selected.single.uploadState, 'queued');
         expect(selected.single.attachmentId, isNull);
         expect(selected.single.displayName, 'synthetic.pdf');
-        expect(find.textContaining('로컬 준비됨 · 서버 업로드 안 됨'), findsOneWidget);
+        expect(find.textContaining('이 기기에 저장됨 · 서버 미업로드'), findsOneWidget);
         final File privateCopy = File.fromUri(
           Uri.parse(selected.single.localFileUri!),
         );
@@ -473,7 +474,7 @@ void main() {
         );
         await _pumpUntilFinder(
           tester,
-          find.textContaining('로컬 준비됨 · 서버 업로드 안 됨'),
+          find.textContaining('이 기기에 저장됨 · 서버 미업로드'),
         );
         expect(await _runFileIo(tester, privateCopy.readAsBytes), _pdfFixture);
         await tester.tap(find.text('application/pdf · 대기 중'));
@@ -502,7 +503,7 @@ void main() {
         await _waitForAttachmentCount(tester, openedDatabase!, 1);
         await tester.enterText(find.byType(TextField), '첨부 로컬 대기');
         await tester.pump();
-        await tester.tap(find.byTooltip('메시지 보내기'));
+        await tester.tap(find.byTooltip('메시지 저장'));
         await _settleFileIo(tester);
         final List<LocalAttachment> queued = await _runFileIo(
           tester,
