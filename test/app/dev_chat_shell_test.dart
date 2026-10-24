@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/app.dart';
 import 'package:timefit_native/core/database/app_database.dart';
@@ -77,6 +78,13 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(tester.widget<TextField>(find.byType(TextField)).maxLines, isNull);
+      final RenderEditable editable = tester
+          .state<EditableTextState>(find.byType(EditableText))
+          .renderEditable;
+      expect(
+        editable.size.height,
+        greaterThanOrEqualTo(editable.preferredLineHeight),
+      );
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         draft,

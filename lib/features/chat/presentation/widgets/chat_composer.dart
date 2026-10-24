@@ -124,6 +124,23 @@ class _ChatComposerState extends State<ChatComposer> {
         widget.compactKeyboardLayout ||
         (mediaQuery.orientation == Orientation.landscape &&
             View.of(context).viewInsets.bottom > 0);
+    final TextPainter inputLinePainter = TextPainter(
+      text: TextSpan(
+        text: ' ',
+        style:
+            Theme.of(context).textTheme.titleMedium ??
+            DefaultTextStyle.of(context).style,
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: mediaQuery.textScaler,
+      maxLines: 1,
+    )..layout();
+    final double scaledCompactHeight =
+        inputLinePainter.preferredLineHeight + 16;
+    inputLinePainter.dispose();
+    final double compactInputHeight = scaledCompactHeight < 48
+        ? 48
+        : scaledCompactHeight;
     final List<ComposerAttachment> visibleAttachments = <ComposerAttachment>[
       ...controller.attachments.where(
         (attachment) => attachment.state == ComposerAttachmentState.failed,
@@ -223,7 +240,7 @@ class _ChatComposerState extends State<ChatComposer> {
                   Expanded(
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
-                        maxHeight: useCompactInput ? 48 : 144,
+                        maxHeight: useCompactInput ? compactInputHeight : 144,
                       ),
                       child: TextField(
                         controller: _textController,
