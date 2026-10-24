@@ -113,6 +113,14 @@ class _ChatComposerState extends State<ChatComposer> {
   @override
   Widget build(BuildContext context) {
     final ComposerController controller = widget.controller;
+    final MediaQueryData mediaQuery = MediaQuery.of(context);
+    // A five-line field cannot fit between the app chrome and the landscape
+    // software keyboard on compact phones. Keep the draft intact and let the
+    // field scroll internally until the keyboard is dismissed or the device
+    // returns to portrait.
+    final bool useCompactInput =
+        mediaQuery.orientation == Orientation.landscape &&
+        View.of(context).viewInsets.bottom > 0;
     final List<ComposerAttachment> visibleAttachments = <ComposerAttachment>[
       ...controller.attachments.where(
         (attachment) => attachment.state == ComposerAttachmentState.failed,
@@ -174,6 +182,7 @@ class _ChatComposerState extends State<ChatComposer> {
                 const SizedBox(height: 8),
               ],
               Row(
+                key: const ValueKey<String>('composer-input-row'),
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: <Widget>[
                   if (widget.onAddAttachment != null) ...<Widget>[
@@ -210,7 +219,7 @@ class _ChatComposerState extends State<ChatComposer> {
                         controller: _textController,
                         focusNode: _focusNode,
                         minLines: 1,
-                        maxLines: 5,
+                        maxLines: useCompactInput ? 1 : 5,
                         inputFormatters: const <TextInputFormatter>[
                           _RuneLengthLimitingFormatter(
                             ComposerController.maximumLength,
@@ -221,6 +230,13 @@ class _ChatComposerState extends State<ChatComposer> {
                         textInputAction: TextInputAction.newline,
                         onChanged: controller.updateDraft,
                         decoration: InputDecoration(
+                          isDense: useCompactInput,
+                          contentPadding: useCompactInput
+                              ? const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                )
+                              : null,
                           hintText: '메시지 입력',
                           border: const OutlineInputBorder(),
                           counterText: controller.showCounter
