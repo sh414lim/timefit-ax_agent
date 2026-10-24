@@ -24,6 +24,7 @@ class ChatScreen extends StatefulWidget {
     this.onOpenAttachment,
     this.isSelectingAttachments = false,
     this.compactKeyboardLayout = false,
+    this.savesLocallyOnly = false,
     super.key,
   }) : repository = null;
 
@@ -41,6 +42,7 @@ class ChatScreen extends StatefulWidget {
     this.onOpenAttachment,
     this.isSelectingAttachments = false,
     this.compactKeyboardLayout = false,
+    this.savesLocallyOnly = false,
     super.key,
   }) : messages = null;
 
@@ -58,6 +60,7 @@ class ChatScreen extends StatefulWidget {
   final void Function(String localId)? onOpenAttachment;
   final bool isSelectingAttachments;
   final bool compactKeyboardLayout;
+  final bool savesLocallyOnly;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -132,6 +135,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 onOpenAttachment: widget.onOpenAttachment,
                 isSelectingAttachments: widget.isSelectingAttachments,
                 compactKeyboardLayout: widget.compactKeyboardLayout,
+                savesLocallyOnly: widget.savesLocallyOnly,
               ),
           ],
         ),

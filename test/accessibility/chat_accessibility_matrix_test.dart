@@ -308,7 +308,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('주간 계획 대화'), findsOneWidget);
-      expect(find.text('재시도'), findsOneWidget);
+      expect(find.text('다시 시도'), findsOneWidget);
       expect(find.byTooltip('메시지 보내기'), findsOneWidget);
       expect(find.byTooltip('첨부 열기'), findsOneWidget);
     });
@@ -383,7 +383,7 @@ void main() {
         ),
       );
 
-      final Finder retry = find.widgetWithText(TextButton, '재시도');
+      final Finder retry = find.widgetWithText(TextButton, '다시 시도');
       await tester.ensureVisible(retry);
       await tester.pumpAndSettle();
       final Rect timeline = tester.getRect(
@@ -392,7 +392,7 @@ void main() {
       final Rect retryRect = tester.getRect(retry);
       expect(timeline.contains(retryRect.topLeft), isTrue);
       expect(timeline.contains(retryRect.bottomRight), isTrue);
-      expect(find.bySemanticsLabel('재시도'), findsOneWidget);
+      expect(find.bySemanticsLabel('다시 시도'), findsOneWidget);
 
       final Finder failedRemoval = find.byTooltip('실패한 첨부 제거');
       await tester.ensureVisible(failedRemoval);
@@ -423,7 +423,7 @@ void main() {
       );
       expect(bubble.flagsCollection.isLiveRegion, isTrue);
       expect(bubble.label, contains('전송 실패, 재시도 필요'));
-      final Finder retry = find.widgetWithText(TextButton, '재시도');
+      final Finder retry = find.widgetWithText(TextButton, '다시 시도');
       expect(tester.getSize(retry).shortestSide, greaterThanOrEqualTo(44));
       expect(tester.getSemantics(retry).flagsCollection.isButton, isTrue);
     } finally {

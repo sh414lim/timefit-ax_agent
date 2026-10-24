@@ -14,6 +14,7 @@ class ChatComposer extends StatefulWidget {
     this.onOpenAttachment,
     this.isSelectingAttachments = false,
     this.compactKeyboardLayout = false,
+    this.savesLocallyOnly = false,
     super.key,
   });
 
@@ -23,6 +24,7 @@ class ChatComposer extends StatefulWidget {
   final void Function(String localId)? onOpenAttachment;
   final bool isSelectingAttachments;
   final bool compactKeyboardLayout;
+  final bool savesLocallyOnly;
 
   @override
   State<ChatComposer> createState() => _ChatComposerState();
@@ -170,7 +172,7 @@ class _ChatComposerState extends State<ChatComposer> {
                         attachment.state == ComposerAttachmentState.queued,
                   )) ...<Widget>[
                 const Text(
-                  '로컬 준비됨 · 서버 업로드 안 됨',
+                  '이 기기에 저장됨 · 서버 미업로드',
                   key: ValueKey<String>('local-attachment-status'),
                 ),
                 const SizedBox(height: 6),
@@ -279,9 +281,13 @@ class _ChatComposerState extends State<ChatComposer> {
                   const SizedBox(width: 8),
                   Semantics(
                     button: true,
-                    label: controller.isSubmitting ? '메시지 저장 중' : '메시지 보내기',
+                    label: controller.isSubmitting
+                        ? '메시지 저장 중'
+                        : widget.savesLocallyOnly
+                        ? '메시지 저장'
+                        : '메시지 보내기',
                     child: IconButton.filled(
-                      tooltip: '메시지 보내기',
+                      tooltip: widget.savesLocallyOnly ? '메시지 저장' : '메시지 보내기',
                       constraints: const BoxConstraints.tightFor(
                         width: 48,
                         height: 48,

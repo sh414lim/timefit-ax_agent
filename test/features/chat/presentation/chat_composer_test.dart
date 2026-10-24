@@ -23,6 +23,8 @@ void main() {
     addTearDown(controller.dispose);
     await _pumpComposer(tester, controller);
 
+    expect(find.byTooltip('메시지 보내기'), findsOneWidget);
+    expect(find.bySemanticsLabel('메시지 보내기'), findsOneWidget);
     expect(_sendButton(tester).onPressed, isNull);
     await tester.enterText(find.byType(TextField), '   ');
     await tester.pump();
@@ -521,7 +523,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('재시도'));
+    await tester.tap(find.text('다시 시도'));
     await tester.pump();
 
     expect(submitter.retriedIds, <String>['failed-client-id']);
@@ -556,7 +558,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('재시도'), findsNothing);
+    expect(find.text('다시 시도'), findsNothing);
   });
 
   testWidgets('rapid send button taps create one submission', (

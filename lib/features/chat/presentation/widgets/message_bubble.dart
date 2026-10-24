@@ -59,7 +59,7 @@ class MessageBubble extends StatelessWidget {
                       ).catchError((Object _) => false),
                     );
                   },
-                  child: const Text('재시도'),
+                  child: const Text('다시 시도'),
                 ),
             ],
           ),
