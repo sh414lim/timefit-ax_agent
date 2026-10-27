@@ -75,60 +75,22 @@ final class _ReconstructedAssistantPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final double unit = size.shortestSide;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(unit * .3)),
-      Paint()..color = field,
-    );
-    final Rect head = Rect.fromLTWH(
-      size.width * .14,
-      size.height * .23,
-      size.width * .72,
-      size.height * .55,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(head, Radius.circular(unit * .17)),
-      Paint()..color = primary,
-    );
-    final Rect bezel = head.deflate(unit * .07);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(bezel, Radius.circular(unit * .12)),
-      Paint()..color = Colors.white,
-    );
-    final Rect face = bezel.deflate(unit * .035);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(face, Radius.circular(unit * .09)),
-      Paint()..color = primary,
-    );
-    final Paint eye = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = unit * .055
-      ..strokeCap = StrokeCap.round;
-    for (final double x in <double>[.39, .61]) {
-      final double centerX = size.width * x;
-      final Path path = Path()
-        ..moveTo(centerX - unit * .075, face.center.dy + unit * .02)
-        ..quadraticBezierTo(
-          centerX,
-          face.center.dy - unit * .055,
-          centerX + unit * .075,
-          face.center.dy + unit * .02,
-        );
-      canvas.drawPath(path, eye);
-    }
-    final Paint antenna = Paint()
-      ..color = primary
-      ..strokeWidth = unit * .05
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(
-      Offset(size.width * .5, head.top),
-      Offset(size.width * .5, size.height * .12),
-      antenna,
-    );
+    // Source chat avatars use the TimeFit mark rather than a robot face.
     canvas.drawCircle(
-      Offset(size.width * .5, size.height * .1),
-      unit * .045,
+      size.center(Offset.zero),
+      unit * .5,
       Paint()..color = primary,
+    );
+    _paintTimeFitMark(
+      canvas,
+      Rect.fromLTWH(
+        size.width * .16,
+        size.height * .15,
+        size.width * .68,
+        size.height * .7,
+      ),
+      Colors.white,
+      strokeFraction: .1,
     );
   }
 
@@ -179,7 +141,18 @@ final class _ReconstructedRobotPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final fieldRect = Offset.zero & size;
-    canvas.drawOval(fieldRect, Paint()..color = field);
+    canvas.drawOval(
+      fieldRect,
+      Paint()
+        ..shader = RadialGradient(
+          colors: <Color>[
+            field,
+            field.withValues(alpha: .64),
+            field.withValues(alpha: 0),
+          ],
+          stops: const <double>[0, .72, 1],
+        ).createShader(fieldRect),
+    );
 
     // Source silhouette envelope: roughly 85.2% W × 79.9% H of the field.
     final Rect robot = Rect.fromCenter(
@@ -222,10 +195,10 @@ final class _ReconstructedRobotPainter extends CustomPainter {
     );
 
     final Rect head = Rect.fromLTWH(
-      robot.left + robot.width * .14,
-      robot.top + robot.height * .2,
-      robot.width * .7,
-      robot.height * .46,
+      robot.left + robot.width * .145,
+      robot.top + robot.height * .205,
+      robot.width * .71,
+      robot.height * .435,
     );
     final RRect outerHead = RRect.fromRectAndRadius(
       head,
@@ -258,7 +231,7 @@ final class _ReconstructedRobotPainter extends CustomPainter {
       RRect.fromRectAndRadius(bezel, Radius.circular(bezel.height * .24)),
       Paint()..color = Colors.white,
     );
-    final Rect face = bezel.deflate(bezel.height * .09);
+    final Rect face = bezel.deflate(bezel.height * .105);
     canvas.drawRRect(
       RRect.fromRectAndRadius(face, Radius.circular(face.height * .2)),
       blue,
@@ -291,18 +264,55 @@ final class _ReconstructedRobotPainter extends CustomPainter {
       blue,
     );
     final Rect torso = Rect.fromLTWH(
-      robot.left + robot.width * .3,
-      robot.top + robot.height * .65,
-      robot.width * .4,
-      robot.height * .27,
+      robot.left + robot.width * .28,
+      robot.top + robot.height * .63,
+      robot.width * .44,
+      robot.height * .285,
     );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(torso, Radius.circular(torso.width * .19)),
-      blue,
-    );
+    final Path torsoShape = Path()
+      ..moveTo(torso.left + torso.width * .22, torso.top)
+      ..quadraticBezierTo(
+        torso.left,
+        torso.top,
+        torso.left,
+        torso.top + torso.height * .28,
+      )
+      ..lineTo(torso.left, torso.top + torso.height * .68)
+      ..quadraticBezierTo(
+        torso.left,
+        torso.bottom,
+        torso.left + torso.width * .25,
+        torso.bottom,
+      )
+      ..lineTo(torso.left + torso.width * .35, torso.bottom)
+      ..lineTo(
+        torso.left + torso.width * .24,
+        torso.bottom + torso.height * .19,
+      )
+      ..lineTo(torso.left + torso.width * .58, torso.bottom)
+      ..lineTo(torso.left + torso.width * .76, torso.bottom)
+      ..quadraticBezierTo(
+        torso.right,
+        torso.bottom,
+        torso.right,
+        torso.top + torso.height * .68,
+      )
+      ..lineTo(torso.right, torso.top + torso.height * .28)
+      ..quadraticBezierTo(
+        torso.right,
+        torso.top,
+        torso.left + torso.width * .78,
+        torso.top,
+      )
+      ..close();
+    canvas.drawPath(torsoShape, blue);
     _paintTimeFitMark(
       canvas,
-      torso.deflate(torso.width * .25),
+      Rect.fromCenter(
+        center: Offset(torso.center.dx, torso.center.dy + torso.height * .02),
+        width: torso.width * .56,
+        height: torso.height * .58,
+      ),
       Colors.white,
       strokeFraction: .12,
     );
@@ -319,36 +329,81 @@ void _paintTimeFitMark(
   Color color, {
   required double strokeFraction,
 }) {
-  final double stroke = rect.shortestSide * strokeFraction;
-  final Paint line = Paint()
+  final Paint fill = Paint()
     ..color = color
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = stroke
-    ..strokeCap = StrokeCap.round
-    ..strokeJoin = StrokeJoin.round;
-  final double left = rect.left + rect.width * .23;
-  final double right = rect.right - rect.width * .23;
-  final double top = rect.top + rect.height * .31;
-  final double centerX = rect.center.dx;
-  canvas.drawLine(Offset(left, top), Offset(right, top), line);
-  canvas.drawLine(
-    Offset(centerX, rect.top + rect.height * .25),
-    Offset(centerX, rect.bottom - rect.height * .24),
-    line,
+    ..style = PaintingStyle.fill;
+
+  // Controlled trace of the source mark: broad cap, hooked/check stem and
+  // independent sparkle. The argument remains for call-site compatibility
+  // while the geometry is expressed as filled paths instead of generic lines.
+  final double capHeight = rect.height * (.2 + strokeFraction * .16);
+  canvas.drawRRect(
+    RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        rect.left + rect.width * .12,
+        rect.top + rect.height * .2,
+        rect.width * .61,
+        capHeight,
+      ),
+      Radius.circular(rect.shortestSide * .12),
+    ),
+    fill,
   );
-  final Offset node = Offset(
-    rect.left + rect.width * .75,
-    rect.top + rect.height * .2,
+  final Path stem = Path()
+    ..moveTo(rect.left + rect.width * .39, rect.top + rect.height * .31)
+    ..lineTo(rect.left + rect.width * .58, rect.top + rect.height * .31)
+    ..lineTo(rect.left + rect.width * .58, rect.top + rect.height * .55)
+    ..cubicTo(
+      rect.left + rect.width * .58,
+      rect.top + rect.height * .7,
+      rect.left + rect.width * .65,
+      rect.top + rect.height * .75,
+      rect.left + rect.width * .76,
+      rect.top + rect.height * .63,
+    )
+    ..lineTo(rect.left + rect.width * .86, rect.top + rect.height * .73)
+    ..cubicTo(
+      rect.left + rect.width * .69,
+      rect.top + rect.height * .92,
+      rect.left + rect.width * .39,
+      rect.top + rect.height * .82,
+      rect.left + rect.width * .39,
+      rect.top + rect.height * .56,
+    )
+    ..close();
+  canvas.drawPath(stem, fill);
+
+  final Offset sparkle = Offset(
+    rect.left + rect.width * .82,
+    rect.top + rect.height * .27,
   );
-  final double nodeRadius = stroke * .65;
-  canvas.drawLine(
-    node.translate(-nodeRadius, 0),
-    node.translate(nodeRadius, 0),
-    line..strokeWidth = stroke * .56,
-  );
-  canvas.drawLine(
-    node.translate(0, -nodeRadius),
-    node.translate(0, nodeRadius),
-    line,
-  );
+  final double ray = rect.shortestSide * .12;
+  final Path diamond = Path()
+    ..moveTo(sparkle.dx, sparkle.dy - ray)
+    ..quadraticBezierTo(
+      sparkle.dx + ray * .2,
+      sparkle.dy - ray * .2,
+      sparkle.dx + ray,
+      sparkle.dy,
+    )
+    ..quadraticBezierTo(
+      sparkle.dx + ray * .2,
+      sparkle.dy + ray * .2,
+      sparkle.dx,
+      sparkle.dy + ray,
+    )
+    ..quadraticBezierTo(
+      sparkle.dx - ray * .2,
+      sparkle.dy + ray * .2,
+      sparkle.dx - ray,
+      sparkle.dy,
+    )
+    ..quadraticBezierTo(
+      sparkle.dx - ray * .2,
+      sparkle.dy - ray * .2,
+      sparkle.dx,
+      sparkle.dy - ray,
+    )
+    ..close();
+  canvas.drawPath(diamond, fill);
 }

@@ -544,12 +544,25 @@ class _ActionCard extends StatelessWidget {
   final double cardWidth;
   final VoidCallback onTap;
 
-  Color _tint(TimeFitAxVisualTokens tokens) => switch (action) {
-    DemoHomeAction.storeOverview => tokens.paleBlue,
-    DemoHomeAction.weeklySchedule => tokens.mint,
-    DemoHomeAction.costAnalysis => tokens.lavender,
-    DemoHomeAction.employeeAnnouncement => tokens.orange,
-  };
+  Color _tint(TimeFitAxVisualTokens tokens) {
+    if (!expanded) return tokens.paleBlue;
+    return switch (action) {
+      DemoHomeAction.storeOverview => tokens.paleBlue,
+      DemoHomeAction.weeklySchedule => tokens.mint,
+      DemoHomeAction.costAnalysis => tokens.lavender,
+      DemoHomeAction.employeeAnnouncement => tokens.orange,
+    };
+  }
+
+  Color _glyphColor(TimeFitAxVisualTokens tokens) {
+    if (!expanded) return tokens.mobileHomePrimary;
+    return switch (action) {
+      DemoHomeAction.storeOverview => tokens.expandedHomePrimary,
+      DemoHomeAction.weeklySchedule => const Color(0xFF42A681),
+      DemoHomeAction.costAnalysis => const Color(0xFF765BC5),
+      DemoHomeAction.employeeAnnouncement => const Color(0xFFE78A42),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -563,6 +576,7 @@ class _ActionCard extends StatelessWidget {
                   _ActionIcon(
                     action: action,
                     color: _tint(tokens),
+                    glyphColor: _glyphColor(tokens),
                     square: true,
                   ),
                   const SizedBox(height: AppSpacing.x12),
@@ -597,37 +611,40 @@ class _ActionCard extends StatelessWidget {
           )
         : Row(
             children: <Widget>[
-              _ActionIcon(action: action, color: _tint(tokens), square: false),
-              const SizedBox(width: AppSpacing.x8),
+              _ActionIcon(
+                action: action,
+                color: _tint(tokens),
+                glyphColor: _glyphColor(tokens),
+                square: false,
+              ),
+              const SizedBox(width: 4),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    FittedBox(
-                      alignment: Alignment.centerLeft,
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        action.label,
-                        maxLines: 1,
-                        style: _titleStyle(tokens),
-                      ),
+                    Text(
+                      action.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      style: _titleStyle(tokens),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       action.description,
+                      key: Key('home-action-description-${action.name}'),
                       maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      overflow: TextOverflow.clip,
                       style: TextStyle(
                         color: tokens.secondaryText,
-                        fontSize: 11.5,
-                        height: 1.35,
+                        fontSize: 9,
+                        height: 1.25,
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: tokens.secondaryText, size: 20),
+              Icon(Icons.chevron_right, color: tokens.secondaryText, size: 12),
             ],
           );
     return Semantics(
@@ -648,7 +665,7 @@ class _ActionCard extends StatelessWidget {
             onTap: onTap,
             borderRadius: BorderRadius.circular(expanded ? 16 : 13),
             child: Container(
-              padding: EdgeInsets.all(expanded ? 16 : 10),
+              padding: EdgeInsets.all(expanded ? 16 : 5),
               decoration: BoxDecoration(
                 border: Border.all(color: tokens.border),
                 borderRadius: BorderRadius.circular(expanded ? 16 : 13),
@@ -674,7 +691,7 @@ class _ActionCard extends StatelessWidget {
   TextStyle _titleStyle(TimeFitAxVisualTokens tokens) => TextStyle(
     color: tokens.deepText,
     fontWeight: FontWeight.w700,
-    fontSize: expanded ? 16 : 13,
+    fontSize: expanded ? 16 : 12,
   );
 }
 
@@ -682,17 +699,19 @@ class _ActionIcon extends StatelessWidget {
   const _ActionIcon({
     required this.action,
     required this.color,
+    required this.glyphColor,
     required this.square,
   });
 
   final DemoHomeAction action;
   final Color color;
+  final Color glyphColor;
   final bool square;
 
   @override
   Widget build(BuildContext context) => Container(
-    width: square ? 48 : 42,
-    height: square ? 48 : 42,
+    width: square ? 48 : 32,
+    height: square ? 48 : 32,
     decoration: BoxDecoration(
       color: color,
       shape: square ? BoxShape.rectangle : BoxShape.circle,
@@ -701,10 +720,8 @@ class _ActionIcon extends StatelessWidget {
     child: Center(
       child: ReconstructedHomeActionGlyph(
         action: action,
-        color: square
-            ? TimeFitAxVisualTokens.of(context).expandedHomePrimary
-            : TimeFitAxVisualTokens.of(context).mobileHomePrimary,
-        size: square ? 25 : 23,
+        color: glyphColor,
+        size: square ? 25 : 18,
       ),
     ),
   );

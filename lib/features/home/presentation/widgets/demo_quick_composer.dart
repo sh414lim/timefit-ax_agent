@@ -3,17 +3,21 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/timefit_ax_visual_tokens.dart';
 import '../../../../app/theme/tokens.dart';
 
+enum DemoComposerVariant { home, analysis, approval, notice, schedule }
+
 class DemoQuickComposer extends StatelessWidget {
   const DemoQuickComposer({
     required this.controller,
     required this.focusNode,
     this.placeholder = 'TimeFit에게 물어보세요',
+    this.variant = DemoComposerVariant.home,
     super.key,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final String placeholder;
+  final DemoComposerVariant variant;
 
   @override
   Widget build(BuildContext context) {
@@ -22,25 +26,41 @@ class DemoQuickComposer extends StatelessWidget {
     final Color sourcePrimary = expandedSource
         ? tokens.expandedHomePrimary
         : tokens.mobileHomePrimary;
+    final bool leadingPlus = switch (variant) {
+      DemoComposerVariant.analysis || DemoComposerVariant.approval => true,
+      _ => false,
+    };
+    final bool unfilledSend = variant == DemoComposerVariant.approval;
+    final bool paleSend = switch (variant) {
+      DemoComposerVariant.notice || DemoComposerVariant.schedule => true,
+      _ => false,
+    };
+    final Color sendBackground = paleSend ? tokens.paleBlue : sourcePrimary;
+    final Color sendForeground = paleSend
+        ? sourcePrimary
+        : unfilledSend
+        ? tokens.secondaryText
+        : Colors.white;
+    final bool separated = variant == DemoComposerVariant.approval;
     return Semantics(
       container: true,
       label: '데모 입력, 실제 업무 시스템에 연결되지 않음',
       child: Material(
-        color: tokens.surface,
-        elevation: 2,
+        color: separated ? Colors.transparent : tokens.surface,
+        elevation: separated ? 0 : 2,
         shadowColor: const Color(0x14071A39),
         borderRadius: BorderRadius.circular(28),
         child: Container(
           constraints: BoxConstraints(minHeight: expandedSource ? 54 : 62),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: tokens.border),
+            border: separated ? null : Border.all(color: tokens.border),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               IconButton(
-                tooltip: '샘플 첨부 자리',
+                tooltip: leadingPlus ? '샘플 추가 자리' : '샘플 첨부 자리',
                 onPressed: () {},
                 constraints: const BoxConstraints.tightFor(
                   width: AppTouchTarget.minimum,
@@ -48,9 +68,11 @@ class DemoQuickComposer extends StatelessWidget {
                 ),
                 icon: CustomPaint(
                   size: const Size.square(22),
-                  painter: _ReconstructedPaperclipPainter(
-                    color: tokens.secondaryText,
-                  ),
+                  painter: leadingPlus
+                      ? _ReconstructedPlusPainter(color: tokens.secondaryText)
+                      : _ReconstructedPaperclipPainter(
+                          color: tokens.secondaryText,
+                        ),
                 ),
               ),
               Expanded(
@@ -82,20 +104,22 @@ class DemoQuickComposer extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.all(5),
-                child: IconButton.filled(
+                child: IconButton(
                   tooltip: '샘플 미리보기',
                   onPressed: () {},
                   style: IconButton.styleFrom(
-                    backgroundColor: sourcePrimary,
-                    foregroundColor: Colors.white,
+                    backgroundColor: unfilledSend
+                        ? Colors.transparent
+                        : sendBackground,
+                    foregroundColor: sendForeground,
                   ),
                   constraints: const BoxConstraints.tightFor(
                     width: 46,
                     height: 46,
                   ),
-                  icon: const CustomPaint(
-                    size: Size.square(22),
-                    painter: _ReconstructedSendPainter(color: Colors.white),
+                  icon: CustomPaint(
+                    size: const Size.square(22),
+                    painter: _ReconstructedSendPainter(color: sendForeground),
                   ),
                 ),
               ),
@@ -105,6 +129,34 @@ class DemoQuickComposer extends StatelessWidget {
       ),
     );
   }
+}
+
+final class _ReconstructedPlusPainter extends CustomPainter {
+  const _ReconstructedPlusPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.shortestSide * .09
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(size.width * .2, size.height * .5),
+      Offset(size.width * .8, size.height * .5),
+      stroke,
+    );
+    canvas.drawLine(
+      Offset(size.width * .5, size.height * .2),
+      Offset(size.width * .5, size.height * .8),
+      stroke,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReconstructedPlusPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 final class _ReconstructedPaperclipPainter extends CustomPainter {

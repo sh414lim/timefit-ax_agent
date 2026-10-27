@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/theme/app_theme.dart';
 import 'package:timefit_native/features/conversations/application/conversation_list_controller.dart';
@@ -75,6 +75,125 @@ void main() {
     await tester.pump();
     expect(draft.text, '메모리에만 남는 요청');
   });
+
+  testWidgets(
+    'workflow previews use source-specific notice and insight glyphs',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(432, 900);
+      addTearDown(tester.view.reset);
+      final draft = TextEditingController();
+      final focus = FocusNode();
+      addTearDown(draft.dispose);
+      addTearDown(focus.dispose);
+
+      Widget preview(DemoHomeAction action) => MaterialApp(
+        theme: AppTheme.light(),
+        home: DemoBusinessPreviewScreen(
+          action: action,
+          onBack: () {},
+          draftController: draft,
+          draftFocusNode: focus,
+        ),
+      );
+
+      await tester.pumpWidget(preview(DemoHomeAction.employeeAnnouncement));
+      expect(
+        find.byKey(const Key('workflow-notice-megaphone-icon')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .getSemantics(
+              find.byKey(const Key('workflow-notice-megaphone-icon')),
+            )
+            .getSemanticsData()
+            .label,
+        contains('공지 확성기 재구성 아이콘'),
+      );
+
+      await tester.pumpWidget(preview(DemoHomeAction.storeOverview));
+      expect(
+        find.byKey(const Key('workflow-analytics-insight-icon')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .getSemantics(
+              find.byKey(const Key('workflow-analytics-insight-icon')),
+            )
+            .getSemanticsData()
+            .label,
+        contains('AI 인사이트 반짝임 재구성 아이콘'),
+      );
+      expect(
+        find.byKey(const Key('workflow-notice-megaphone-icon')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final testCase in <({Size size, double keyboard})>[
+    (size: const Size(320, 640), keyboard: 280),
+    (size: const Size(852, 393), keyboard: 216),
+    (size: const Size(1024, 576), keyboard: 0),
+  ]) {
+    testWidgets('analytics preview remains scrollable at ${testCase.size} '
+        'keyboard ${testCase.keyboard} and text 200 percent', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = testCase.size;
+      tester.view.viewInsets = FakeViewPadding(bottom: testCase.keyboard);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final draft = TextEditingController(text: '반응형 확인 문장');
+      final focus = FocusNode();
+      addTearDown(draft.dispose);
+      addTearDown(focus.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: DemoBusinessPreviewScreen(
+            action: DemoHomeAction.storeOverview,
+            onBack: () {},
+            draftController: draft,
+            draftFocusNode: focus,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('반응형 확인 문장'), findsOneWidget);
+      expect(find.byType(Scrollable), findsWidgets);
+      if (testCase.size.width < 900) {
+        await tester.scrollUntilVisible(
+          find.text('시간대별 매출'),
+          240,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pump();
+      }
+      expect(
+        find.byKey(const Key('analytics-sales-chart-painter')),
+        findsOneWidget,
+      );
+      if (testCase.size.width < 900) {
+        await tester.scrollUntilVisible(
+          find.text('AI 인사이트'),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pump();
+      }
+      expect(
+        find.byKey(const Key('workflow-analytics-insight-icon')),
+        findsOneWidget,
+      );
+    });
+  }
 
   for (final width in <double>[320, 390, 430, 1024, 1366]) {
     for (final brightness in Brightness.values) {
@@ -380,7 +499,7 @@ void main() {
       expect(find.textContaining('연차 요청'), findsOneWidget);
       expect(find.textContaining('근무 변경'), findsOneWidget);
       expect(find.textContaining('영수증 확인'), findsOneWidget);
-      expect(find.textContaining('실제 업무 상태는 변경되지 않습니다'), findsOneWidget);
+      expect(find.text('샘플 데이터 · 실행 안 됨'), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('승인 미리보기')), findsNWidgets(3));
       expect(
         find.byType(LandscapeWorkflowResultPane),
@@ -388,4 +507,92 @@ void main() {
       );
     });
   }
+
+  for (final width in <double>[402, 432]) {
+    testWidgets(
+      '$width mobile Home paints every description without ellipsis',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = Size(width, 900);
+        addTearDown(tester.view.reset);
+        final controller = ConversationListController(
+          repository: _Repository(const <ConversationSummary>[]),
+        );
+        await controller.load();
+        addTearDown(controller.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: DemoHomeScreen(
+              conversationController: controller,
+              onOpenConversation: (_) {},
+              onOpenConversationList: () {},
+              onOpenArchive: () {},
+              onNewConversation: () {},
+            ),
+          ),
+        );
+
+        for (final action in DemoHomeAction.values) {
+          final paragraph = tester.renderObject<RenderParagraph>(
+            find.byKey(Key('home-action-description-${action.name}')),
+          );
+          expect(paragraph.didExceedMaxLines, isFalse, reason: action.name);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('workflow screens preserve source-specific composer variants', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(432, 900);
+    addTearDown(tester.view.reset);
+    final draft = TextEditingController();
+    final focus = FocusNode();
+    addTearDown(draft.dispose);
+    addTearDown(focus.dispose);
+
+    Future<void> pumpAction(DemoHomeAction action) => tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: DemoBusinessPreviewScreen(
+          action: action,
+          onBack: () {},
+          draftController: draft,
+          draftFocusNode: focus,
+        ),
+      ),
+    );
+
+    await pumpAction(DemoHomeAction.storeOverview);
+    expect(find.byTooltip('샘플 추가 자리'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.pump();
+    expect(find.text('어제와 비교'), findsOneWidget);
+
+    await pumpAction(DemoHomeAction.employeeAnnouncement);
+    expect(find.byTooltip('샘플 첨부 자리'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.pump();
+    expect(find.text('발송 전 최종 내용을 확인해 주세요.'), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: DemoBusinessPreviewScreen.approvals(
+          onBack: () {},
+          draftController: draft,
+          draftFocusNode: focus,
+        ),
+      ),
+    );
+    expect(find.byTooltip('샘플 추가 자리'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.pump();
+    expect(find.text('검토할 요청을 선택해 주세요.'), findsOneWidget);
+  });
 }

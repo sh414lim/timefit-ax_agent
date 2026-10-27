@@ -83,8 +83,8 @@ Home robot, assistant avatar, four Home action glyphs, workflow role glyphs,
 paperclip, and send plane are therefore human-controlled `CustomPainter`
 reconstructions of observed JPEG anatomy. They are marked `reconstructed`, never
 `original`, and contain no stock, Material, or generated mascot. The assistant
-avatar is explicitly inferred from the business-screen avatar and Home robot
-anatomy; it remains an overlay-review target rather than an accepted original.
+avatar is reconstructed as the observed blue TimeFit mark rather than a robot
+face; it remains an overlay-review target rather than an accepted original.
 
 The approval presentation is implemented as the reusable
 `DemoBusinessPreviewScreen.approvals` component. The supplied Home has no
@@ -100,7 +100,8 @@ Required before visual acceptance:
 3. exact font family/weights and redistribution approval;
 4. source icon set or approved mappings.
 
-Until those arrive, asset regions are overlay masks/exemptions and the result may
+Until those arrive, reconstructed asset regions remain visible comparison
+targets. They must not be masked or exempted from a visual diff; the result may
 pass functional/layout tests but cannot pass pixel fidelity.
 
 ## Verification contract
@@ -112,5 +113,5 @@ pass functional/layout tests but cannot pass pixel fidelity.
 - visual: actual app theme/font/renderer captures at the two source viewports,
   then source-aligned overlay and diff;
 - acceptance: functional PASS and visual PASS are reported separately. Missing
-  assets, font uncertainty, simulator mismatch, and masked regions remain open.
+  assets, font uncertainty and simulator mismatch remain open.
 

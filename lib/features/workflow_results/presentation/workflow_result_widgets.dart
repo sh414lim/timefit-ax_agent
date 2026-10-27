@@ -177,34 +177,9 @@ class AnalyticsResultCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '오늘의 핵심 지표',
-                style: TextStyle(
-                  color: style.ink,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            Text(
-              '2024년 11월 15일 (금)',
-              style: TextStyle(color: style.muted, fontSize: 11),
-            ),
-          ],
-        ),
+        _AnalyticsHeader(style: style),
         const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(flex: 27, child: _Kpi('매출', '4,820,000원', style)),
-            const SizedBox(width: 8),
-            Expanded(flex: 22, child: _Kpi('인건비율', '21.4%', style)),
-            const SizedBox(width: 8),
-            Expanded(flex: 23, child: _Kpi('근무 인원', '8명', style)),
-          ],
-        ),
+        _KpiStrip(style: style),
         const SizedBox(height: 14),
         Container(
           height: 210,
@@ -216,17 +191,26 @@ class AnalyticsResultCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '시간대별 매출',
-                style: TextStyle(color: style.ink, fontWeight: FontWeight.w700),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '시간대별 매출',
+                      style: TextStyle(
+                        color: style.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '단위: 천원',
+                    key: const Key('analytics-chart-unit'),
+                    style: TextStyle(color: style.muted, fontSize: 9),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
-              Expanded(
-                child: CustomPaint(
-                  painter: _ChartPainter(style.primary, style.border),
-                  child: const SizedBox.expand(),
-                ),
-              ),
+              Expanded(child: _SalesChart(style: style)),
             ],
           ),
         ),
@@ -245,7 +229,12 @@ class AnalyticsResultCard extends StatelessWidget {
                 style: style,
                 assetBuilder: assetBuilder,
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 10),
+              SizedBox(
+                height: 58,
+                child: VerticalDivider(color: style.border, width: 16),
+              ),
+              const SizedBox(width: 4),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -531,22 +520,17 @@ class _LandscapeAnalytics extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const Text(
-                    '● 실시간 기준  오전 10:24',
-                    style: TextStyle(color: Color(0xFF52B582), fontSize: 10),
+                  const Flexible(
+                    child: Text(
+                      '● 실시간 기준  오전 10:24',
+                      textAlign: TextAlign.end,
+                      style: TextStyle(color: Color(0xFF52B582), fontSize: 10),
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(flex: 221, child: _Kpi('매출', '4,820,000원', style)),
-                  const SizedBox(width: 10),
-                  Expanded(flex: 210, child: _Kpi('인건비율', '21.4%', style)),
-                  const SizedBox(width: 10),
-                  Expanded(flex: 212, child: _Kpi('근무 인원', '8명', style)),
-                ],
-              ),
+              _KpiStrip(style: style, landscape: true),
             ],
           ),
         ),
@@ -558,41 +542,25 @@ class _LandscapeAnalytics extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '시간대별 매출',
-                        style: TextStyle(
-                          color: style.ink,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 6,
+                  children: <Widget>[
+                    Text(
+                      '시간대별 매출',
+                      style: TextStyle(
+                        color: style.ink,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: style.primary,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        '매출',
-                        style: TextStyle(color: Colors.white, fontSize: 11),
-                      ),
-                    ),
+                    _AnalyticsSegments(style: style),
                   ],
                 ),
                 const SizedBox(height: 8),
-                Expanded(
-                  child: CustomPaint(
-                    painter: _ChartPainter(style.primary, style.border),
-                    child: const SizedBox.expand(),
-                  ),
-                ),
+                Expanded(child: _SalesChart(style: style, landscape: true)),
               ],
             ),
           ),
@@ -602,24 +570,30 @@ class _LandscapeAnalytics extends StatelessWidget {
           style: style,
           child: Row(
             children: [
-              _RoleAsset(
-                role: 'workflow.analytics.insight.landscape',
-                size: 44,
-                style: style,
-                assetBuilder: assetBuilder,
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'AI 인사이트',
-                      style: TextStyle(
-                        color: style.primary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 7,
+                      runSpacing: 4,
+                      children: [
+                        _RoleAsset(
+                          role: 'workflow.analytics.insight.landscape',
+                          size: 20,
+                          style: style,
+                          assetBuilder: assetBuilder,
+                        ),
+                        Text(
+                          'AI 인사이트',
+                          style: TextStyle(
+                            color: style.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 7),
                     Text(
@@ -637,19 +611,22 @@ class _LandscapeAnalytics extends StatelessWidget {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.all(13),
-                decoration: BoxDecoration(
-                  color: style.paleBlue,
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Text(
-                  '저녁 시간대\n추가 매출 기회가 있어요!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: style.primary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
+                    color: style.paleBlue,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Text(
+                    '저녁 시간대\n추가 매출 기회가 있어요!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: style.primary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -661,105 +638,205 @@ class _LandscapeAnalytics extends StatelessWidget {
   );
 }
 
+class _AnalyticsSegments extends StatelessWidget {
+  const _AnalyticsSegments({required this.style});
+
+  final WorkflowResultStyle style;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      color: const Color(0xFFF3F6FA),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        for (final (index, label) in <String>['매출', '인건비', '근무 인원'].indexed)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: index == 0 ? style.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: index == 0 ? Colors.white : style.muted,
+                fontSize: 10,
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
 class _LandscapeSchedule extends StatelessWidget {
   const _LandscapeSchedule({required this.style});
   final WorkflowResultStyle style;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(16),
-    child: _Frame(
-      style: style,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: <Widget>[
+            _ScheduleToolbarButton(
+              icon: Icons.download_outlined,
+              label: '내보내기',
+              style: style,
+            ),
+            const SizedBox(width: 8),
+            _ScheduleToolbarButton(
+              icon: Icons.calendar_month_outlined,
+              label: '공유',
+              style: style,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _Frame(
+          style: style,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                '10월 19일 - 10월 25일',
-                style: TextStyle(
-                  color: style.ink,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: style.success,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Text(
-                  '✓ 충돌 없음',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '요청하신 조건이 모두 반영된 근무표 초안입니다.',
-            style: TextStyle(color: style.muted, fontSize: 12),
-          ),
-          const SizedBox(height: 16),
-          _LandscapeScheduleGrid(style: style),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-            color: const Color(0xFFF7F9FC),
-            child: Row(
-              children: [
-                const SizedBox(
-                  width: 92,
-                  child: Text(
-                    '일별 근무 인원',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 10),
-                  ),
-                ),
-                for (final count in const [
-                  '4명',
-                  '6명',
-                  '6명',
-                  '6명',
-                  '6명',
-                  '6명',
-                  '4명',
-                ])
+              Row(
+                children: [
                   Expanded(
                     child: Text(
-                      count,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 10,
+                      '10월 19일 - 10월 25일',
+                      style: TextStyle(
+                        color: style.ink,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: _Action(label: '✓  근무표 확정', style: style, primary: true),
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: style.success,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Text(
+                      '✓ 충돌 없음',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(Icons.more_horiz, color: style.muted),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _Action(label: '수정하기', style: style, primary: false),
+              const SizedBox(height: 4),
+              Text(
+                '요청하신 조건이 모두 반영된 근무표 초안입니다.',
+                style: TextStyle(color: style.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              _LandscapeScheduleGrid(style: style),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 12,
+                ),
+                color: const Color(0xFFF7F9FC),
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 92,
+                      child: Text(
+                        '일별 근무 인원',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                    for (final count in const [
+                      '4명',
+                      '6명',
+                      '6명',
+                      '6명',
+                      '6명',
+                      '6명',
+                      '4명',
+                    ])
+                      Expanded(
+                        child: Text(
+                          count,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: _Action(
+                      label: '✓  근무표 확정',
+                      style: style,
+                      primary: true,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _Action(label: '수정하기', style: style, primary: false),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ScheduleToolbarButton extends StatelessWidget {
+  const _ScheduleToolbarButton({
+    required this.icon,
+    required this.label,
+    required this.style,
+  });
+
+  final IconData icon;
+  final String label;
+  final WorkflowResultStyle style;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+    decoration: BoxDecoration(
+      color: style.canvas,
+      border: Border.all(color: style.border),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Icon(icon, size: 16, color: style.muted),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(color: style.ink, fontSize: 11)),
+      ],
     ),
   );
 }
@@ -794,14 +871,22 @@ class _LandscapeScheduleGrid extends StatelessWidget {
                 ),
               ),
             ),
-            for (final day in days)
+            for (var dayIndex = 0; dayIndex < days.length; dayIndex++)
               Center(
                 child: Padding(
                   padding: const EdgeInsets.all(7),
                   child: Text(
-                    day,
+                    days[dayIndex],
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 9, height: 1.35),
+                    style: TextStyle(
+                      color: dayIndex == 0
+                          ? const Color(0xFFD84F56)
+                          : dayIndex == 6
+                          ? style.primary
+                          : style.ink,
+                      fontSize: 9,
+                      height: 1.35,
+                    ),
                   ),
                 ),
               ),
@@ -811,13 +896,32 @@ class _LandscapeScheduleGrid extends StatelessWidget {
           TableRow(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
-                child: Text(
-                  person.name,
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                  ),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+                child: Row(
+                  children: <Widget>[
+                    CircleAvatar(
+                      radius: 10,
+                      backgroundColor: const Color(0xFFDCEBFC),
+                      child: Text(
+                        person.name.substring(0, 1),
+                        style: TextStyle(
+                          color: style.primary,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        person.name,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               for (final shift in person.shifts)
@@ -998,12 +1102,27 @@ class _Action extends StatelessWidget {
         borderRadius: BorderRadius.circular(9),
         border: primary ? null : Border.all(color: style.border),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: primary ? Colors.white : style.ink,
-          fontWeight: FontWeight.w700,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (label.contains('근무표 확정') || label.contains('수정')) ...<Widget>[
+            Icon(
+              label.contains('근무표 확정')
+                  ? Icons.check_circle
+                  : Icons.edit_outlined,
+              size: 17,
+              color: primary ? Colors.white : style.ink,
+            ),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label.replaceFirst('✓  ', ''),
+            style: TextStyle(
+              color: primary ? Colors.white : style.ink,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     ),
   );
@@ -1111,7 +1230,7 @@ class _Kpi extends StatelessWidget {
   final WorkflowResultStyle style;
   @override
   Widget build(BuildContext context) => Container(
-    height: 88,
+    constraints: const BoxConstraints(minHeight: 96),
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
       color: const Color(0xFFF7FBFE),
@@ -1120,8 +1239,50 @@ class _Kpi extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: style.muted, fontSize: 11)),
-        const Spacer(),
+        Row(
+          children: <Widget>[
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: style.paleBlue,
+                borderRadius: BorderRadius.circular(7),
+              ),
+              alignment: Alignment.center,
+              child: CustomPaint(
+                size: const Size.square(14),
+                painter: _KpiGlyphPainter(label: label, color: style.primary),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(color: style.muted, fontSize: 11),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF7EF),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                switch (label) {
+                  '매출' => '+12.5%',
+                  '인건비율' => '-1.2%',
+                  _ => '+1명',
+                },
+                style: const TextStyle(
+                  color: Color(0xFF379666),
+                  fontSize: 7.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
@@ -1139,48 +1300,408 @@ class _Kpi extends StatelessWidget {
   );
 }
 
+final class _KpiGlyphPainter extends CustomPainter {
+  const _KpiGlyphPainter({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.shortestSide * .12
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    if (label == '매출') {
+      for (final (x, height) in <(double, double)>[
+        (.15, .4),
+        (.43, .62),
+        (.71, .82),
+      ]) {
+        canvas.drawLine(
+          Offset(size.width * x, size.height * .86),
+          Offset(size.width * x, size.height * (1 - height)),
+          stroke,
+        );
+      }
+      return;
+    }
+    if (label == '인건비율') {
+      canvas.drawArc(
+        Rect.fromLTWH(1, 1, size.width - 2, size.height - 2),
+        .5,
+        4.4,
+        false,
+        stroke,
+      );
+      canvas.drawLine(
+        size.center(Offset.zero),
+        Offset(size.width * .7, size.height * .3),
+        stroke,
+      );
+      return;
+    }
+    canvas.drawCircle(Offset(size.width * .36, size.height * .35), 2.2, stroke);
+    canvas.drawCircle(Offset(size.width * .68, size.height * .4), 1.9, stroke);
+    canvas.drawArc(
+      Rect.fromLTWH(1, size.height * .42, size.width * .7, size.height * .5),
+      3.5,
+      2.6,
+      false,
+      stroke,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _KpiGlyphPainter oldDelegate) =>
+      oldDelegate.label != label || oldDelegate.color != color;
+}
+
+class _AnalyticsHeader extends StatelessWidget {
+  const _AnalyticsHeader({required this.style});
+
+  final WorkflowResultStyle style;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    alignment: WrapAlignment.spaceBetween,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    spacing: 12,
+    runSpacing: 4,
+    children: <Widget>[
+      Text(
+        '오늘의 핵심 지표',
+        style: TextStyle(
+          color: style.ink,
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      Text(
+        '2024년 11월 15일 (금)',
+        style: TextStyle(color: style.muted, fontSize: 11),
+      ),
+    ],
+  );
+}
+
+class _KpiStrip extends StatelessWidget {
+  const _KpiStrip({required this.style, this.landscape = false});
+
+  final WorkflowResultStyle style;
+  final bool landscape;
+
+  double _textWidth(
+    BuildContext context,
+    String text,
+    double fontSize,
+    FontWeight fontWeight,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(fontSize: fontSize, fontWeight: fontWeight),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    return painter.width + 24;
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (BuildContext context, BoxConstraints constraints) {
+      final List<double> widths = <double>[
+        _textWidth(context, '4,820,000원', 19, FontWeight.w800),
+        _textWidth(context, '인건비율', 11, FontWeight.normal),
+        _textWidth(context, '근무 인원', 11, FontWeight.normal),
+      ];
+      final bool stack =
+          widths.fold<double>(16, (sum, width) => sum + width) >
+          constraints.maxWidth;
+      if (stack) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _Kpi('매출', '4,820,000원', style),
+            const SizedBox(height: 8),
+            _Kpi('인건비율', '21.4%', style),
+            const SizedBox(height: 8),
+            _Kpi('근무 인원', '8명', style),
+          ],
+        );
+      }
+      return Row(
+        children: <Widget>[
+          Expanded(
+            flex: landscape ? 221 : 27,
+            child: _Kpi('매출', '4,820,000원', style),
+          ),
+          SizedBox(width: landscape ? 10 : 8),
+          Expanded(
+            flex: landscape ? 210 : 22,
+            child: _Kpi('인건비율', '21.4%', style),
+          ),
+          SizedBox(width: landscape ? 10 : 8),
+          Expanded(
+            flex: landscape ? 212 : 23,
+            child: _Kpi('근무 인원', '8명', style),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+const List<double> _chartValues = <double>[
+  .07,
+  .16,
+  .24,
+  .42,
+  .58,
+  .43,
+  .27,
+  .29,
+  .38,
+  .49,
+  .64,
+  .82,
+  .68,
+  .40,
+  .24,
+];
+
+class _SalesChart extends StatelessWidget {
+  const _SalesChart({required this.style, this.landscape = false});
+
+  final WorkflowResultStyle style;
+  final bool landscape;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    image: true,
+    label: '시간대별 매출 차트, 단위 천원, 점심 피크와 저녁 피크가 표시된 샘플 데이터',
+    child: ExcludeSemantics(
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double axisWidth = landscape ? 48 : 29;
+          const double rightInset = 5;
+          final double topInset = landscape ? 31 : 22;
+          const double bottomInset = 21;
+          final double plotWidth =
+              constraints.maxWidth - axisWidth - rightInset;
+          final double plotHeight =
+              constraints.maxHeight - topInset - bottomInset;
+          final List<String> yLabels = landscape
+              ? const <String>['800,000', '600,000', '400,000', '200,000', '0']
+              : const <String>['800', '600', '400', '200', '0'];
+          final List<String> xLabels = landscape
+              ? const <String>['09시', '11시', '13시', '15시', '17시', '19시', '21시']
+              : const <String>['09시', '12시', '15시', '18시', '21시'];
+          return Stack(
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              Positioned.fill(
+                child: CustomPaint(
+                  key: const Key('analytics-sales-chart-painter'),
+                  painter: _ChartPainter(
+                    primary: style.primary,
+                    grid: style.border,
+                    axisWidth: axisWidth,
+                    rightInset: rightInset,
+                    topInset: topInset,
+                    bottomInset: bottomInset,
+                  ),
+                ),
+              ),
+              for (var i = 0; i < yLabels.length; i++)
+                Positioned(
+                  key: i == 0 ? const Key('analytics-chart-axis-y-800') : null,
+                  left: 0,
+                  top: topInset + plotHeight * i / 4 - 6,
+                  width: axisWidth - 6,
+                  child: Text(
+                    yLabels[i],
+                    textAlign: TextAlign.right,
+                    style: TextStyle(color: style.muted, fontSize: 8),
+                  ),
+                ),
+              for (var i = 0; i < xLabels.length; i++)
+                Positioned(
+                  left: axisWidth + plotWidth * i / (xLabels.length - 1) - 18,
+                  bottom: 0,
+                  width: 36,
+                  child: Text(
+                    xLabels[i],
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: style.muted, fontSize: 8),
+                  ),
+                ),
+              _PeakBadge(
+                key: const Key('analytics-chart-peak-lunch'),
+                label: landscape ? '점심 피크\n620,000원' : '점심 피크',
+                pointIndex: 4,
+                axisWidth: axisWidth,
+                plotWidth: plotWidth,
+                plotHeight: plotHeight,
+                topInset: topInset,
+                style: style,
+                landscape: landscape,
+              ),
+              _PeakBadge(
+                key: const Key('analytics-chart-peak-evening'),
+                label: landscape ? '저녁 피크\n780,000원' : '저녁 피크',
+                pointIndex: 11,
+                axisWidth: axisWidth,
+                plotWidth: plotWidth,
+                plotHeight: plotHeight,
+                topInset: topInset,
+                style: style,
+                landscape: landscape,
+              ),
+            ],
+          );
+        },
+      ),
+    ),
+  );
+}
+
+class _PeakBadge extends StatelessWidget {
+  const _PeakBadge({
+    super.key,
+    required this.label,
+    required this.pointIndex,
+    required this.axisWidth,
+    required this.plotWidth,
+    required this.plotHeight,
+    required this.topInset,
+    required this.style,
+    required this.landscape,
+  });
+
+  final String label;
+  final int pointIndex;
+  final double axisWidth;
+  final double plotWidth;
+  final double plotHeight;
+  final double topInset;
+  final WorkflowResultStyle style;
+  final bool landscape;
+
+  @override
+  Widget build(BuildContext context) {
+    final double width = landscape ? 74 : 57;
+    final double pointX =
+        axisWidth + plotWidth * pointIndex / (_chartValues.length - 1);
+    final double pointY =
+        topInset + plotHeight * (1 - _chartValues[pointIndex]);
+    return Positioned(
+      left: pointX - width / 2,
+      top: (pointY - (landscape ? 42 : 27)).clamp(0, double.infinity),
+      width: width,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: landscape ? 5 : 4,
+          vertical: landscape ? 4 : 3,
+        ),
+        decoration: BoxDecoration(
+          color: style.paleBlue,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: style.border),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: style.primary,
+            fontSize: landscape ? 8 : 7.5,
+            height: 1.2,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ChartPainter extends CustomPainter {
-  _ChartPainter(this.primary, this.grid);
-  final Color primary, grid;
+  _ChartPainter({
+    required this.primary,
+    required this.grid,
+    required this.axisWidth,
+    required this.rightInset,
+    required this.topInset,
+    required this.bottomInset,
+  });
+
+  final Color primary;
+  final Color grid;
+  final double axisWidth;
+  final double rightInset;
+  final double topInset;
+  final double bottomInset;
+
   @override
   void paint(Canvas canvas, Size size) {
     final g = Paint()
       ..color = grid
       ..strokeWidth = 1;
+    final double plotWidth = size.width - axisWidth - rightInset;
+    final double plotHeight = size.height - topInset - bottomInset;
     for (var i = 0; i < 5; i++) {
-      final y = 18 + (size.height - 38) * i / 4;
-      canvas.drawLine(Offset(28, y), Offset(size.width - 6, y), g);
+      final y = topInset + plotHeight * i / 4;
+      canvas.drawLine(
+        Offset(axisWidth, y),
+        Offset(size.width - rightInset, y),
+        g,
+      );
     }
     final points = <Offset>[];
-    const values = [
-      0.12,
-      .22,
-      .34,
-      .55,
-      .74,
-      .55,
-      .31,
-      .33,
-      .47,
-      .61,
-      .78,
-      .96,
-      .74,
-      .38,
-      .22,
-    ];
-    for (var i = 0; i < values.length; i++) {
+    for (var i = 0; i < _chartValues.length; i++) {
       points.add(
         Offset(
-          28 + (size.width - 38) * i / (values.length - 1),
-          size.height - 20 - values[i] * (size.height - 48),
+          axisWidth + plotWidth * i / (_chartValues.length - 1),
+          topInset + plotHeight * (1 - _chartValues[i]),
         ),
       );
     }
     final path = Path()..moveTo(points.first.dx, points.first.dy);
     for (var i = 1; i < points.length; i++) {
-      path.lineTo(points[i].dx, points[i].dy);
+      final Offset previous = points[i - 1];
+      final Offset current = points[i];
+      final double controlX = (previous.dx + current.dx) / 2;
+      path.cubicTo(
+        controlX,
+        previous.dy,
+        controlX,
+        current.dy,
+        current.dx,
+        current.dy,
+      );
     }
+    final fillPath = Path.from(path)
+      ..lineTo(points.last.dx, topInset + plotHeight)
+      ..lineTo(points.first.dx, topInset + plotHeight)
+      ..close();
+    canvas.drawPath(
+      fillPath,
+      Paint()
+        ..shader =
+            LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                primary.withValues(alpha: .2),
+                primary.withValues(alpha: .015),
+              ],
+            ).createShader(
+              Rect.fromLTWH(axisWidth, topInset, plotWidth, plotHeight),
+            ),
+    );
     canvas.drawPath(
       path,
       Paint()
@@ -1190,14 +1711,27 @@ class _ChartPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round,
     );
-    for (final p in points) {
-      canvas.drawCircle(p, 2.6, Paint()..color = primary);
+    for (var i = 0; i < points.length; i++) {
+      final bool peak = i == 4 || i == 11;
+      if (peak) {
+        canvas.drawCircle(
+          points[i],
+          5,
+          Paint()..color = const Color(0xFFFFFFFF),
+        );
+      }
+      canvas.drawCircle(points[i], peak ? 3.6 : 2.6, Paint()..color = primary);
     }
   }
 
   @override
   bool shouldRepaint(covariant _ChartPainter old) =>
-      old.primary != primary || old.grid != grid;
+      old.primary != primary ||
+      old.grid != grid ||
+      old.axisWidth != axisWidth ||
+      old.rightInset != rightInset ||
+      old.topInset != topInset ||
+      old.bottomInset != bottomInset;
 }
 
 class _ScheduleGrid extends StatelessWidget {
@@ -1224,15 +1758,19 @@ class _ScheduleGrid extends StatelessWidget {
             decoration: const BoxDecoration(color: Color(0xFFF8F9FB)),
             children: [
               const SizedBox(height: 42),
-              for (final d in days)
+              for (var dayIndex = 0; dayIndex < days.length; dayIndex++)
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     child: Text(
-                      d,
+                      days[dayIndex],
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: style.muted,
+                        color: dayIndex == 0
+                            ? const Color(0xFFD84F56)
+                            : dayIndex == 6
+                            ? style.primary
+                            : style.muted,
                         fontSize: 8,
                         height: 1.4,
                       ),
@@ -1249,13 +1787,28 @@ class _ScheduleGrid extends StatelessWidget {
                     horizontal: 5,
                     vertical: 7,
                   ),
-                  child: Text(
-                    '${p.name}\n${p.role}',
-                    style: TextStyle(
-                      color: style.ink,
-                      fontSize: 8,
-                      height: 1.3,
-                    ),
+                  child: Row(
+                    children: <Widget>[
+                      CircleAvatar(
+                        radius: 8,
+                        backgroundColor: const Color(0xFFDCEBFC),
+                        child: Text(
+                          p.name.substring(0, 1),
+                          style: TextStyle(color: style.primary, fontSize: 7),
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Expanded(
+                        child: Text(
+                          '${p.name}\n${p.role}',
+                          style: TextStyle(
+                            color: style.ink,
+                            fontSize: 8,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 for (final shift in p.shifts)

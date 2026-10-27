@@ -50,10 +50,36 @@ void main() {
     },
   );
 
-  testWidgets('analytics keeps visibly unequal KPI flexes', (tester) async {
+  testWidgets('analytics keeps unequal KPIs and source chart anatomy', (
+    tester,
+  ) async {
     await pump(tester, const AnalyticsResultCard());
     expect(find.text('4,820,000원'), findsOneWidget);
-    expect(find.byType(CustomPaint), findsWidgets);
+    expect(find.byKey(const Key('analytics-chart-unit')), findsOneWidget);
+    expect(find.byKey(const Key('analytics-chart-axis-y-800')), findsOneWidget);
+    expect(find.text('점심 피크'), findsOneWidget);
+    expect(find.text('저녁 피크'), findsOneWidget);
+    expect(find.text('09시'), findsOneWidget);
+    expect(find.text('21시'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp('시간대별 매출 차트.*점심 피크.*저녁 피크')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('landscape analytics keeps labeled source peaks', (tester) async {
+    await pump(
+      tester,
+      const LandscapeWorkflowResultPane(kind: WorkflowResultKind.analytics),
+      size: const Size(760, 900),
+    );
+    expect(find.text('점심 피크\n620,000원'), findsOneWidget);
+    expect(find.text('저녁 피크\n780,000원'), findsOneWidget);
+    expect(find.text('800,000'), findsOneWidget);
+    expect(find.text('인건비'), findsOneWidget);
+    expect(find.text('근무 인원'), findsWidgets);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('schedule preserves seven days and six fixture employees', (
@@ -63,7 +89,25 @@ void main() {
     expect(find.text('일\n10/19'), findsOneWidget);
     expect(find.textContaining('김민지'), findsOneWidget);
     expect(find.textContaining('한민수'), findsOneWidget);
+    expect(find.byType(CircleAvatar), findsWidgets);
   });
+
+  testWidgets(
+    'landscape schedule preserves toolbar and eight employee avatars',
+    (tester) async {
+      await pump(
+        tester,
+        const LandscapeWorkflowResultPane(kind: WorkflowResultKind.schedule),
+        size: const Size(900, 1000),
+      );
+      expect(find.text('내보내기'), findsOneWidget);
+      expect(find.text('공유'), findsOneWidget);
+      expect(find.text('10/19\n(일)'), findsOneWidget);
+      expect(find.text('10/25\n(토)'), findsOneWidget);
+      expect(find.byType(CircleAvatar), findsNWidgets(8));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('landscape ratios remain workflow specific', (tester) async {
     await pump(
