@@ -519,6 +519,80 @@ void main() {
     },
   );
 
+  testWidgets(
+    'keyboard banner toggles preserve focus selection and one stream subscription',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(852, 393);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 216);
+      addTearDown(tester.view.reset);
+      final messages = StreamController<List<ChatMessage>>();
+      final composer = ComposerController(
+        conversationId: 'conversation',
+        submitter: _Submitter(),
+      );
+      final connection = ChatConnectionController(
+        onRetry: () async {},
+        initialPhase: ChatConnectionPhase.connected,
+      );
+      addTearDown(messages.close);
+      addTearDown(composer.dispose);
+      addTearDown(connection.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(
+            title: '연결 상태',
+            conversationId: 'conversation',
+            messages: messages.stream,
+            composerController: composer,
+            connectionController: connection,
+          ),
+        ),
+      );
+      messages.add(const <ChatMessage>[]);
+      await tester.pump();
+      final textField = find.byType(TextField);
+      await tester.tap(textField);
+      await tester.enterText(textField, '선택을 유지할 입력');
+      final editable = tester.widget<EditableText>(find.byType(EditableText));
+      editable.controller.selection = const TextSelection(
+        baseOffset: 2,
+        extentOffset: 7,
+      );
+      await tester.pump();
+      expect(editable.focusNode.hasFocus, isTrue);
+
+      connection.update(
+        phase: ChatConnectionPhase.disconnected,
+        rpcAvailable: true,
+      );
+      await tester.pump();
+      final afterShow = tester.widget<EditableText>(find.byType(EditableText));
+      expect(tester.takeException(), isNull);
+      expect(afterShow.focusNode.hasFocus, isTrue);
+      expect(afterShow.controller.text, '선택을 유지할 입력');
+      expect(
+        afterShow.controller.selection,
+        const TextSelection(baseOffset: 2, extentOffset: 7),
+      );
+
+      connection.update(
+        phase: ChatConnectionPhase.connected,
+        rpcAvailable: true,
+      );
+      await tester.pump();
+      final afterHide = tester.widget<EditableText>(find.byType(EditableText));
+      expect(tester.takeException(), isNull);
+      expect(afterHide.focusNode.hasFocus, isTrue);
+      expect(afterHide.controller.text, '선택을 유지할 입력');
+      expect(
+        afterHide.controller.selection,
+        const TextSelection(baseOffset: 2, extentOffset: 7),
+      );
+    },
+  );
+
   testWidgets('banner status has one semantics announcement', (tester) async {
     final handle = tester.ensureSemantics();
     const message = '실시간 연결이 끊겼습니다.';

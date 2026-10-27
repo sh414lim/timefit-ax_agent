@@ -72,6 +72,8 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  final GlobalKey _messageBodyKey = GlobalKey(debugLabel: 'chat-message-body');
+  final GlobalKey _composerKey = GlobalKey(debugLabel: 'chat-composer');
   late Stream<List<ChatMessage>> _messages = _resolveMessages();
   HistoryController? _historyController;
   ChatConnectionController? _connectionController;
@@ -170,7 +172,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }) => Column(
     children: <Widget>[
       _buildConnectionBanner(),
-      Expanded(child: _buildBody()),
+      Expanded(child: _buildStableBody()),
       if (widget.status == ChatScreenStatus.ready && composer != null)
         _buildComposer(composer, compactKeyboardLayout),
     ],
@@ -191,7 +193,7 @@ class _ChatScreenState extends State<ChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             _buildConnectionBanner(),
-            SizedBox(height: messageViewport, child: _buildBody()),
+            SizedBox(height: messageViewport, child: _buildStableBody()),
             if (widget.status == ChatScreenStatus.ready && composer != null)
               _buildComposer(composer, compactKeyboardLayout),
           ],
@@ -213,15 +215,21 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildComposer(
     ComposerController composer,
     bool compactKeyboardLayout,
-  ) => ChatComposer(
-    controller: composer,
-    onAddAttachment: widget.onAddAttachment,
-    onRemoveQueuedAttachment: widget.onRemoveQueuedAttachment,
-    onOpenAttachment: widget.onOpenAttachment,
-    isSelectingAttachments: widget.isSelectingAttachments,
-    compactKeyboardLayout: compactKeyboardLayout,
-    savesLocallyOnly: widget.savesLocallyOnly,
+  ) => KeyedSubtree(
+    key: _composerKey,
+    child: ChatComposer(
+      controller: composer,
+      onAddAttachment: widget.onAddAttachment,
+      onRemoveQueuedAttachment: widget.onRemoveQueuedAttachment,
+      onOpenAttachment: widget.onOpenAttachment,
+      isSelectingAttachments: widget.isSelectingAttachments,
+      compactKeyboardLayout: compactKeyboardLayout,
+      savesLocallyOnly: widget.savesLocallyOnly,
+    ),
   );
+
+  Widget _buildStableBody() =>
+      KeyedSubtree(key: _messageBodyKey, child: _buildBody());
 
   Widget _buildBody() {
     if (widget.status == ChatScreenStatus.accessRevoked) {
