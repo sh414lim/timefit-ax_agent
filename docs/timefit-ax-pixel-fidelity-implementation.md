@@ -76,11 +76,12 @@ and scroll reachability, but are responsive evidence rather than exact overlays.
 
 The repository contains no approved TimeFit logo, tablet symbol, smiling robot,
 assistant mark, source icon set, or exact font files. The square mark, free mark,
-Home robot, four Home action glyphs, paperclip, and send plane are therefore
-human-controlled `CustomPainter` reconstructions of observed JPEG anatomy. They
-are marked `reconstructed`, never `original`, and contain no stock, Material,
-or generated mascot. The assistant mark remains an explicit pending slot because
-its path is not established well enough to trace safely.
+Home robot, assistant avatar, four Home action glyphs, workflow role glyphs,
+paperclip, and send plane are therefore human-controlled `CustomPainter`
+reconstructions of observed JPEG anatomy. They are marked `reconstructed`, never
+`original`, and contain no stock, Material, or generated mascot. The assistant
+avatar is explicitly inferred from the business-screen avatar and Home robot
+anatomy; it remains an overlay-review target rather than an accepted original.
 
 The approval presentation is implemented as the reusable
 `DemoBusinessPreviewScreen.approvals` component. The supplied Home has no

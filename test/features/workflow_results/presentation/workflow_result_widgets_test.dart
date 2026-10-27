@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:timefit_native/app/theme/app_theme.dart';
 import 'package:timefit_native/features/workflow_results/presentation/layer.dart';
 
 void main() {
@@ -14,6 +16,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       MaterialApp(
+        theme: AppTheme.light(),
         home: Scaffold(
           body: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -40,6 +43,10 @@ void main() {
       expect(find.textContaining('근무 변경'), findsOneWidget);
       expect(find.textContaining('영수증 확인'), findsOneWidget);
       expect(find.byType(Switch), findsOneWidget);
+      final SemanticsData approve = tester
+          .getSemantics(find.bySemanticsLabel(RegExp('승인 미리보기')).first)
+          .getSemanticsData();
+      expect(approve.hasAction(SemanticsAction.tap), isFalse);
     },
   );
 

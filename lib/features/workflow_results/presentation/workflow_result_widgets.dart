@@ -525,6 +525,7 @@ class _Action extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
+    enabled: false,
     label: '$label 미리보기, 실제 작업은 실행하지 않음',
     child: Container(
       height: 48,
@@ -618,19 +619,24 @@ class _MiniButton extends StatelessWidget {
   final WorkflowResultStyle style;
   final bool primary;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 12),
-    decoration: BoxDecoration(
-      color: primary ? style.primary : Colors.white,
-      border: Border.all(color: style.primary),
-      borderRadius: BorderRadius.circular(9),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(
-        color: primary ? Colors.white : style.primary,
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    enabled: false,
+    label: '$label 미리보기, 실제 작업은 실행하지 않음',
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 12),
+      decoration: BoxDecoration(
+        color: primary ? style.primary : Colors.white,
+        border: Border.all(color: style.primary),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: primary ? Colors.white : style.primary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     ),
   );

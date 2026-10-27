@@ -26,7 +26,7 @@ class TimeFitAssetSlot extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = TimeFitAxVisualTokens.of(context);
     final bool robot = kind == TimeFitAssetKind.mobileRobot;
-    final bool pending = kind == TimeFitAssetKind.assistantMark;
+    final bool assistant = kind == TimeFitAssetKind.assistantMark;
     final Color primary = kind == TimeFitAssetKind.tabletSymbol
         ? tokens.expandedHomePrimary
         : tokens.mobileHomePrimary;
@@ -36,17 +36,17 @@ class TimeFitAssetSlot extends StatelessWidget {
         TimeFitAssetKind.squareLogo => 'TimeFit AX 재구성 로고',
         TimeFitAssetKind.tabletSymbol => 'TimeFit AX 재구성 심볼',
         TimeFitAssetKind.mobileRobot => 'TimeFit AX 재구성 로봇',
-        TimeFitAssetKind.assistantMark => 'TimeFit AX 도우미 자산 대기',
+        TimeFitAssetKind.assistantMark => 'TimeFit AX 재구성 도우미',
       },
       child: SizedBox(
         key: keyName == null ? null : Key(keyName!),
         width: width,
         height: height,
         child: CustomPaint(
-          painter: pending
-              ? _PendingAssetPainter(
-                  color: primary.withValues(alpha: .14),
-                  background: tokens.paleBlue,
+          painter: assistant
+              ? _ReconstructedAssistantPainter(
+                  primary: primary,
+                  field: tokens.paleBlue,
                 )
               : robot
               ? _ReconstructedRobotPainter(
@@ -61,6 +61,80 @@ class TimeFitAssetSlot extends StatelessWidget {
       ),
     );
   }
+}
+
+final class _ReconstructedAssistantPainter extends CustomPainter {
+  const _ReconstructedAssistantPainter({
+    required this.primary,
+    required this.field,
+  });
+
+  final Color primary;
+  final Color field;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double unit = size.shortestSide;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(unit * .3)),
+      Paint()..color = field,
+    );
+    final Rect head = Rect.fromLTWH(
+      size.width * .14,
+      size.height * .23,
+      size.width * .72,
+      size.height * .55,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(head, Radius.circular(unit * .17)),
+      Paint()..color = primary,
+    );
+    final Rect bezel = head.deflate(unit * .07);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bezel, Radius.circular(unit * .12)),
+      Paint()..color = Colors.white,
+    );
+    final Rect face = bezel.deflate(unit * .035);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(face, Radius.circular(unit * .09)),
+      Paint()..color = primary,
+    );
+    final Paint eye = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = unit * .055
+      ..strokeCap = StrokeCap.round;
+    for (final double x in <double>[.39, .61]) {
+      final double centerX = size.width * x;
+      final Path path = Path()
+        ..moveTo(centerX - unit * .075, face.center.dy + unit * .02)
+        ..quadraticBezierTo(
+          centerX,
+          face.center.dy - unit * .055,
+          centerX + unit * .075,
+          face.center.dy + unit * .02,
+        );
+      canvas.drawPath(path, eye);
+    }
+    final Paint antenna = Paint()
+      ..color = primary
+      ..strokeWidth = unit * .05
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(size.width * .5, head.top),
+      Offset(size.width * .5, size.height * .12),
+      antenna,
+    );
+    canvas.drawCircle(
+      Offset(size.width * .5, size.height * .1),
+      unit * .045,
+      Paint()..color = primary,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReconstructedAssistantPainter oldDelegate) =>
+      oldDelegate.primary != primary || oldDelegate.field != field;
 }
 
 final class _ReconstructedMarkPainter extends CustomPainter {
@@ -277,36 +351,4 @@ void _paintTimeFitMark(
     node.translate(0, nodeRadius),
     line,
   );
-}
-
-final class _PendingAssetPainter extends CustomPainter {
-  const _PendingAssetPainter({required this.color, required this.background});
-  final Color color;
-  final Color background;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Offset.zero & size,
-        Radius.circular(size.shortestSide * .22),
-      ),
-      Paint()..color = background,
-    );
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1;
-    const step = 12.0;
-    for (double x = -size.height; x < size.width; x += step) {
-      canvas.drawLine(
-        Offset(x, size.height),
-        Offset(x + size.height, 0),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PendingAssetPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.background != background;
 }

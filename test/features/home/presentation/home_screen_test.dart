@@ -375,9 +375,12 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
-      expect(find.text('승인 대기 요청'), findsOneWidget);
-      expect(find.byTooltip('데모에서는 승인할 수 없음'), findsNWidgets(3));
-      expect(find.textContaining('승인 상태는 변경되지 않습니다'), findsOneWidget);
+      expect(find.text('승인 요청 검토'), findsOneWidget);
+      expect(find.textContaining('연차 요청'), findsOneWidget);
+      expect(find.textContaining('근무 변경'), findsOneWidget);
+      expect(find.textContaining('영수증 확인'), findsOneWidget);
+      expect(find.textContaining('실제 업무 상태는 변경되지 않습니다'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('승인 미리보기')), findsNWidgets(3));
     });
   }
 }
