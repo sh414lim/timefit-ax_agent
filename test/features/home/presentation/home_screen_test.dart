@@ -8,6 +8,7 @@ import 'package:timefit_native/features/conversations/domain/conversation_summar
 import 'package:timefit_native/features/home/presentation/business_preview_screen.dart';
 import 'package:timefit_native/features/home/presentation/demo_home_action.dart';
 import 'package:timefit_native/features/home/presentation/home_screen.dart';
+import 'package:timefit_native/features/workflow_results/presentation/layer.dart';
 
 final class _Repository implements ConversationRepository {
   _Repository(this.items);
@@ -381,6 +382,10 @@ void main() {
       expect(find.textContaining('영수증 확인'), findsOneWidget);
       expect(find.textContaining('실제 업무 상태는 변경되지 않습니다'), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('승인 미리보기')), findsNWidgets(3));
+      expect(
+        find.byType(LandscapeWorkflowResultPane),
+        size.width >= 900 ? findsOneWidget : findsNothing,
+      );
     });
   }
 }

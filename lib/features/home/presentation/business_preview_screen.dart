@@ -126,6 +126,7 @@ class _MobilePreview extends StatelessWidget {
                 kind: kind,
                 style: style,
                 assetBuilder: _workflowAssetBuilder,
+                landscape: false,
               ),
             ],
           ),
@@ -185,6 +186,7 @@ class _ExpandedPreview extends StatelessWidget {
           kind: kind,
           style: style,
           assetBuilder: _workflowAssetBuilder,
+          landscape: true,
         ),
       ),
     );
@@ -449,10 +451,12 @@ class _WorkflowResult extends StatelessWidget {
     required this.kind,
     required this.style,
     required this.assetBuilder,
+    required this.landscape,
   });
   final WorkflowResultKind kind;
   final WorkflowResultStyle style;
   final WorkflowAssetBuilder assetBuilder;
+  final bool landscape;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -467,11 +471,17 @@ class _WorkflowResult extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.x12),
         IgnorePointer(
-          child: WorkflowResultCard(
-            kind: kind,
-            style: style,
-            assetBuilder: assetBuilder,
-          ),
+          child: landscape && kind != WorkflowResultKind.notice
+              ? LandscapeWorkflowResultPane(
+                  kind: kind,
+                  style: style,
+                  assetBuilder: assetBuilder,
+                )
+              : WorkflowResultCard(
+                  kind: kind,
+                  style: style,
+                  assetBuilder: assetBuilder,
+                ),
         ),
         const SizedBox(height: AppSpacing.x12),
         const Text(
@@ -485,7 +495,7 @@ class _WorkflowResult extends StatelessWidget {
 
 Widget _workflowAssetBuilder(BuildContext context, String role, double size) {
   final tokens = TimeFitAxVisualTokens.of(context);
-  if (role.endsWith('.automation') || role.endsWith('.insight')) {
+  if (role.contains('.automation') || role.contains('.insight')) {
     return TimeFitAssetSlot(
       kind: TimeFitAssetKind.assistantMark,
       width: size,

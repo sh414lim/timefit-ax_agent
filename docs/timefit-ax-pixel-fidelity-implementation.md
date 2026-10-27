@@ -27,8 +27,8 @@ DevChatShell (database/session/lifecycle owner)
        ├─ MobileHomePresentation (9:16 source hierarchy)
        ├─ TabletHomePresentation (16:9 source hierarchy)
        └─ DemoBusinessPreviewScreen (memory-only result selection)
-            ├─ Mobile result card presentation
-            └─ Expanded sidebar/chat/result presentation
+            ├─ WorkflowResultCard (mobile source variants)
+            └─ LandscapeWorkflowResultPane (approval/analytics/schedule)
 ```
 
 The shell keeps all Drift and navigation callbacks. Home and preview widgets do
@@ -58,6 +58,9 @@ Business previews preserve their distinct anatomy:
 
 Every action remains a review or sample interaction. No button represents a real
 approval, announcement send, schedule confirmation, or automation success.
+The reference set has no landscape notice original, so the wide notice route
+reuses the mobile notice result inside the shared responsive shell and is not an
+exact-overlay target.
 
 ## Tokens
 
