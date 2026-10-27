@@ -140,8 +140,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final bool constrainedKeyboardLayout =
         widget.compactKeyboardLayout ||
         ((_connectionController?.state.showBanner ?? false) &&
-            mediaQuery.viewInsets.bottom > 0 &&
-            mediaQuery.size.height - mediaQuery.viewInsets.bottom <= 400);
+            mediaQuery.viewInsets.bottom > 0);
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: constrainedKeyboardLayout ? 48 : null,

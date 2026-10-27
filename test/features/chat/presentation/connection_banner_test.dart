@@ -61,15 +61,18 @@ final class _FailedAttachmentSource implements AttachmentComposerSource {
   Stream<List<ComposerAttachment>> watch({
     required String conversationId,
     required String clientMessageId,
-  }) => Stream<List<ComposerAttachment>>.value(const <ComposerAttachment>[
-    ComposerAttachment(
-      localId: 'synthetic',
-      contentType: 'image/png',
-      state: ComposerAttachmentState.failed,
-      bytesSent: 0,
-      bytesTotal: 100,
+  }) => Stream<List<ComposerAttachment>>.value(
+    List<ComposerAttachment>.generate(
+      5,
+      (index) => ComposerAttachment(
+        localId: 'synthetic-$index',
+        contentType: 'image/png',
+        state: ComposerAttachmentState.failed,
+        bytesSent: 0,
+        bytesTotal: 100,
+      ),
     ),
-  ]);
+  );
 
   @override
   Future<void> removeFailed({
@@ -395,50 +398,68 @@ void main() {
   );
 
   testWidgets(
-    'constrained keyboard layout shares height with banner and attachment',
+    'keyboard banner layout adapts across height boundary and five attachments',
     (tester) async {
       tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(320, 640);
       tester.view.viewInsets = const FakeViewPadding(bottom: 280);
       tester.platformDispatcher.textScaleFactorTestValue = 2;
       addTearDown(tester.view.reset);
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-      final composer = ComposerController(
-        conversationId: 'conversation',
-        submitter: _Submitter(),
-        attachmentClientMessageId: 'draft',
-        attachmentSource: _FailedAttachmentSource(),
-      );
-      final connection = ChatConnectionController(
-        onRetry: () async {},
-        initialPhase: ChatConnectionPhase.disconnected,
-      );
-      addTearDown(composer.dispose);
-      addTearDown(connection.dispose);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ChatScreen(
-            title: '연결 상태',
+      for (final brightness in Brightness.values) {
+        for (final height in <double>[639, 640, 641, 660, 680, 681, 700]) {
+          tester.view.physicalSize = Size(320, height);
+          final composer = ComposerController(
             conversationId: 'conversation',
-            messages: Stream<List<ChatMessage>>.value(const []),
-            composerController: composer,
-            connectionController: connection,
-            onAddAttachment: _noOp,
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump();
-      expect(tester.takeException(), isNull);
+            submitter: _Submitter(),
+            attachmentClientMessageId: 'draft',
+            attachmentSource: _FailedAttachmentSource(),
+          );
+          final connection = ChatConnectionController(
+            onRetry: () async {},
+            initialPhase: ChatConnectionPhase.disconnected,
+          );
 
-      await tester.enterText(find.byType(TextField), '긴 입력 ' * 30);
-      await tester.pump();
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: AppTheme.light(),
+              darkTheme: AppTheme.dark(),
+              themeMode: brightness == Brightness.dark
+                  ? ThemeMode.dark
+                  : ThemeMode.light,
+              home: ChatScreen(
+                title: '연결 상태',
+                conversationId: 'conversation',
+                messages: Stream<List<ChatMessage>>.value(const []),
+                composerController: composer,
+                connectionController: connection,
+                onAddAttachment: _noOp,
+              ),
+            ),
+          );
+          await tester.pump();
+          await tester.pump();
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: '${brightness.name}, height=$height, short input',
+          );
 
-      expect(tester.takeException(), isNull);
-      expect(find.byTooltip('첨부 추가'), findsOneWidget);
-      expect(find.byTooltip('메시지 보내기'), findsOneWidget);
-      expect(find.byTooltip('실패한 첨부 제거'), findsOneWidget);
+          await tester.enterText(find.byType(TextField), '긴 입력 ' * 30);
+          await tester.pump();
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: '${brightness.name}, height=$height, long input',
+          );
+          expect(find.byTooltip('첨부 추가'), findsOneWidget);
+          expect(find.byTooltip('메시지 보내기'), findsOneWidget);
+          expect(find.byTooltip('실패한 첨부 제거'), findsNWidgets(5));
+
+          await tester.pumpWidget(const SizedBox.shrink());
+          composer.dispose();
+          connection.dispose();
+        }
+      }
     },
   );
 
