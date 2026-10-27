@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../application/chat_connection_controller.dart';
 import '../application/composer_controller.dart';
 import '../application/history_controller.dart';
 import '../domain/chat_message.dart';
 import '../domain/repositories/message_repository.dart';
 import 'widgets/chat_composer.dart';
+import 'widgets/connection_banner.dart';
 import 'widgets/message_list.dart';
 
 enum ChatScreenStatus { ready, error, accessRevoked }
@@ -25,6 +27,7 @@ class ChatScreen extends StatefulWidget {
     this.isSelectingAttachments = false,
     this.compactKeyboardLayout = false,
     this.savesLocallyOnly = false,
+    this.connectionController,
     super.key,
   }) : repository = null;
 
@@ -43,6 +46,7 @@ class ChatScreen extends StatefulWidget {
     this.isSelectingAttachments = false,
     this.compactKeyboardLayout = false,
     this.savesLocallyOnly = false,
+    this.connectionController,
     super.key,
   }) : messages = null;
 
@@ -61,6 +65,7 @@ class ChatScreen extends StatefulWidget {
   final bool isSelectingAttachments;
   final bool compactKeyboardLayout;
   final bool savesLocallyOnly;
+  final ChatConnectionController? connectionController;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -69,11 +74,13 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   late Stream<List<ChatMessage>> _messages = _resolveMessages();
   HistoryController? _historyController;
+  ChatConnectionController? _connectionController;
 
   @override
   void initState() {
     super.initState();
     _bindHistoryController();
+    _bindConnectionController();
   }
 
   @override
@@ -87,6 +94,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (oldWidget.historyController != widget.historyController) {
       _bindHistoryController();
     }
+    if (oldWidget.connectionController != widget.connectionController) {
+      _bindConnectionController();
+    }
   }
 
   void _bindHistoryController() {
@@ -99,9 +109,20 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) setState(() {});
   }
 
+  void _bindConnectionController() {
+    _connectionController?.removeListener(_handleConnectionState);
+    _connectionController = widget.connectionController;
+    _connectionController?.addListener(_handleConnectionState);
+  }
+
+  void _handleConnectionState(ChatConnectionState _) {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     _historyController?.removeListener(_handleHistoryState);
+    _connectionController?.removeListener(_handleConnectionState);
     super.dispose();
   }
 
@@ -126,6 +147,11 @@ class _ChatScreenState extends State<ChatScreen> {
       body: SafeArea(
         child: Column(
           children: <Widget>[
+            if (_connectionController case final controller?)
+              ConnectionBanner(
+                state: controller.state,
+                onRetry: () => controller.retry(),
+              ),
             Expanded(child: _buildBody()),
             if (widget.status == ChatScreenStatus.ready && composer != null)
               ChatComposer(
