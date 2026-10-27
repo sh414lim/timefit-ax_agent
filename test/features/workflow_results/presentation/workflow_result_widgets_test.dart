@@ -53,7 +53,7 @@ void main() {
   testWidgets('analytics keeps unequal KPIs and source chart anatomy', (
     tester,
   ) async {
-    await pump(tester, const AnalyticsResultCard());
+    await pump(tester, const AnalyticsResultCard(), size: const Size(390, 900));
     expect(find.text('4,820,000원'), findsOneWidget);
     expect(find.byKey(const Key('analytics-chart-unit')), findsOneWidget);
     expect(find.byKey(const Key('analytics-chart-axis-y-800')), findsOneWidget);
@@ -64,6 +64,15 @@ void main() {
     expect(
       find.bySemanticsLabel(RegExp('시간대별 매출 차트.*점심 피크.*저녁 피크')),
       findsOneWidget,
+    );
+    final Text labourLabel = tester.widget<Text>(
+      find.byKey(const Key('analytics-kpi-label-인건비율')),
+    );
+    expect(labourLabel.maxLines, 1);
+    expect(labourLabel.softWrap, isFalse);
+    expect(
+      tester.getSize(find.byKey(const Key('analytics-kpi-label-인건비율'))).height,
+      lessThan(20),
     );
     expect(tester.takeException(), isNull);
   });

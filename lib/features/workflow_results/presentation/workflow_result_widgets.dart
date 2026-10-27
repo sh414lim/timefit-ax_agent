@@ -1236,66 +1236,79 @@ class _Kpi extends StatelessWidget {
       color: const Color(0xFFF7FBFE),
       borderRadius: BorderRadius.circular(9),
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: <Widget>[
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: style.paleBlue,
-                borderRadius: BorderRadius.circular(7),
-              ),
-              alignment: Alignment.center,
-              child: CustomPaint(
-                size: const Size.square(14),
-                painter: _KpiGlyphPainter(label: label, color: style.primary),
-              ),
+    child: LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final Widget glyph = Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: style.paleBlue,
+            borderRadius: BorderRadius.circular(7),
+          ),
+          alignment: Alignment.center,
+          child: CustomPaint(
+            size: const Size.square(14),
+            painter: _KpiGlyphPainter(label: label, color: style.primary),
+          ),
+        );
+        final Widget labelText = Text(
+          label,
+          key: Key('analytics-kpi-label-$label'),
+          maxLines: 1,
+          softWrap: false,
+          style: TextStyle(color: style.muted, fontSize: 11),
+        );
+        final Widget comparison = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEAF7EF),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            switch (label) {
+              '매출' => '+12.5%',
+              '인건비율' => '-1.2%',
+              _ => '+1명',
+            },
+            style: const TextStyle(
+              color: Color(0xFF379666),
+              fontSize: 7.5,
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(color: style.muted, fontSize: 11),
-              ),
+          ),
+        );
+        final bool compactHeader = constraints.maxWidth < 120;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: <Widget>[
+                glyph,
+                const SizedBox(width: 6),
+                Expanded(child: labelText),
+                if (!compactHeader) comparison,
+              ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEAF7EF),
-                borderRadius: BorderRadius.circular(999),
-              ),
+            if (compactHeader) ...<Widget>[
+              const SizedBox(height: 3),
+              Align(alignment: Alignment.centerRight, child: comparison),
+            ],
+            const SizedBox(height: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
               child: Text(
-                switch (label) {
-                  '매출' => '+12.5%',
-                  '인건비율' => '-1.2%',
-                  _ => '+1명',
-                },
-                style: const TextStyle(
-                  color: Color(0xFF379666),
-                  fontSize: 7.5,
-                  fontWeight: FontWeight.w700,
+                value,
+                style: TextStyle(
+                  color: style.primary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 19,
                 ),
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 8),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            value,
-            style: TextStyle(
-              color: style.primary,
-              fontWeight: FontWeight.w800,
-              fontSize: 19,
-            ),
-          ),
-        ),
-      ],
+        );
+      },
     ),
   );
 }
