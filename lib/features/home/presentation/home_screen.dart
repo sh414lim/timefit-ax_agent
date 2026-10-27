@@ -13,6 +13,8 @@ class DemoHomeScreen extends StatefulWidget {
     required this.onOpenConversationList,
     required this.onOpenArchive,
     required this.onNewConversation,
+    this.draftController,
+    this.draftFocusNode,
     this.onPreviewAction,
     super.key,
   });
@@ -22,6 +24,8 @@ class DemoHomeScreen extends StatefulWidget {
   final VoidCallback onOpenConversationList;
   final VoidCallback onOpenArchive;
   final VoidCallback onNewConversation;
+  final TextEditingController? draftController;
+  final FocusNode? draftFocusNode;
   final ValueChanged<DemoHomeAction>? onPreviewAction;
 
   @override
@@ -30,8 +34,9 @@ class DemoHomeScreen extends StatefulWidget {
 
 class _DemoHomeScreenState extends State<DemoHomeScreen> {
   late ConversationListState _recent = widget.conversationController.state;
-  final TextEditingController _draft = TextEditingController();
-  final FocusNode _draftFocus = FocusNode();
+  late final TextEditingController _draft =
+      widget.draftController ?? TextEditingController();
+  late final FocusNode _draftFocus = widget.draftFocusNode ?? FocusNode();
   DemoHomeAction? _preview;
 
   @override
@@ -62,14 +67,17 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
   @override
   void dispose() {
     widget.conversationController.removeListener(_handleRecent);
-    _draft.dispose();
-    _draftFocus.dispose();
+    if (widget.draftController == null) _draft.dispose();
+    if (widget.draftFocusNode == null) _draftFocus.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final bool expanded = MediaQuery.sizeOf(context).width >= 1024;
+    final bool keyboardConstrained =
+        View.of(context).viewInsets.bottom > 0 &&
+        MediaQuery.sizeOf(context).height < 720;
     return Scaffold(
       backgroundColor: Theme.of(context).brightness == Brightness.light
           ? AppPalette.lightCanvas
@@ -77,65 +85,159 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
       body: SafeArea(
         child: Row(
           children: <Widget>[
-            if (expanded) const _HomeNavigation(),
+            if (expanded)
+              _HomeNavigation(
+                onShowAll: widget.onOpenConversationList,
+                onShowArchive: widget.onOpenArchive,
+              ),
             Expanded(
-              child: Column(
-                children: <Widget>[
-                  Expanded(
-                    child: SingleChildScrollView(
+              child: keyboardConstrained
+                  ? SingleChildScrollView(
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: EdgeInsets.all(
-                        expanded ? AppSpacing.x32 : AppSpacing.x16,
+                      child: Column(
+                        children: <Widget>[
+                          _HomeContent(
+                            expanded: expanded,
+                            preview: _preview,
+                            recent: _recent,
+                            onSelected: _select,
+                            onOpenConversation: widget.onOpenConversation,
+                            onOpenConversationList:
+                                widget.onOpenConversationList,
+                            onOpenArchive: widget.onOpenArchive,
+                            onNewConversation: widget.onNewConversation,
+                          ),
+                          _QuickComposer(
+                            controller: _draft,
+                            focusNode: _draftFocus,
+                          ),
+                        ],
                       ),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1040),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: <Widget>[
-                              const _HomeHero(),
-                              const SizedBox(height: AppSpacing.x24),
-                              _ActionGrid(
-                                expanded: expanded,
-                                onSelected: _select,
-                              ),
-                              if (_preview case final action?) ...<Widget>[
-                                const SizedBox(height: AppSpacing.x16),
-                                _PreviewNotice(action: action),
-                              ],
-                              const SizedBox(height: AppSpacing.x24),
-                              _RecentConversations(
-                                state: _recent,
-                                onOpen: widget.onOpenConversation,
-                                onShowAll: widget.onOpenConversationList,
-                                onShowArchive: widget.onOpenArchive,
-                                onNewConversation: widget.onNewConversation,
-                              ),
-                            ],
+                    )
+                  : Column(
+                      children: <Widget>[
+                        Expanded(
+                          child: SingleChildScrollView(
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            child: _HomeContent(
+                              expanded: expanded,
+                              preview: _preview,
+                              recent: _recent,
+                              onSelected: _select,
+                              onOpenConversation: widget.onOpenConversation,
+                              onOpenConversationList:
+                                  widget.onOpenConversationList,
+                              onOpenArchive: widget.onOpenArchive,
+                              onNewConversation: widget.onNewConversation,
+                            ),
                           ),
                         ),
-                      ),
+                        _QuickComposer(
+                          controller: _draft,
+                          focusNode: _draftFocus,
+                        ),
+                      ],
                     ),
-                  ),
-                  _QuickComposer(controller: _draft, focusNode: _draftFocus),
-                ],
-              ),
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: widget.onNewConversation,
-        icon: const Icon(Icons.add_comment_outlined),
-        label: const Text('새 대화 시작'),
       ),
     );
   }
 }
 
+class _HomeContent extends StatelessWidget {
+  const _HomeContent({
+    required this.expanded,
+    required this.preview,
+    required this.recent,
+    required this.onSelected,
+    required this.onOpenConversation,
+    required this.onOpenConversationList,
+    required this.onOpenArchive,
+    required this.onNewConversation,
+  });
+
+  final bool expanded;
+  final DemoHomeAction? preview;
+  final ConversationListState recent;
+  final ValueChanged<DemoHomeAction> onSelected;
+  final ValueChanged<String> onOpenConversation;
+  final VoidCallback onOpenConversationList;
+  final VoidCallback onOpenArchive;
+  final VoidCallback onNewConversation;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.all(expanded ? AppSpacing.x32 : AppSpacing.x16),
+    child: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1040),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            if (!expanded) const _MobileHomeHeader(),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: onNewConversation,
+                icon: const Icon(Icons.add_comment_outlined),
+                label: const Text('새 대화 시작'),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.x16),
+            const _HomeHero(),
+            const SizedBox(height: AppSpacing.x24),
+            _ActionGrid(expanded: expanded, onSelected: onSelected),
+            if (preview case final action?) ...<Widget>[
+              const SizedBox(height: AppSpacing.x16),
+              _PreviewNotice(action: action),
+            ],
+            const SizedBox(height: AppSpacing.x24),
+            _RecentConversations(
+              state: recent,
+              onOpen: onOpenConversation,
+              onShowAll: onOpenConversationList,
+              onShowArchive: onOpenArchive,
+              onNewConversation: onNewConversation,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _MobileHomeHeader extends StatelessWidget {
+  const _MobileHomeHeader();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: <Widget>[
+      Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.primary),
+      const SizedBox(width: AppSpacing.x8),
+      const Expanded(child: Text('TimeFit AX', style: AppTypography.cardTitle)),
+      IconButton(
+        tooltip: '알림 샘플',
+        onPressed: () {},
+        icon: const Icon(Icons.notifications_none),
+      ),
+      IconButton(
+        tooltip: '메뉴 샘플',
+        onPressed: () {},
+        icon: const Icon(Icons.more_vert),
+      ),
+    ],
+  );
+}
+
 class _HomeNavigation extends StatelessWidget {
-  const _HomeNavigation();
+  const _HomeNavigation({required this.onShowAll, required this.onShowArchive});
+
+  final VoidCallback onShowAll;
+  final VoidCallback onShowArchive;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -144,10 +246,32 @@ class _HomeNavigation extends StatelessWidget {
       color: Theme.of(context).colorScheme.surface,
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.x16),
-        children: const <Widget>[
-          ListTile(leading: Icon(Icons.home_outlined), title: Text('홈')),
-          ListTile(leading: Icon(Icons.chat_outlined), title: Text('최근 대화')),
-          ListTile(leading: Icon(Icons.archive_outlined), title: Text('보관')),
+        children: <Widget>[
+          const ListTile(
+            leading: Icon(Icons.auto_awesome),
+            title: Text('TimeFit AX', style: AppTypography.cardTitle),
+          ),
+          ListTile(
+            leading: const Icon(Icons.add_comment_outlined),
+            title: const Text('로컬 새 대화'),
+            onTap: onShowAll,
+          ),
+          const ListTile(leading: Icon(Icons.home_outlined), title: Text('홈')),
+          ListTile(
+            leading: const Icon(Icons.chat_outlined),
+            title: const Text('최근 대화'),
+            onTap: onShowAll,
+          ),
+          ListTile(
+            leading: const Icon(Icons.archive_outlined),
+            title: const Text('보관'),
+            onTap: onShowArchive,
+          ),
+          const Divider(),
+          const ListTile(
+            leading: Icon(Icons.settings_outlined),
+            title: Text('설정'),
+          ),
         ],
       ),
     ),
@@ -163,21 +287,27 @@ class _HomeHero extends StatelessWidget {
     child: Column(
       children: <Widget>[
         Container(
-          width: 88,
-          height: 88,
+          width: 64,
+          height: 64,
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.primaryContainer,
             borderRadius: BorderRadius.circular(AppRadius.hero),
           ),
-          child: const Icon(Icons.smart_toy_outlined, size: 48),
+          child: const Icon(Icons.smart_toy_outlined, size: 38),
         ),
         const SizedBox(height: AppSpacing.x16),
         const Text(
-          '오늘 어떤 업무를 도와드릴까요?',
+          '무엇을 도와드릴까요?',
           textAlign: TextAlign.center,
           style: AppTypography.hero,
         ),
-        const SizedBox(height: AppSpacing.x8),
+        const SizedBox(height: AppSpacing.x4),
+        Text(
+          '매장 운영부터 근무, 비용, 커뮤니케이션까지',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: AppSpacing.x4),
         Text(
           '임시 vector 이미지 · 정식 로고와 로봇 자산은 아직 적용되지 않았습니다.',
           textAlign: TextAlign.center,
@@ -212,7 +342,7 @@ class _ActionGrid extends StatelessWidget {
             ? 0.95
             : columns == 4
             ? 1.25
-            : 0.8,
+            : 1.35,
         children: <Widget>[
           for (final action in DemoHomeAction.values)
             _ActionCard(action: action, onTap: () => onSelected(action)),
@@ -234,27 +364,45 @@ class _ActionCard extends StatelessWidget {
     onTap: onTap,
     excludeSemantics: true,
     child: Card(
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.feature),
+        side: BorderSide(
+          color: Theme.of(context).brightness == Brightness.light
+              ? AppPalette.lightBorder
+              : AppPalette.darkBorder,
+        ),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.x16),
+          padding: const EdgeInsets.all(AppSpacing.x8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Container(
-                width: 44,
-                height: 44,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(AppRadius.medium),
                 ),
                 child: Icon(action.icon),
               ),
-              const Spacer(),
-              Text(action.label, style: AppTypography.cardTitle),
               const SizedBox(height: AppSpacing.x4),
-              Text(action.description, maxLines: 2),
+              Text(
+                action.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.cardTitle,
+              ),
+              Text(
+                action.description,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
         ),
@@ -348,42 +496,56 @@ class _QuickComposer extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.x8),
-            Row(
-              children: <Widget>[
-                IconButton.outlined(
-                  tooltip: '샘플 첨부 자리',
-                  onPressed: () {},
-                  constraints: const BoxConstraints.tightFor(
-                    width: 48,
-                    height: 48,
-                  ),
-                  icon: const Icon(Icons.attach_file),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(
+                  color: Theme.of(context).brightness == Brightness.light
+                      ? AppPalette.lightBorder
+                      : AppPalette.darkBorder,
                 ),
-                const SizedBox(width: AppSpacing.x8),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    minLines: 1,
-                    maxLines: 5,
-                    textInputAction: TextInputAction.newline,
-                    decoration: const InputDecoration(
-                      hintText: '업무를 요청해 보세요',
-                      border: OutlineInputBorder(),
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(color: Color(0x12000000), blurRadius: 8),
+                ],
+              ),
+              child: Row(
+                children: <Widget>[
+                  IconButton(
+                    tooltip: '샘플 첨부 자리',
+                    onPressed: () {},
+                    constraints: const BoxConstraints.tightFor(
+                      width: 48,
+                      height: 48,
+                    ),
+                    icon: const Icon(Icons.attach_file),
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      minLines: 1,
+                      maxLines: 5,
+                      textInputAction: TextInputAction.newline,
+                      decoration: const InputDecoration(
+                        hintText: '업무를 요청해 보세요',
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.x8),
-                IconButton.filled(
-                  tooltip: '샘플 미리보기',
-                  onPressed: () {},
-                  constraints: const BoxConstraints.tightFor(
-                    width: 48,
-                    height: 48,
+                  IconButton.filled(
+                    tooltip: '샘플 미리보기',
+                    onPressed: () {},
+                    constraints: const BoxConstraints.tightFor(
+                      width: 48,
+                      height: 48,
+                    ),
+                    icon: const Icon(Icons.arrow_upward),
                   ),
-                  icon: const Icon(Icons.arrow_upward),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

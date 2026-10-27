@@ -31,7 +31,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('개발용 로컬 모드 · 로그인/서버 연결 없음'), findsOneWidget);
-    expect(find.text('오늘 어떤 업무를 도와드릴까요?'), findsOneWidget);
+    expect(find.text('무엇을 도와드릴까요?'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     for (var attempt = 0; attempt < 20 && !disposalComplete; attempt += 1) {

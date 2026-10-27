@@ -159,4 +159,101 @@ void main() {
     expect(find.text('보존되는 데모 초안'), findsOneWidget);
     expect(find.byType(SingleChildScrollView), findsWidgets);
   });
+
+  testWidgets('external draft survives a route-style unmount and remount', (
+    tester,
+  ) async {
+    final draft = TextEditingController();
+    final focus = FocusNode();
+    addTearDown(draft.dispose);
+    addTearDown(focus.dispose);
+    final controller = ConversationListController(
+      repository: _Repository(const <ConversationSummary>[]),
+    );
+    await controller.load();
+    addTearDown(controller.dispose);
+
+    Widget home() => MaterialApp(
+      home: DemoHomeScreen(
+        conversationController: controller,
+        onOpenConversation: (_) {},
+        onOpenConversationList: () {},
+        onOpenArchive: () {},
+        onNewConversation: () {},
+        draftController: draft,
+        draftFocusNode: focus,
+      ),
+    );
+
+    await tester.pumpWidget(home());
+    await tester.enterText(find.byType(TextField), 'HOME MEMORY QA');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(home());
+
+    expect(draft.text, 'HOME MEMORY QA');
+    expect(find.text('HOME MEMORY QA'), findsOneWidget);
+  });
+
+  testWidgets('expanded sidebar routes recent and archive', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1366, 900);
+    addTearDown(tester.view.reset);
+    final controller = ConversationListController(
+      repository: _Repository(const <ConversationSummary>[]),
+    );
+    await controller.load();
+    addTearDown(controller.dispose);
+    var all = 0;
+    var archive = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DemoHomeScreen(
+          conversationController: controller,
+          onOpenConversation: (_) {},
+          onOpenConversationList: () => all += 1,
+          onOpenArchive: () => archive += 1,
+          onNewConversation: () {},
+        ),
+      ),
+    );
+    await tester.tap(find.widgetWithText(ListTile, '최근 대화'));
+    await tester.tap(find.widgetWithText(ListTile, '보관'));
+
+    expect(all, 1);
+    expect(archive, 1);
+  });
+
+  testWidgets('preview action is hit-testable without invoking new chat', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 700);
+    addTearDown(tester.view.reset);
+    final controller = ConversationListController(
+      repository: _Repository(const <ConversationSummary>[]),
+    );
+    await controller.load();
+    addTearDown(controller.dispose);
+    var previews = 0;
+    var newChats = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DemoHomeScreen(
+          conversationController: controller,
+          onOpenConversation: (_) {},
+          onOpenConversationList: () {},
+          onOpenArchive: () {},
+          onNewConversation: () => newChats += 1,
+          onPreviewAction: (_) => previews += 1,
+        ),
+      ),
+    );
+
+    expect(find.byTooltip('샘플 미리보기').hitTestable(), findsOneWidget);
+    await tester.tap(find.byTooltip('샘플 미리보기'));
+
+    expect(previews, 0);
+    expect(newChats, 0);
+  });
 }

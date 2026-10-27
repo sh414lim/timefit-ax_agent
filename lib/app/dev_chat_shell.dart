@@ -99,6 +99,8 @@ class _DevChatShellState extends State<DevChatShell>
   late final AttachmentPicker _attachmentPicker =
       widget.attachmentPicker ?? NativeAttachmentPicker();
   final Map<String, String> _draftClientMessageIds = <String, String>{};
+  final TextEditingController _homeDraftController = TextEditingController();
+  final FocusNode _homeDraftFocusNode = FocusNode();
   AttachmentCancellation? _attachmentCancellation;
   String? _selectedConversationId;
   Object? _initializationError;
@@ -501,6 +503,8 @@ class _DevChatShellState extends State<DevChatShell>
     _disposed = true;
     _attachmentCancellation?.cancel();
     _composer?.dispose();
+    _homeDraftController.dispose();
+    _homeDraftFocusNode.dispose();
     _conversationActions?.removeListener(_handleActionsState);
     _conversationActions?.dispose();
     final controller = _listController;
@@ -602,6 +606,8 @@ class _DevChatShellState extends State<DevChatShell>
             setState(() => _showingConversationList = true),
         onOpenArchive: () => setState(() => _showingArchive = true),
         onNewConversation: () => unawaited(_createConversation()),
+        draftController: _homeDraftController,
+        draftFocusNode: _homeDraftFocusNode,
       );
     }
     return ConversationListScreen(
