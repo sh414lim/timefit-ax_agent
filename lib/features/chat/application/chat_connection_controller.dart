@@ -88,6 +88,11 @@ final class ChatConnectionController {
     required bool rpcAvailable,
   }) {
     if (_disposed) return;
+    if (_state.phase == ChatConnectionPhase.joining &&
+        phase == ChatConnectionPhase.joining) {
+      _emit(_state.copyWith(rpcAvailable: rpcAvailable));
+      return;
+    }
     _generation += 1;
     _cancelJoiningDelay();
     _emit(
@@ -103,11 +108,18 @@ final class ChatConnectionController {
 
   Future<void> retry() {
     if (_disposed) return Future<void>.value();
-    return _retrying ??= _runRetry();
+    if (_retrying case final Future<void> retrying) return retrying;
+    final Future<void> retrying = Future<void>.sync(_runRetry);
+    _retrying = retrying;
+    unawaited(
+      retrying.whenComplete(() {
+        if (identical(_retrying, retrying)) _retrying = null;
+      }),
+    );
+    return retrying;
   }
 
   Future<void> _runRetry() async {
-    final generation = _generation;
     _emit(_state.copyWith(isRetrying: true));
     try {
       await _onRetry();
@@ -115,12 +127,11 @@ final class ChatConnectionController {
       // Presentation retry remains available. Transport diagnostics belong to
       // the future adapter/observability layer and must not break the screen.
     } finally {
-      if (!_disposed && generation == _generation) {
+      if (!_disposed) {
         // The adapter must explicitly publish connected + gap-fill complete.
         // A returned retry future alone is not connection success evidence.
         _emit(_state.copyWith(isRetrying: false));
       }
-      _retrying = null;
     }
   }
 

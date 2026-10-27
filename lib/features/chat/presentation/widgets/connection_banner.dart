@@ -39,9 +39,13 @@ class ConnectionBanner extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    message,
-                    style: TextStyle(color: colors.onSecondaryContainer),
+                  child: ExcludeSemantics(
+                    child: Text(
+                      message,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: colors.onSecondaryContainer),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 4),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/theme/app_theme.dart';
 import 'package:timefit_native/features/chat/application/chat_connection_controller.dart';
@@ -140,6 +141,41 @@ void main() {
       },
     );
 
+    test('phase updates during retry do not leave retry locked', () async {
+      final pending = Completer<void>();
+      controller.dispose();
+      controller = ChatConnectionController(
+        onRetry: () => pending.future,
+        initialPhase: ChatConnectionPhase.disconnected,
+      );
+
+      final retry = controller.retry();
+      controller.update(phase: ChatConnectionPhase.polling, rpcAvailable: true);
+      pending.complete();
+      await retry;
+
+      expect(controller.state.phase, ChatConnectionPhase.polling);
+      expect(controller.state.showBanner, isTrue);
+      expect(controller.state.isRetrying, isFalse);
+    });
+
+    test('a synchronous retry failure can be retried', () async {
+      controller.dispose();
+      controller = ChatConnectionController(
+        onRetry: () {
+          retryCalls += 1;
+          throw StateError('synthetic');
+        },
+        initialPhase: ChatConnectionPhase.disconnected,
+      );
+
+      await controller.retry();
+      await controller.retry();
+
+      expect(retryCalls, 2);
+      expect(controller.state.isRetrying, isFalse);
+    });
+
     test('dispose cancels timer and fences late retry completion', () async {
       final pending = Completer<void>();
       controller.dispose();
@@ -158,6 +194,26 @@ void main() {
       expect(clock.delays.last.cancelled, isTrue);
       expect(controller.state.phase, beforeDispose.phase);
       expect(controller.state.showBanner, beforeDispose.showBanner);
+    });
+
+    testWidgets('repeated joining updates preserve elapsed grace', (
+      tester,
+    ) async {
+      controller.dispose();
+      controller = ChatConnectionController(
+        onRetry: () async {},
+        initialPhase: ChatConnectionPhase.joining,
+      );
+
+      await tester.pump(const Duration(seconds: 2));
+      controller.update(
+        phase: ChatConnectionPhase.joining,
+        rpcAvailable: false,
+      );
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(controller.state.rpcAvailable, isFalse);
+      expect(controller.state.showBanner, isTrue);
     });
 
     test(
@@ -284,4 +340,75 @@ void main() {
     expect(find.textContaining('새 메시지를 확인 중입니다'), findsOneWidget);
     semantics.dispose();
   });
+
+  testWidgets(
+    'actual 320dp viewport with keyboard and text scale 2 does not overflow',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final connection = ChatConnectionController(
+        onRetry: () async {},
+        initialPhase: ChatConnectionPhase.disconnected,
+      );
+      addTearDown(connection.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(
+            title: '연결 상태',
+            messages: Stream<List<ChatMessage>>.value(const []),
+            connectionController: connection,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('banner status has one semantics announcement', (tester) async {
+    final handle = tester.ensureSemantics();
+    const message = '실시간 연결이 끊겼습니다.';
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: ConnectionBanner(
+            state: ChatConnectionState(
+              phase: ChatConnectionPhase.disconnected,
+              rpcAvailable: true,
+              showBanner: true,
+            ),
+            onRetry: _noOp,
+          ),
+        ),
+      ),
+    );
+    final labels = <String>[];
+    void visit(SemanticsNode node) {
+      labels.add(node.getSemanticsData().label);
+      node.visitChildren((SemanticsNode child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    visit(
+      tester
+          .binding
+          .renderViews
+          .single
+          .owner!
+          .semanticsOwner!
+          .rootSemanticsNode!,
+    );
+    expect(labels.where((label) => label.contains(message)), hasLength(1));
+    handle.dispose();
+  });
 }
+
+void _noOp() {}
