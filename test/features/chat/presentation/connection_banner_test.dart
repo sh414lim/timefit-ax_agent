@@ -56,6 +56,29 @@ final class _Submitter implements TextMessageSubmitter {
   }
 }
 
+final class _FailedAttachmentSource implements AttachmentComposerSource {
+  @override
+  Stream<List<ComposerAttachment>> watch({
+    required String conversationId,
+    required String clientMessageId,
+  }) => Stream<List<ComposerAttachment>>.value(const <ComposerAttachment>[
+    ComposerAttachment(
+      localId: 'synthetic',
+      contentType: 'image/png',
+      state: ComposerAttachmentState.failed,
+      bytesSent: 0,
+      bytesTotal: 100,
+    ),
+  ]);
+
+  @override
+  Future<void> removeFailed({
+    required String conversationId,
+    required String clientMessageId,
+    required String localId,
+  }) async {}
+}
+
 void main() {
   group('ChatConnectionController', () {
     late _FakeClock clock;
@@ -368,6 +391,54 @@ void main() {
       await tester.pump();
 
       expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'constrained keyboard layout shares height with banner and attachment',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final composer = ComposerController(
+        conversationId: 'conversation',
+        submitter: _Submitter(),
+        attachmentClientMessageId: 'draft',
+        attachmentSource: _FailedAttachmentSource(),
+      );
+      final connection = ChatConnectionController(
+        onRetry: () async {},
+        initialPhase: ChatConnectionPhase.disconnected,
+      );
+      addTearDown(composer.dispose);
+      addTearDown(connection.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(
+            title: '연결 상태',
+            conversationId: 'conversation',
+            messages: Stream<List<ChatMessage>>.value(const []),
+            composerController: composer,
+            connectionController: connection,
+            onAddAttachment: _noOp,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      await tester.enterText(find.byType(TextField), '긴 입력 ' * 30);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byTooltip('첨부 추가'), findsOneWidget);
+      expect(find.byTooltip('메시지 보내기'), findsOneWidget);
+      expect(find.byTooltip('실패한 첨부 제거'), findsOneWidget);
     },
   );
 

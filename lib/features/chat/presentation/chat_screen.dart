@@ -136,9 +136,15 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final ComposerController? composer = _matchingComposer;
+    final MediaQueryData mediaQuery = MediaQuery.of(context);
+    final bool constrainedKeyboardLayout =
+        widget.compactKeyboardLayout ||
+        ((_connectionController?.state.showBanner ?? false) &&
+            mediaQuery.viewInsets.bottom > 0 &&
+            mediaQuery.size.height - mediaQuery.viewInsets.bottom <= 400);
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: widget.compactKeyboardLayout ? 48 : null,
+        toolbarHeight: constrainedKeyboardLayout ? 48 : null,
         leading: widget.onBack == null
             ? null
             : BackButton(onPressed: widget.onBack),
@@ -160,7 +166,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 onRemoveQueuedAttachment: widget.onRemoveQueuedAttachment,
                 onOpenAttachment: widget.onOpenAttachment,
                 isSelectingAttachments: widget.isSelectingAttachments,
-                compactKeyboardLayout: widget.compactKeyboardLayout,
+                compactKeyboardLayout: constrainedKeyboardLayout,
                 savesLocallyOnly: widget.savesLocallyOnly,
               ),
           ],
