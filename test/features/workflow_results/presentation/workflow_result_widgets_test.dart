@@ -77,6 +77,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('mobile analytics uses source KPI ratios without desktop pills', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const AnalyticsResultCard(compact: true),
+      size: const Size(402, 874),
+    );
+    final double sales = tester
+        .getSize(find.byKey(const Key('analytics-kpi-매출')))
+        .width;
+    final double labour = tester
+        .getSize(find.byKey(const Key('analytics-kpi-인건비율')))
+        .width;
+    final double people = tester
+        .getSize(find.byKey(const Key('analytics-kpi-근무 인원')))
+        .width;
+    expect(sales / labour, closeTo(268 / 220, .02));
+    expect(people / labour, closeTo(225 / 220, .02));
+    expect(find.byKey(const Key('analytics-kpi-comparison-매출')), findsNothing);
+  });
+
   testWidgets('landscape analytics keeps labeled source peaks', (tester) async {
     await pump(
       tester,
@@ -88,6 +110,17 @@ void main() {
     expect(find.text('800,000'), findsOneWidget);
     expect(find.text('인건비'), findsOneWidget);
     expect(find.text('근무 인원'), findsWidgets);
+    expect(
+      find.byKey(const Key('analytics-kpi-comparison-매출')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .getSemantics(find.bySemanticsLabel(RegExp('시간대별 매출 차트.*단위 원')))
+          .getSemanticsData()
+          .label,
+      contains('단위 원'),
+    );
     expect(tester.takeException(), isNull);
   });
 

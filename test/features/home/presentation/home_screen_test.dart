@@ -8,6 +8,7 @@ import 'package:timefit_native/features/conversations/domain/conversation_summar
 import 'package:timefit_native/features/home/presentation/business_preview_screen.dart';
 import 'package:timefit_native/features/home/presentation/demo_home_action.dart';
 import 'package:timefit_native/features/home/presentation/home_screen.dart';
+import 'package:timefit_native/features/home/presentation/widgets/demo_quick_composer.dart';
 import 'package:timefit_native/features/workflow_results/presentation/layer.dart';
 
 final class _Repository implements ConversationRepository {
@@ -66,7 +67,7 @@ void main() {
     expect(previews, 1);
     expect(opens, 0);
     expect(newConversations, 0);
-    expect(find.text('샘플 데이터 · 실행 안 됨'), findsOneWidget);
+    expect(find.text('데모 · 실행 안 됨'), findsOneWidget);
     expect(draft.text, '메모리에만 남는 요청');
     expect(repository.reads, 1);
     expect(repository.refreshes, 1);
@@ -495,11 +496,14 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
-      expect(find.text('승인 요청 검토'), findsOneWidget);
+      expect(find.text('승인 업무 도우미'), findsOneWidget);
       expect(find.textContaining('연차 요청'), findsOneWidget);
       expect(find.textContaining('근무 변경'), findsOneWidget);
       expect(find.textContaining('영수증 확인'), findsOneWidget);
-      expect(find.text('샘플 데이터 · 실행 안 됨'), findsOneWidget);
+      expect(
+        find.text(size.width >= 900 ? '샘플 데이터 · 실행 안 됨' : '데모 · 실행 안 됨'),
+        findsOneWidget,
+      );
       expect(find.bySemanticsLabel(RegExp('승인 미리보기')), findsNWidgets(3));
       expect(
         find.byType(LandscapeWorkflowResultPane),
@@ -594,5 +598,229 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -700));
     await tester.pump();
     expect(find.text('검토할 요청을 선택해 주세요.'), findsOneWidget);
+  });
+
+  testWidgets(
+    'source-height mobile workflows show completion before composer',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(402, 874);
+      addTearDown(tester.view.reset);
+      final draft = TextEditingController();
+      final focus = FocusNode();
+      addTearDown(draft.dispose);
+      addTearDown(focus.dispose);
+
+      Future<void> pump({DemoHomeAction? action, bool approval = false}) async {
+        final Widget preview = approval
+            ? DemoBusinessPreviewScreen.approvals(
+                onBack: () {},
+                draftController: draft,
+                draftFocusNode: focus,
+              )
+            : DemoBusinessPreviewScreen(
+                action: action!,
+                onBack: () {},
+                draftController: draft,
+                draftFocusNode: focus,
+              );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: MediaQuery(
+              data: const MediaQueryData(
+                size: Size(402, 874),
+                padding: EdgeInsets.only(top: 59, bottom: 34),
+              ),
+              child: preview,
+            ),
+          ),
+        );
+        await tester.pump();
+      }
+
+      double composerTop() =>
+          tester.getTopLeft(find.byType(DemoQuickComposer)).dy;
+
+      await pump(action: DemoHomeAction.employeeAnnouncement);
+      expect(
+        tester
+            .getBottomLeft(
+              find.byKey(const Key('notice-final-assistant-bubble')),
+            )
+            .dy,
+        lessThan(composerTop()),
+      );
+      expect(
+        tester.getBottomLeft(find.text('공지 보내기')).dy,
+        lessThan(composerTop()),
+      );
+
+      await pump(action: DemoHomeAction.storeOverview);
+      expect(
+        tester.getBottomLeft(find.text('AI 인사이트')).dy,
+        lessThan(composerTop()),
+      );
+      expect(
+        tester
+            .getBottomLeft(find.byKey(const Key('analytics-follow-up-chips')))
+            .dy,
+        lessThan(composerTop()),
+      );
+
+      await pump(action: DemoHomeAction.weeklySchedule);
+      expect(
+        tester.getBottomLeft(find.text('근무표 확정')).dy,
+        lessThan(composerTop()),
+      );
+
+      await pump(approval: true);
+      expect(
+        tester
+            .getBottomLeft(
+              find.byKey(const Key('approval-final-assistant-bubble')),
+            )
+            .dy,
+        lessThan(composerTop()),
+      );
+      expect(
+        tester.getBottomLeft(find.text('반복 승인 규칙을 만들까요?')).dy,
+        lessThan(composerTop()),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('mobile and landscape keep distinct source composer variants', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final draft = TextEditingController();
+    final focus = FocusNode();
+    addTearDown(draft.dispose);
+    addTearDown(focus.dispose);
+
+    Future<DemoQuickComposer> pump(
+      Size size, {
+      DemoHomeAction? action,
+      bool approval = false,
+    }) async {
+      tester.view.physicalSize = size;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: approval
+              ? DemoBusinessPreviewScreen.approvals(
+                  onBack: () {},
+                  draftController: draft,
+                  draftFocusNode: focus,
+                )
+              : DemoBusinessPreviewScreen(
+                  action: action!,
+                  onBack: () {},
+                  draftController: draft,
+                  draftFocusNode: focus,
+                ),
+        ),
+      );
+      return tester.widget<DemoQuickComposer>(find.byType(DemoQuickComposer));
+    }
+
+    expect(
+      (await pump(
+        const Size(402, 874),
+        action: DemoHomeAction.storeOverview,
+      )).variant,
+      DemoComposerVariant.analysis,
+    );
+    expect(
+      (await pump(const Size(402, 874), approval: true)).variant,
+      DemoComposerVariant.approval,
+    );
+    expect(
+      (await pump(
+        const Size(1366, 768),
+        action: DemoHomeAction.storeOverview,
+      )).variant,
+      DemoComposerVariant.home,
+    );
+    expect(
+      (await pump(const Size(1366, 768), approval: true)).variant,
+      DemoComposerVariant.home,
+    );
+    expect(find.text('피크 시간 보기'), findsNothing);
+    await pump(const Size(1366, 768), action: DemoHomeAction.storeOverview);
+    expect(find.text('피크 시간 보기'), findsOneWidget);
+    expect(find.text('인건비 확인'), findsOneWidget);
+  });
+
+  testWidgets('approval send plane remains inside its source field', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(432, 900);
+    addTearDown(tester.view.reset);
+    final draft = TextEditingController();
+    final focus = FocusNode();
+    addTearDown(draft.dispose);
+    addTearDown(focus.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: DemoBusinessPreviewScreen.approvals(
+          onBack: () {},
+          draftController: draft,
+          draftFocusNode: focus,
+        ),
+      ),
+    );
+
+    final Rect field = tester.getRect(
+      find.byKey(const Key('demo-composer-input-field')),
+    );
+    final Rect send = tester.getRect(
+      find.byKey(const Key('demo-composer-send')),
+    );
+    final Rect plus = tester.getRect(find.byTooltip('샘플 추가 자리'));
+    expect(field.contains(send.center), isTrue);
+    expect(plus.center.dx, lessThan(field.left));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('analysis outgoing bubble follows mobile and expanded sources', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final draft = TextEditingController();
+    final focus = FocusNode();
+    addTearDown(draft.dispose);
+    addTearDown(focus.dispose);
+
+    Future<Color> pump(Size size) async {
+      tester.view.physicalSize = size;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: DemoBusinessPreviewScreen(
+            action: DemoHomeAction.storeOverview,
+            onBack: () {},
+            draftController: draft,
+            draftFocusNode: focus,
+          ),
+        ),
+      );
+      final Container bubble = tester.widget<Container>(
+        find.byKey(const Key('workflow-user-bubble-surface')),
+      );
+      return (bubble.decoration! as BoxDecoration).color!;
+    }
+
+    final Color mobile = await pump(const Size(402, 874));
+    final Color landscape = await pump(const Size(1366, 768));
+    expect(mobile, isNot(landscape));
+    expect(tester.takeException(), isNull);
   });
 }

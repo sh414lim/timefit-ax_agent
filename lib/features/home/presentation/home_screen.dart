@@ -131,42 +131,43 @@ class _MobileHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-    builder: (BuildContext context, BoxConstraints constraints) => Column(
+    builder: (BuildContext context, BoxConstraints constraints) => Stack(
       children: <Widget>[
-        Expanded(
-          child: SingleChildScrollView(
-            primary: false,
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: (constraints.maxHeight - 84).clamp(
-                  0,
-                  double.infinity,
+        Column(
+          children: <Widget>[
+            Expanded(
+              child: SingleChildScrollView(
+                primary: false,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                child: _MobileHomeContent(
+                  availableHeight: constraints.maxHeight,
+                  onOpenConversationList: onOpenConversationList,
+                  onSelected: onSelected,
                 ),
               ),
-              child: _MobileHomeContent(
-                onOpenConversationList: onOpenConversationList,
-                onSelected: onSelected,
+            ),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: (constraints.maxHeight - AppTouchTarget.minimum)
+                    .clamp(0, double.infinity),
+              ),
+              child: SingleChildScrollView(
+                primary: false,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: DemoQuickComposer(
+                  controller: draftController,
+                  focusNode: draftFocusNode,
+                ),
               ),
             ),
-          ),
+          ],
         ),
-        ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: (constraints.maxHeight - AppTouchTarget.minimum).clamp(
-              0,
-              double.infinity,
-            ),
-          ),
-          child: SingleChildScrollView(
-            primary: false,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: DemoQuickComposer(
-              controller: draftController,
-              focusNode: draftFocusNode,
-            ),
-          ),
+        const Positioned(
+          top: 54,
+          right: 16,
+          child: _DemoBadge(key: Key('mobile-home-overlay-demo-badge')),
         ),
       ],
     ),
@@ -175,10 +176,12 @@ class _MobileHome extends StatelessWidget {
 
 class _MobileHomeContent extends StatelessWidget {
   const _MobileHomeContent({
+    required this.availableHeight,
     required this.onOpenConversationList,
     required this.onSelected,
   });
 
+  final double availableHeight;
   final VoidCallback onOpenConversationList;
   final ValueChanged<DemoHomeAction> onSelected;
 
@@ -209,7 +212,6 @@ class _MobileHomeContent extends StatelessWidget {
                   ),
                 ),
               ),
-              const _DemoBadge(),
               _SourceHeaderButton(
                 tooltip: '알림 샘플',
                 onPressed: () {},
@@ -223,7 +225,7 @@ class _MobileHomeContent extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: (availableHeight * .035).clamp(24, 34)),
         LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
             final double robotWidth = (MediaQuery.sizeOf(context).width * .398)
@@ -255,9 +257,9 @@ class _MobileHomeContent extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(color: tokens.secondaryText, height: 1.45),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: (availableHeight * .1).clamp(64, 88)),
         _ActionGrid(expanded: false, onSelected: onSelected),
-        const SizedBox(height: 32),
+        const SizedBox(height: AppSpacing.x12),
       ],
     );
   }
@@ -639,6 +641,7 @@ class _ActionCard extends StatelessWidget {
                         color: tokens.secondaryText,
                         fontSize: 9,
                         height: 1.25,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
@@ -728,7 +731,7 @@ class _ActionIcon extends StatelessWidget {
 }
 
 class _DemoBadge extends StatelessWidget {
-  const _DemoBadge();
+  const _DemoBadge({super.key});
 
   @override
   Widget build(BuildContext context) {

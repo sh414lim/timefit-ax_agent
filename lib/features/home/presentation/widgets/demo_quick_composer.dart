@@ -42,6 +42,42 @@ class DemoQuickComposer extends StatelessWidget {
         ? tokens.secondaryText
         : Colors.white;
     final bool separated = variant == DemoComposerVariant.approval;
+    final Widget input = TextField(
+      controller: controller,
+      focusNode: focusNode,
+      minLines: 1,
+      maxLines: 5,
+      textInputAction: TextInputAction.newline,
+      decoration: InputDecoration(
+        hintText: placeholder,
+        hintStyle: TextStyle(color: tokens.secondaryText),
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.x12,
+          vertical: AppSpacing.x12,
+        ),
+      ),
+    );
+    final Widget send = Padding(
+      padding: const EdgeInsets.all(5),
+      child: IconButton(
+        key: const Key('demo-composer-send'),
+        tooltip: '샘플 미리보기',
+        onPressed: () {},
+        style: IconButton.styleFrom(
+          backgroundColor: unfilledSend ? Colors.transparent : sendBackground,
+          foregroundColor: sendForeground,
+        ),
+        constraints: const BoxConstraints.tightFor(width: 46, height: 46),
+        icon: CustomPaint(
+          size: const Size.square(22),
+          painter: _ReconstructedSendPainter(color: sendForeground),
+        ),
+      ),
+    );
     return Semantics(
       container: true,
       label: '데모 입력, 실제 업무 시스템에 연결되지 않음',
@@ -77,52 +113,22 @@ class DemoQuickComposer extends StatelessWidget {
               ),
               Expanded(
                 child: DecoratedBox(
+                  key: const Key('demo-composer-input-field'),
                   decoration: BoxDecoration(
                     color: tokens.subtleSurface,
                     borderRadius: BorderRadius.circular(23),
                   ),
-                  child: TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    minLines: 1,
-                    maxLines: 5,
-                    textInputAction: TextInputAction.newline,
-                    decoration: InputDecoration(
-                      hintText: placeholder,
-                      hintStyle: TextStyle(color: tokens.secondaryText),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.x12,
-                        vertical: AppSpacing.x12,
-                      ),
-                    ),
-                  ),
+                  child: separated
+                      ? Row(
+                          children: <Widget>[
+                            Expanded(child: input),
+                            send,
+                          ],
+                        )
+                      : input,
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(5),
-                child: IconButton(
-                  tooltip: '샘플 미리보기',
-                  onPressed: () {},
-                  style: IconButton.styleFrom(
-                    backgroundColor: unfilledSend
-                        ? Colors.transparent
-                        : sendBackground,
-                    foregroundColor: sendForeground,
-                  ),
-                  constraints: const BoxConstraints.tightFor(
-                    width: 46,
-                    height: 46,
-                  ),
-                  icon: CustomPaint(
-                    size: const Size.square(22),
-                    painter: _ReconstructedSendPainter(color: sendForeground),
-                  ),
-                ),
-              ),
+              if (!separated) send,
             ],
           ),
         ),

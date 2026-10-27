@@ -115,28 +115,33 @@ class _MobilePreview extends StatelessWidget {
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+            key: const Key('mobile-workflow-scroll'),
+            cacheExtent: 1200,
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
             children: <Widget>[
               _ConversationExcerpt(
                 action: action,
                 isApprovalPreview: isApprovalPreview,
+                compact: true,
               ),
-              const SizedBox(height: AppSpacing.x16),
+              const SizedBox(height: AppSpacing.x8),
               _WorkflowResult(
                 kind: kind,
                 style: style,
                 assetBuilder: _workflowAssetBuilder,
                 landscape: false,
+                compact: true,
               ),
               _PostResultConversation(
                 action: action,
                 isApprovalPreview: isApprovalPreview,
+                compact: true,
               ),
             ],
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
           child: DemoQuickComposer(
             controller: draftController,
             focusNode: draftFocusNode,
@@ -225,7 +230,7 @@ class _MobileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: 64,
+    height: 56,
     child: Stack(
       alignment: Alignment.center,
       children: <Widget>[
@@ -244,11 +249,11 @@ class _MobileHeader extends StatelessWidget {
             children: <Widget>[
               const TimeFitAssetSlot(
                 kind: TimeFitAssetKind.squareLogo,
-                width: 42,
-                height: 42,
+                width: 38,
+                height: 38,
                 keyName: 'mobile-preview-logo-slot',
               ),
-              const SizedBox(width: AppSpacing.x12),
+              const SizedBox(width: AppSpacing.x8),
               Flexible(
                 child: Text(
                   title,
@@ -256,7 +261,7 @@ class _MobileHeader extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: TimeFitAxVisualTokens.of(context).deepText,
-                    fontSize: 19,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -309,8 +314,28 @@ class _ExpandedSidebar extends StatelessWidget {
                             ),
                             const SizedBox(width: AppSpacing.x12),
                             Expanded(
-                              child: Text(
-                                'TimeFit AX',
+                              child: Text.rich(
+                                TextSpan(
+                                  children:
+                                      action == DemoHomeAction.weeklySchedule
+                                      ? <InlineSpan>[
+                                          TextSpan(
+                                            text: 'TimeFit ',
+                                            style: TextStyle(
+                                              color: tokens.deepText,
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: 'AX',
+                                            style: TextStyle(
+                                              color: tokens.expandedHomePrimary,
+                                            ),
+                                          ),
+                                        ]
+                                      : const <InlineSpan>[
+                                          TextSpan(text: 'TimeFit AX'),
+                                        ],
+                                ),
                                 style: TextStyle(
                                   color:
                                       !isApprovalPreview &&
@@ -498,7 +523,15 @@ class _ExpandedChat extends StatelessWidget {
               _ConversationExcerpt(
                 action: action,
                 isApprovalPreview: isApprovalPreview,
+                solidAnalysisOutgoing: false,
               ),
+              if (!isApprovalPreview &&
+                  action == DemoHomeAction.storeOverview) ...<Widget>[
+                const SizedBox(height: AppSpacing.x24),
+                const _SuggestionChips(
+                  labels: <String>['어제와 비교', '비용 절감 제안', '피크 시간 보기', '인건비 확인'],
+                ),
+              ],
             ],
           ),
         ),
@@ -508,7 +541,7 @@ class _ExpandedChat extends StatelessWidget {
           placeholder: isApprovalPreview
               ? '승인 요청에 대해 질문하세요'
               : action.composerPlaceholder,
-          variant: _composerVariant(action, isApprovalPreview),
+          variant: _expandedComposerVariant(action, isApprovalPreview),
         ),
         if (!isApprovalPreview &&
             action == DemoHomeAction.weeklySchedule) ...<Widget>[
@@ -516,10 +549,6 @@ class _ExpandedChat extends StatelessWidget {
           const _SuggestionChips(
             labels: <String>['직원 교대 요청 반영', '다른 주도 만들어줘', '근무 시간 규칙 변경'],
           ),
-        ] else if (!isApprovalPreview &&
-            action == DemoHomeAction.storeOverview) ...<Widget>[
-          const SizedBox(height: AppSpacing.x12),
-          const _SuggestionChips(labels: <String>['어제와 비교', '비용 절감 제안']),
         ],
       ],
     ),
@@ -530,9 +559,13 @@ class _ConversationExcerpt extends StatelessWidget {
   const _ConversationExcerpt({
     required this.action,
     required this.isApprovalPreview,
+    this.compact = false,
+    this.solidAnalysisOutgoing = true,
   });
   final DemoHomeAction action;
   final bool isApprovalPreview;
+  final bool compact;
+  final bool solidAnalysisOutgoing;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -541,16 +574,20 @@ class _ConversationExcerpt extends StatelessWidget {
         text: isApprovalPreview ? '오늘 검토할 승인 요청을 보여줘.' : action.userPrompt,
         outgoing: true,
         solidOutgoing:
-            !isApprovalPreview && action == DemoHomeAction.storeOverview,
+            solidAnalysisOutgoing &&
+            !isApprovalPreview &&
+            action == DemoHomeAction.storeOverview,
         timestamp: '오전 10:24',
+        compact: compact,
       ),
-      const SizedBox(height: AppSpacing.x16),
+      SizedBox(height: compact ? AppSpacing.x8 : AppSpacing.x16),
       _ChatBubble(
         text: isApprovalPreview
             ? '합성 승인 요청을 검토용 카드로 정리했어요.'
             : action.assistantReply,
         outgoing: false,
         timestamp: '오전 10:24',
+        compact: compact,
       ),
     ],
   );
@@ -562,11 +599,13 @@ class _ChatBubble extends StatelessWidget {
     required this.outgoing,
     this.solidOutgoing = false,
     this.timestamp,
+    this.compact = false,
   });
   final String text;
   final bool outgoing;
   final bool solidOutgoing;
   final String? timestamp;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -583,20 +622,23 @@ class _ChatBubble extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               if (!outgoing) ...<Widget>[
-                const TimeFitAssetSlot(
+                TimeFitAssetSlot(
                   kind: TimeFitAssetKind.assistantMark,
-                  width: 36,
-                  height: 36,
+                  width: compact ? 32 : 36,
+                  height: compact ? 32 : 36,
                   keyName: 'assistant-mark-slot',
                 ),
-                const SizedBox(width: AppSpacing.x8),
+                SizedBox(width: compact ? 6 : AppSpacing.x8),
               ],
               Flexible(
                 child: Container(
+                  key: outgoing
+                      ? const Key('workflow-user-bubble-surface')
+                      : null,
                   constraints: const BoxConstraints(maxWidth: 470),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 13,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 16 : 18,
+                    vertical: compact ? 10 : 13,
                   ),
                   decoration: BoxDecoration(
                     color: outgoing
@@ -637,77 +679,102 @@ class _WorkflowResult extends StatelessWidget {
     required this.style,
     required this.assetBuilder,
     required this.landscape,
+    this.compact = false,
   });
   final WorkflowResultKind kind;
   final WorkflowResultStyle style;
   final WorkflowAssetBuilder assetBuilder;
   final bool landscape;
+  final bool compact;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    container: true,
-    label: '${kind.name} 합성 결과, 실제 업무 실행 안 됨',
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        const Align(
-          alignment: Alignment.centerRight,
-          child: _DemoBadge(label: '샘플 데이터 · 실행 안 됨'),
-        ),
-        const SizedBox(height: AppSpacing.x12),
-        IgnorePointer(
-          child: landscape && kind != WorkflowResultKind.notice
-              ? LandscapeWorkflowResultPane(
-                  kind: kind,
-                  style: style,
-                  assetBuilder: assetBuilder,
-                )
-              : WorkflowResultCard(
-                  kind: kind,
-                  style: style,
-                  assetBuilder: assetBuilder,
+  Widget build(BuildContext context) {
+    final Widget result = IgnorePointer(
+      child: landscape && kind != WorkflowResultKind.notice
+          ? LandscapeWorkflowResultPane(
+              kind: kind,
+              style: style,
+              assetBuilder: assetBuilder,
+            )
+          : WorkflowResultCard(
+              kind: kind,
+              style: style,
+              assetBuilder: assetBuilder,
+              compact: compact,
+            ),
+    );
+    return Semantics(
+      container: true,
+      label: '${kind.name} 합성 결과, 실제 업무 실행 안 됨',
+      child: compact
+          ? Stack(
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                result,
+                const Positioned(
+                  top: -8,
+                  right: 10,
+                  child: _DemoBadge(label: '데모 · 실행 안 됨'),
                 ),
-        ),
-      ],
-    ),
-  );
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                const Align(
+                  alignment: Alignment.centerRight,
+                  child: _DemoBadge(label: '샘플 데이터 · 실행 안 됨'),
+                ),
+                const SizedBox(height: AppSpacing.x12),
+                result,
+              ],
+            ),
+    );
+  }
 }
 
 class _PostResultConversation extends StatelessWidget {
   const _PostResultConversation({
     required this.action,
     required this.isApprovalPreview,
+    this.compact = false,
   });
 
   final DemoHomeAction action;
   final bool isApprovalPreview;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     if (isApprovalPreview) {
-      return const Padding(
-        padding: EdgeInsets.only(top: AppSpacing.x16),
+      return Padding(
+        key: const Key('approval-final-assistant-bubble'),
+        padding: EdgeInsets.only(top: compact ? AppSpacing.x8 : AppSpacing.x16),
         child: _ChatBubble(
           text: '검토할 요청을 선택해 주세요.',
           outgoing: false,
           timestamp: '오전 10:25',
+          compact: compact,
         ),
       );
     }
     if (action == DemoHomeAction.employeeAnnouncement) {
-      return const Padding(
-        padding: EdgeInsets.only(top: AppSpacing.x16),
+      return Padding(
+        key: const Key('notice-final-assistant-bubble'),
+        padding: EdgeInsets.only(top: compact ? AppSpacing.x8 : AppSpacing.x16),
         child: _ChatBubble(
           text: '발송 전 최종 내용을 확인해 주세요.',
           outgoing: false,
           timestamp: '오전 10:25',
+          compact: compact,
         ),
       );
     }
     if (action == DemoHomeAction.storeOverview) {
-      return const Padding(
-        padding: EdgeInsets.only(top: AppSpacing.x12),
-        child: Column(
+      return Padding(
+        key: const Key('analytics-follow-up-chips'),
+        padding: EdgeInsets.only(top: compact ? AppSpacing.x8 : AppSpacing.x12),
+        child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text('오전 10:25', style: TextStyle(fontSize: 10)),
@@ -1064,7 +1131,7 @@ final class _WorkflowRoleGlyphPainter extends CustomPainter {
 }
 
 String _previewTitle(DemoHomeAction action, bool isApprovalPreview) =>
-    isApprovalPreview ? '승인 요청 검토' : action.previewTitle;
+    isApprovalPreview ? '승인 업무 도우미' : action.previewTitle;
 
 DemoComposerVariant _composerVariant(
   DemoHomeAction action,
@@ -1078,6 +1145,16 @@ DemoComposerVariant _composerVariant(
     // No supplied cost screen establishes a distinct composer treatment.
     DemoHomeAction.costAnalysis => DemoComposerVariant.home,
   };
+}
+
+DemoComposerVariant _expandedComposerVariant(
+  DemoHomeAction action,
+  bool isApprovalPreview,
+) {
+  if (isApprovalPreview || action == DemoHomeAction.storeOverview) {
+    return DemoComposerVariant.home;
+  }
+  return _composerVariant(action, isApprovalPreview);
 }
 
 class _DemoBadge extends StatelessWidget {

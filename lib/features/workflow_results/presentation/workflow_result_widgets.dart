@@ -8,28 +8,34 @@ class WorkflowResultCard extends StatelessWidget {
     required this.kind,
     this.style = const WorkflowResultStyle(),
     this.assetBuilder,
+    this.compact = false,
   });
   final WorkflowResultKind kind;
   final WorkflowResultStyle style;
   final WorkflowAssetBuilder? assetBuilder;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => switch (kind) {
     WorkflowResultKind.notice => NoticeResultCard(
       style: style,
       assetBuilder: assetBuilder,
+      compact: compact,
     ),
     WorkflowResultKind.approval => ApprovalResultBoard(
       style: style,
       assetBuilder: assetBuilder,
+      compact: compact,
     ),
     WorkflowResultKind.analytics => AnalyticsResultCard(
       style: style,
       assetBuilder: assetBuilder,
+      compact: compact,
     ),
     WorkflowResultKind.schedule => ScheduleResultCard(
       style: style,
       assetBuilder: assetBuilder,
+      compact: compact,
     ),
   };
 }
@@ -39,13 +45,16 @@ class NoticeResultCard extends StatelessWidget {
     super.key,
     this.style = const WorkflowResultStyle(),
     this.assetBuilder,
+    this.compact = false,
   });
   final WorkflowResultStyle style;
   final WorkflowAssetBuilder? assetBuilder;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => _Frame(
     style: style,
+    compact: compact,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -54,34 +63,35 @@ class NoticeResultCard extends StatelessWidget {
           title: '재고조사 안내',
           style: style,
           assetBuilder: assetBuilder,
+          compact: compact,
         ),
-        const SizedBox(height: 22),
+        SizedBox(height: compact ? 12 : 22),
         Text(
           '이번 주 금요일 영업 종료 후 재고조사를 진행합니다.\n담당 구역을 확인하고 오후 10시까지 매장에 도착해\n주세요.',
           style: TextStyle(
             color: style.ink,
-            height: 1.55,
-            fontSize: 15.5,
+            height: compact ? 1.4 : 1.55,
+            fontSize: compact ? 14 : 15.5,
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: compact ? 12 : 20),
         Divider(color: style.border, height: 1),
-        const SizedBox(height: 16),
+        SizedBox(height: compact ? 10 : 16),
         _Meta(icon: Icons.people_outline, text: '전체 직원 · 12명', style: style),
-        const SizedBox(height: 13),
+        SizedBox(height: compact ? 8 : 13),
         _Meta(
           icon: Icons.calendar_today_outlined,
           text: '10월 23일 오후 6:00',
           style: style,
         ),
-        const SizedBox(height: 18),
+        SizedBox(height: compact ? 10 : 18),
         Divider(color: style.border, height: 1),
-        const SizedBox(height: 12),
+        SizedBox(height: compact ? 8 : 12),
         _Check(text: '카카오 알림', style: style),
-        const SizedBox(height: 10),
+        SizedBox(height: compact ? 6 : 10),
         _Check(text: '앱 푸시', style: style),
-        const SizedBox(height: 20),
+        SizedBox(height: compact ? 12 : 20),
         Row(
           children: [
             Expanded(
@@ -103,28 +113,36 @@ class ApprovalResultBoard extends StatelessWidget {
     super.key,
     this.style = const WorkflowResultStyle(),
     this.assetBuilder,
+    this.compact = false,
   });
   final WorkflowResultStyle style;
   final WorkflowAssetBuilder? assetBuilder;
+  final bool compact;
   @override
   Widget build(BuildContext context) => Column(
     children: [
       for (final item in WorkflowResultFixtures.approvals) ...[
-        _ApprovalRow(item: item, style: style, assetBuilder: assetBuilder),
-        const SizedBox(height: 10),
+        _ApprovalRow(
+          item: item,
+          style: style,
+          assetBuilder: assetBuilder,
+          compact: compact,
+        ),
+        SizedBox(height: compact ? 7 : 10),
       ],
       _Frame(
         style: style,
         tint: style.paleBlue,
+        compact: compact,
         child: Row(
           children: [
             _RoleAsset(
               role: 'workflow.approval.automation',
-              size: 50,
+              size: compact ? 40 : 50,
               style: style,
               assetBuilder: assetBuilder,
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: compact ? 8 : 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,13 +154,13 @@ class ApprovalResultBoard extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 5),
+                  SizedBox(height: compact ? 3 : 5),
                   Text(
                     '자주 발생하는 승인 요청을 자동으로 처리하면\n더 중요한 업무에 집중할 수 있어요.',
                     style: TextStyle(
                       color: style.muted,
-                      fontSize: 12,
-                      height: 1.45,
+                      fontSize: compact ? 11 : 12,
+                      height: compact ? 1.3 : 1.45,
                     ),
                   ),
                 ],
@@ -168,22 +186,30 @@ class AnalyticsResultCard extends StatelessWidget {
     super.key,
     this.style = const WorkflowResultStyle(),
     this.assetBuilder,
+    this.compact = false,
   });
   final WorkflowResultStyle style;
   final WorkflowAssetBuilder? assetBuilder;
+  final bool compact;
   @override
   Widget build(BuildContext context) => _Frame(
     style: style,
+    compact: compact,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _AnalyticsHeader(style: style),
-        const SizedBox(height: 14),
-        _KpiStrip(style: style),
-        const SizedBox(height: 14),
+        SizedBox(height: compact ? 9 : 14),
+        _KpiStrip(style: style, compact: compact),
+        SizedBox(height: compact ? 9 : 14),
         Container(
-          height: 210,
-          padding: const EdgeInsets.fromLTRB(12, 12, 8, 8),
+          height: compact ? 142 : 210,
+          padding: EdgeInsets.fromLTRB(
+            compact ? 9 : 12,
+            compact ? 8 : 12,
+            8,
+            compact ? 5 : 8,
+          ),
           decoration: BoxDecoration(
             border: Border.all(color: style.border),
             borderRadius: BorderRadius.circular(12),
@@ -209,14 +235,14 @@ class AnalyticsResultCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: compact ? 4 : 8),
               Expanded(child: _SalesChart(style: style)),
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: compact ? 8 : 12),
         Container(
-          padding: const EdgeInsets.all(14),
+          padding: EdgeInsets.all(compact ? 9 : 14),
           decoration: BoxDecoration(
             color: style.paleBlue,
             borderRadius: BorderRadius.circular(12),
@@ -225,16 +251,16 @@ class AnalyticsResultCard extends StatelessWidget {
             children: [
               _RoleAsset(
                 role: 'workflow.analytics.insight',
-                size: 42,
+                size: compact ? 32 : 42,
                 style: style,
                 assetBuilder: assetBuilder,
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: compact ? 6 : 10),
               SizedBox(
-                height: 58,
+                height: compact ? 46 : 58,
                 child: VerticalDivider(color: style.border, width: 16),
               ),
-              const SizedBox(width: 4),
+              SizedBox(width: compact ? 2 : 4),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,7 +273,7 @@ class AnalyticsResultCard extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 5),
+                    SizedBox(height: compact ? 2 : 5),
                     Text(
                       '오후 7시에 매출이 가장 높았어요.',
                       style: TextStyle(
@@ -257,7 +283,10 @@ class AnalyticsResultCard extends StatelessWidget {
                     ),
                     Text(
                       '저녁 시간대(18시~21시)에 전체 매출의 38%가 발생했어요.',
-                      style: TextStyle(color: style.muted, fontSize: 11),
+                      style: TextStyle(
+                        color: style.muted,
+                        fontSize: compact ? 10 : 11,
+                      ),
                     ),
                   ],
                 ),
@@ -275,14 +304,17 @@ class ScheduleResultCard extends StatelessWidget {
     super.key,
     this.style = const WorkflowResultStyle(),
     this.assetBuilder,
+    this.compact = false,
   });
   final WorkflowResultStyle style;
   final WorkflowAssetBuilder? assetBuilder;
+  final bool compact;
   @override
   Widget build(BuildContext context) => Column(
     children: [
       _Frame(
         style: style,
+        compact: compact,
         child: Column(
           children: [
             Row(
@@ -295,7 +327,7 @@ class ScheduleResultCard extends StatelessWidget {
                     style: TextStyle(
                       color: style.ink,
                       fontWeight: FontWeight.w800,
-                      fontSize: 18,
+                      fontSize: compact ? 16 : 18,
                     ),
                   ),
                 ),
@@ -311,12 +343,12 @@ class ScheduleResultCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            _ScheduleGrid(style: style),
-            const SizedBox(height: 10),
+            SizedBox(height: compact ? 8 : 14),
+            _ScheduleGrid(style: style, compact: compact),
+            SizedBox(height: compact ? 7 : 10),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(9),
+              padding: EdgeInsets.all(compact ? 6 : 9),
               decoration: BoxDecoration(
                 color: const Color(0xFFF5F7FA),
                 borderRadius: BorderRadius.circular(7),
@@ -329,7 +361,7 @@ class ScheduleResultCard extends StatelessWidget {
           ],
         ),
       ),
-      const SizedBox(height: 12),
+      SizedBox(height: compact ? 8 : 12),
       Row(
         children: [
           Expanded(
@@ -857,7 +889,7 @@ class _LandscapeScheduleGrid extends StatelessWidget {
     ];
     return Table(
       border: TableBorder.all(color: style.border),
-      columnWidths: const {0: FlexColumnWidth(1.35)},
+      columnWidths: const {0: FlexColumnWidth(1.8)},
       children: [
         TableRow(
           decoration: const BoxDecoration(color: Color(0xFFF7F9FC)),
@@ -915,6 +947,9 @@ class _LandscapeScheduleGrid extends StatelessWidget {
                     Expanded(
                       child: Text(
                         person.name,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.clip,
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
@@ -960,13 +995,19 @@ class _LandscapeScheduleGrid extends StatelessWidget {
 }
 
 class _Frame extends StatelessWidget {
-  const _Frame({required this.child, required this.style, this.tint});
+  const _Frame({
+    required this.child,
+    required this.style,
+    this.tint,
+    this.compact = false,
+  });
   final Widget child;
   final WorkflowResultStyle style;
   final Color? tint;
+  final bool compact;
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(18),
+    padding: EdgeInsets.all(compact ? 12 : 18),
     decoration: BoxDecoration(
       color: tint ?? style.canvas,
       borderRadius: BorderRadius.circular(20),
@@ -989,25 +1030,27 @@ class _Heading extends StatelessWidget {
     required this.title,
     required this.style,
     this.assetBuilder,
+    this.compact = false,
   });
   final String role, title;
   final WorkflowResultStyle style;
   final WorkflowAssetBuilder? assetBuilder;
+  final bool compact;
   @override
   Widget build(BuildContext context) => Row(
     children: [
       _RoleAsset(
         role: role,
-        size: 50,
+        size: compact ? 42 : 50,
         style: style,
         assetBuilder: assetBuilder,
       ),
-      const SizedBox(width: 13),
+      SizedBox(width: compact ? 10 : 13),
       Text(
         title,
         style: TextStyle(
           color: style.ink,
-          fontSize: 23,
+          fontSize: compact ? 21 : 23,
           fontWeight: FontWeight.w800,
         ),
       ),
@@ -1133,10 +1176,12 @@ class _ApprovalRow extends StatelessWidget {
     required this.item,
     required this.style,
     this.assetBuilder,
+    this.compact = false,
   });
   final ApprovalFixture item;
   final WorkflowResultStyle style;
   final WorkflowAssetBuilder? assetBuilder;
+  final bool compact;
   @override
   Widget build(BuildContext context) {
     final roles = [
@@ -1146,15 +1191,16 @@ class _ApprovalRow extends StatelessWidget {
     ];
     return _Frame(
       style: style,
+      compact: compact,
       child: Row(
         children: [
           _RoleAsset(
             role: roles[item.tone],
-            size: 52,
+            size: compact ? 42 : 52,
             style: style,
             assetBuilder: assetBuilder,
           ),
-          const SizedBox(width: 13),
+          SizedBox(width: compact ? 9 : 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1166,13 +1212,16 @@ class _ApprovalRow extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 5),
+                SizedBox(height: compact ? 2 : 5),
                 Text(
                   item.detail,
-                  style: TextStyle(color: style.muted, fontSize: 13),
+                  style: TextStyle(
+                    color: style.muted,
+                    fontSize: compact ? 11.5 : 13,
+                  ),
                 ),
                 if (item.deadline != null) ...[
-                  const SizedBox(height: 5),
+                  SizedBox(height: compact ? 2 : 5),
                   Text(
                     '◷ ${item.deadline}',
                     style: const TextStyle(
@@ -1225,13 +1274,22 @@ class _MiniButton extends StatelessWidget {
 }
 
 class _Kpi extends StatelessWidget {
-  const _Kpi(this.label, this.value, this.style);
+  const _Kpi(
+    this.label,
+    this.value,
+    this.style, {
+    this.compact = false,
+    this.showComparison = false,
+  });
   final String label, value;
   final WorkflowResultStyle style;
+  final bool compact;
+  final bool showComparison;
   @override
   Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(minHeight: 96),
-    padding: const EdgeInsets.all(12),
+    key: Key('analytics-kpi-$label'),
+    constraints: BoxConstraints(minHeight: compact ? 78 : 96),
+    padding: EdgeInsets.all(compact ? 8 : 12),
     decoration: BoxDecoration(
       color: const Color(0xFFF7FBFE),
       borderRadius: BorderRadius.circular(9),
@@ -1239,15 +1297,15 @@ class _Kpi extends StatelessWidget {
     child: LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final Widget glyph = Container(
-          width: 24,
-          height: 24,
+          width: compact ? 21 : 24,
+          height: compact ? 21 : 24,
           decoration: BoxDecoration(
             color: style.paleBlue,
             borderRadius: BorderRadius.circular(7),
           ),
           alignment: Alignment.center,
           child: CustomPaint(
-            size: const Size.square(14),
+            size: Size.square(compact ? 12 : 14),
             painter: _KpiGlyphPainter(label: label, color: style.primary),
           ),
         );
@@ -1259,6 +1317,7 @@ class _Kpi extends StatelessWidget {
           style: TextStyle(color: style.muted, fontSize: 11),
         );
         final Widget comparison = Container(
+          key: Key('analytics-kpi-comparison-$label'),
           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
           decoration: BoxDecoration(
             color: const Color(0xFFEAF7EF),
@@ -1286,14 +1345,14 @@ class _Kpi extends StatelessWidget {
                 glyph,
                 const SizedBox(width: 6),
                 Expanded(child: labelText),
-                if (!compactHeader) comparison,
+                if (showComparison && !compactHeader) comparison,
               ],
             ),
-            if (compactHeader) ...<Widget>[
+            if (showComparison && compactHeader) ...<Widget>[
               const SizedBox(height: 3),
               Align(alignment: Alignment.centerRight, child: comparison),
             ],
-            const SizedBox(height: 8),
+            SizedBox(height: compact ? 5 : 8),
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
@@ -1302,7 +1361,7 @@ class _Kpi extends StatelessWidget {
                 style: TextStyle(
                   color: style.primary,
                   fontWeight: FontWeight.w800,
-                  fontSize: 19,
+                  fontSize: compact ? 17 : 19,
                 ),
               ),
             ),
@@ -1401,67 +1460,85 @@ class _AnalyticsHeader extends StatelessWidget {
 }
 
 class _KpiStrip extends StatelessWidget {
-  const _KpiStrip({required this.style, this.landscape = false});
+  const _KpiStrip({
+    required this.style,
+    this.landscape = false,
+    this.compact = false,
+  });
 
   final WorkflowResultStyle style;
   final bool landscape;
-
-  double _textWidth(
-    BuildContext context,
-    String text,
-    double fontSize,
-    FontWeight fontWeight,
-  ) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(fontSize: fontSize, fontWeight: fontWeight),
-      ),
-      textDirection: TextDirection.ltr,
-      textScaler: MediaQuery.textScalerOf(context),
-      maxLines: 1,
-    )..layout();
-    return painter.width + 24;
-  }
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (BuildContext context, BoxConstraints constraints) {
-      final List<double> widths = <double>[
-        _textWidth(context, '4,820,000원', 19, FontWeight.w800),
-        _textWidth(context, '인건비율', 11, FontWeight.normal),
-        _textWidth(context, '근무 인원', 11, FontWeight.normal),
-      ];
       final bool stack =
-          widths.fold<double>(16, (sum, width) => sum + width) >
-          constraints.maxWidth;
+          MediaQuery.textScalerOf(context).scale(16) >= 24 ||
+          constraints.maxWidth < 300;
       if (stack) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            _Kpi('매출', '4,820,000원', style),
+            _Kpi(
+              '매출',
+              '4,820,000원',
+              style,
+              compact: compact,
+              showComparison: landscape,
+            ),
             const SizedBox(height: 8),
-            _Kpi('인건비율', '21.4%', style),
+            _Kpi(
+              '인건비율',
+              '21.4%',
+              style,
+              compact: compact,
+              showComparison: landscape,
+            ),
             const SizedBox(height: 8),
-            _Kpi('근무 인원', '8명', style),
+            _Kpi(
+              '근무 인원',
+              '8명',
+              style,
+              compact: compact,
+              showComparison: landscape,
+            ),
           ],
         );
       }
       return Row(
         children: <Widget>[
           Expanded(
-            flex: landscape ? 221 : 27,
-            child: _Kpi('매출', '4,820,000원', style),
+            flex: landscape ? 221 : 268,
+            child: _Kpi(
+              '매출',
+              '4,820,000원',
+              style,
+              compact: compact,
+              showComparison: landscape,
+            ),
           ),
           SizedBox(width: landscape ? 10 : 8),
           Expanded(
-            flex: landscape ? 210 : 22,
-            child: _Kpi('인건비율', '21.4%', style),
+            flex: landscape ? 210 : 220,
+            child: _Kpi(
+              '인건비율',
+              '21.4%',
+              style,
+              compact: compact,
+              showComparison: landscape,
+            ),
           ),
           SizedBox(width: landscape ? 10 : 8),
           Expanded(
-            flex: landscape ? 212 : 23,
-            child: _Kpi('근무 인원', '8명', style),
+            flex: landscape ? 212 : 225,
+            child: _Kpi(
+              '근무 인원',
+              '8명',
+              style,
+              compact: compact,
+              showComparison: landscape,
+            ),
           ),
         ],
       );
@@ -1469,7 +1546,7 @@ class _KpiStrip extends StatelessWidget {
   );
 }
 
-const List<double> _chartValues = <double>[
+const List<double> _mobileChartValues = <double>[
   .07,
   .16,
   .24,
@@ -1487,6 +1564,27 @@ const List<double> _chartValues = <double>[
   .24,
 ];
 
+// The expanded source labels its two highlighted values as 620,000 and
+// 780,000 on an 800,000-won axis. Keep those labels and their plotted anchors
+// on the same scale instead of reusing the mobile normalized trace.
+const List<double> _landscapeChartValues = <double>[
+  .07,
+  .16,
+  .24,
+  .42,
+  .775,
+  .43,
+  .27,
+  .29,
+  .38,
+  .49,
+  .64,
+  .975,
+  .68,
+  .40,
+  .24,
+];
+
 class _SalesChart extends StatelessWidget {
   const _SalesChart({required this.style, this.landscape = false});
 
@@ -1494,93 +1592,119 @@ class _SalesChart extends StatelessWidget {
   final bool landscape;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    image: true,
-    label: '시간대별 매출 차트, 단위 천원, 점심 피크와 저녁 피크가 표시된 샘플 데이터',
-    child: ExcludeSemantics(
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final double axisWidth = landscape ? 48 : 29;
-          const double rightInset = 5;
-          final double topInset = landscape ? 31 : 22;
-          const double bottomInset = 21;
-          final double plotWidth =
-              constraints.maxWidth - axisWidth - rightInset;
-          final double plotHeight =
-              constraints.maxHeight - topInset - bottomInset;
-          final List<String> yLabels = landscape
-              ? const <String>['800,000', '600,000', '400,000', '200,000', '0']
-              : const <String>['800', '600', '400', '200', '0'];
-          final List<String> xLabels = landscape
-              ? const <String>['09시', '11시', '13시', '15시', '17시', '19시', '21시']
-              : const <String>['09시', '12시', '15시', '18시', '21시'];
-          return Stack(
-            clipBehavior: Clip.none,
-            children: <Widget>[
-              Positioned.fill(
-                child: CustomPaint(
-                  key: const Key('analytics-sales-chart-painter'),
-                  painter: _ChartPainter(
-                    primary: style.primary,
-                    grid: style.border,
-                    axisWidth: axisWidth,
-                    rightInset: rightInset,
-                    topInset: topInset,
-                    bottomInset: bottomInset,
+  Widget build(BuildContext context) {
+    final List<double> chartValues = landscape
+        ? _landscapeChartValues
+        : _mobileChartValues;
+    return Semantics(
+      image: true,
+      label:
+          '시간대별 매출 차트, 단위 ${landscape ? '원' : '천원'}, '
+          '점심 피크와 저녁 피크가 표시된 샘플 데이터',
+      child: ExcludeSemantics(
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double axisWidth = landscape ? 48 : 29;
+            const double rightInset = 5;
+            final double topInset = landscape ? 31 : 22;
+            const double bottomInset = 21;
+            final double plotWidth =
+                constraints.maxWidth - axisWidth - rightInset;
+            final double plotHeight =
+                constraints.maxHeight - topInset - bottomInset;
+            final List<String> yLabels = landscape
+                ? const <String>[
+                    '800,000',
+                    '600,000',
+                    '400,000',
+                    '200,000',
+                    '0',
+                  ]
+                : const <String>['800', '600', '400', '200', '0'];
+            final List<String> xLabels = landscape
+                ? const <String>[
+                    '09시',
+                    '11시',
+                    '13시',
+                    '15시',
+                    '17시',
+                    '19시',
+                    '21시',
+                  ]
+                : const <String>['09시', '12시', '15시', '18시', '21시'];
+            return Stack(
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                Positioned.fill(
+                  child: CustomPaint(
+                    key: const Key('analytics-sales-chart-painter'),
+                    painter: _ChartPainter(
+                      primary: style.primary,
+                      grid: style.border,
+                      values: chartValues,
+                      axisWidth: axisWidth,
+                      rightInset: rightInset,
+                      topInset: topInset,
+                      bottomInset: bottomInset,
+                    ),
                   ),
                 ),
-              ),
-              for (var i = 0; i < yLabels.length; i++)
-                Positioned(
-                  key: i == 0 ? const Key('analytics-chart-axis-y-800') : null,
-                  left: 0,
-                  top: topInset + plotHeight * i / 4 - 6,
-                  width: axisWidth - 6,
-                  child: Text(
-                    yLabels[i],
-                    textAlign: TextAlign.right,
-                    style: TextStyle(color: style.muted, fontSize: 8),
+                for (var i = 0; i < yLabels.length; i++)
+                  Positioned(
+                    key: i == 0
+                        ? const Key('analytics-chart-axis-y-800')
+                        : null,
+                    left: 0,
+                    top: topInset + plotHeight * i / 4 - 6,
+                    width: axisWidth - 6,
+                    child: Text(
+                      yLabels[i],
+                      textAlign: TextAlign.right,
+                      style: TextStyle(color: style.muted, fontSize: 8),
+                    ),
                   ),
-                ),
-              for (var i = 0; i < xLabels.length; i++)
-                Positioned(
-                  left: axisWidth + plotWidth * i / (xLabels.length - 1) - 18,
-                  bottom: 0,
-                  width: 36,
-                  child: Text(
-                    xLabels[i],
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: style.muted, fontSize: 8),
+                for (var i = 0; i < xLabels.length; i++)
+                  Positioned(
+                    left: axisWidth + plotWidth * i / (xLabels.length - 1) - 18,
+                    bottom: 0,
+                    width: 36,
+                    child: Text(
+                      xLabels[i],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: style.muted, fontSize: 8),
+                    ),
                   ),
+                _PeakBadge(
+                  key: const Key('analytics-chart-peak-lunch'),
+                  label: landscape ? '점심 피크\n620,000원' : '점심 피크',
+                  pointIndex: 4,
+                  values: chartValues,
+                  axisWidth: axisWidth,
+                  plotWidth: plotWidth,
+                  plotHeight: plotHeight,
+                  topInset: topInset,
+                  style: style,
+                  landscape: landscape,
                 ),
-              _PeakBadge(
-                key: const Key('analytics-chart-peak-lunch'),
-                label: landscape ? '점심 피크\n620,000원' : '점심 피크',
-                pointIndex: 4,
-                axisWidth: axisWidth,
-                plotWidth: plotWidth,
-                plotHeight: plotHeight,
-                topInset: topInset,
-                style: style,
-                landscape: landscape,
-              ),
-              _PeakBadge(
-                key: const Key('analytics-chart-peak-evening'),
-                label: landscape ? '저녁 피크\n780,000원' : '저녁 피크',
-                pointIndex: 11,
-                axisWidth: axisWidth,
-                plotWidth: plotWidth,
-                plotHeight: plotHeight,
-                topInset: topInset,
-                style: style,
-                landscape: landscape,
-              ),
-            ],
-          );
-        },
+                _PeakBadge(
+                  key: const Key('analytics-chart-peak-evening'),
+                  label: landscape ? '저녁 피크\n780,000원' : '저녁 피크',
+                  pointIndex: 11,
+                  values: chartValues,
+                  axisWidth: axisWidth,
+                  plotWidth: plotWidth,
+                  plotHeight: plotHeight,
+                  topInset: topInset,
+                  style: style,
+                  landscape: landscape,
+                ),
+              ],
+            );
+          },
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _PeakBadge extends StatelessWidget {
@@ -1588,6 +1712,7 @@ class _PeakBadge extends StatelessWidget {
     super.key,
     required this.label,
     required this.pointIndex,
+    required this.values,
     required this.axisWidth,
     required this.plotWidth,
     required this.plotHeight,
@@ -1598,6 +1723,7 @@ class _PeakBadge extends StatelessWidget {
 
   final String label;
   final int pointIndex;
+  final List<double> values;
   final double axisWidth;
   final double plotWidth;
   final double plotHeight;
@@ -1609,9 +1735,8 @@ class _PeakBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final double width = landscape ? 74 : 57;
     final double pointX =
-        axisWidth + plotWidth * pointIndex / (_chartValues.length - 1);
-    final double pointY =
-        topInset + plotHeight * (1 - _chartValues[pointIndex]);
+        axisWidth + plotWidth * pointIndex / (values.length - 1);
+    final double pointY = topInset + plotHeight * (1 - values[pointIndex]);
     return Positioned(
       left: pointX - width / 2,
       top: (pointY - (landscape ? 42 : 27)).clamp(0, double.infinity),
@@ -1645,6 +1770,7 @@ class _ChartPainter extends CustomPainter {
   _ChartPainter({
     required this.primary,
     required this.grid,
+    required this.values,
     required this.axisWidth,
     required this.rightInset,
     required this.topInset,
@@ -1653,6 +1779,7 @@ class _ChartPainter extends CustomPainter {
 
   final Color primary;
   final Color grid;
+  final List<double> values;
   final double axisWidth;
   final double rightInset;
   final double topInset;
@@ -1674,11 +1801,11 @@ class _ChartPainter extends CustomPainter {
       );
     }
     final points = <Offset>[];
-    for (var i = 0; i < _chartValues.length; i++) {
+    for (var i = 0; i < values.length; i++) {
       points.add(
         Offset(
-          axisWidth + plotWidth * i / (_chartValues.length - 1),
-          topInset + plotHeight * (1 - _chartValues[i]),
+          axisWidth + plotWidth * i / (values.length - 1),
+          topInset + plotHeight * (1 - values[i]),
         ),
       );
     }
@@ -1741,6 +1868,7 @@ class _ChartPainter extends CustomPainter {
   bool shouldRepaint(covariant _ChartPainter old) =>
       old.primary != primary ||
       old.grid != grid ||
+      old.values != values ||
       old.axisWidth != axisWidth ||
       old.rightInset != rightInset ||
       old.topInset != topInset ||
@@ -1748,8 +1876,9 @@ class _ChartPainter extends CustomPainter {
 }
 
 class _ScheduleGrid extends StatelessWidget {
-  const _ScheduleGrid({required this.style});
+  const _ScheduleGrid({required this.style, this.compact = false});
   final WorkflowResultStyle style;
+  final bool compact;
   @override
   Widget build(BuildContext context) {
     const days = [
@@ -1770,11 +1899,11 @@ class _ScheduleGrid extends StatelessWidget {
           TableRow(
             decoration: const BoxDecoration(color: Color(0xFFF8F9FB)),
             children: [
-              const SizedBox(height: 42),
+              SizedBox(height: compact ? 34 : 42),
               for (var dayIndex = 0; dayIndex < days.length; dayIndex++)
                 Center(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    padding: EdgeInsets.symmetric(vertical: compact ? 4 : 6),
                     child: Text(
                       days[dayIndex],
                       textAlign: TextAlign.center,
@@ -1796,9 +1925,9 @@ class _ScheduleGrid extends StatelessWidget {
             TableRow(
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: 5,
-                    vertical: 7,
+                    vertical: compact ? 4 : 7,
                   ),
                   child: Row(
                     children: <Widget>[
@@ -1827,12 +1956,12 @@ class _ScheduleGrid extends StatelessWidget {
                 for (final shift in p.shifts)
                   Center(
                     child: Container(
-                      margin: const EdgeInsets.symmetric(
-                        vertical: 8,
+                      margin: EdgeInsets.symmetric(
+                        vertical: compact ? 5 : 8,
                         horizontal: 2,
                       ),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 4,
+                      padding: EdgeInsets.symmetric(
+                        vertical: compact ? 3 : 4,
                         horizontal: 3,
                       ),
                       decoration: BoxDecoration(

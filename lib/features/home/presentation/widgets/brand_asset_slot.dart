@@ -146,11 +146,12 @@ final class _ReconstructedRobotPainter extends CustomPainter {
       Paint()
         ..shader = RadialGradient(
           colors: <Color>[
-            field,
-            field.withValues(alpha: .64),
+            field.withValues(alpha: .96),
+            field.withValues(alpha: .78),
+            field.withValues(alpha: .18),
             field.withValues(alpha: 0),
           ],
-          stops: const <double>[0, .72, 1],
+          stops: const <double>[0, .56, .84, 1],
         ).createShader(fieldRect),
     );
 
