@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/app.dart';
 import 'package:timefit_native/core/database/app_database.dart';
+import 'package:timefit_native/features/home/presentation/demo_home_action.dart';
 import 'package:timefit_native/features/home/presentation/home_screen.dart';
 import 'package:timefit_native/src/app_environment.dart';
 
@@ -123,5 +124,43 @@ void main() {
         },
       );
     }
+  }
+
+  for (final size in <Size>[
+    const Size(320, 640),
+    const Size(320, 720),
+    const Size(852, 393),
+  ]) {
+    testWidgets('$size keeps Home action and composer scroll-reachable', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: size.width == 852 ? 216 : 280,
+      );
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final (_, disposed) = await _mount(tester);
+      final field = find.byType(TextField);
+
+      await tester.showKeyboard(field);
+      const value = TextEditingValue(
+        text: '접근 가능한 긴 Home 초안',
+        selection: TextSelection(baseOffset: 3, extentOffset: 8),
+      );
+      tester.testTextInput.updateEditingValue(value);
+      await tester.pump();
+      final action = find.text(DemoHomeAction.costAnalysis.label);
+      await tester.ensureVisible(action);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(action.hitTestable(), findsOneWidget);
+      expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+      expect(tester.widget<TextField>(field).controller!.value, value);
+      await _unmount(tester, disposed);
+    });
   }
 }

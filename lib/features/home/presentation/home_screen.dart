@@ -110,7 +110,9 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
                         ),
                         ConstrainedBox(
                           constraints: BoxConstraints(
-                            maxHeight: constraints.maxHeight,
+                            maxHeight:
+                                (constraints.maxHeight - AppTouchTarget.minimum)
+                                    .clamp(0, double.infinity),
                           ),
                           child: SingleChildScrollView(
                             primary: false,
