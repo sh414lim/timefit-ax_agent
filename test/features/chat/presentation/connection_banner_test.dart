@@ -463,6 +463,62 @@ void main() {
     },
   );
 
+  testWidgets(
+    'short landscape banner keeps multiline composer controls reachable',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(852, 393);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 216);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final composer = ComposerController(
+        conversationId: 'conversation',
+        submitter: _Submitter(),
+        attachmentClientMessageId: 'draft',
+        attachmentSource: _FailedAttachmentSource(),
+      );
+      final connection = ChatConnectionController(
+        onRetry: () async {},
+        initialPhase: ChatConnectionPhase.disconnected,
+      );
+      addTearDown(composer.dispose);
+      addTearDown(connection.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(
+            title: '연결 상태',
+            conversationId: 'conversation',
+            messages: Stream<List<ChatMessage>>.value(const []),
+            composerController: composer,
+            connectionController: connection,
+            onAddAttachment: _noOp,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      final textField = find.byType(TextField);
+      await tester.drag(
+        find.byKey(const ValueKey<String>('connection-keyboard-scroll')),
+        const Offset(0, -240),
+      );
+      await tester.pump();
+      expect(textField.hitTestable(), findsOneWidget);
+      await tester.enterText(textField, '첫 줄\n둘째 줄\n' * 10);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(composer.draft, contains('\n'));
+      expect(find.byTooltip('첨부 추가'), findsOneWidget);
+      expect(find.byTooltip('메시지 보내기'), findsOneWidget);
+      expect(find.byTooltip('실패한 첨부 제거'), findsNWidgets(5));
+    },
+  );
+
   testWidgets('banner status has one semantics announcement', (tester) async {
     final handle = tester.ensureSemantics();
     const message = '실시간 연결이 끊겼습니다.';

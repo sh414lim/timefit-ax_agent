@@ -137,10 +137,11 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     final ComposerController? composer = _matchingComposer;
     final MediaQueryData mediaQuery = MediaQuery.of(context);
+    final bool hasVisibleConnectionBanner =
+        _connectionController?.state.showBanner ?? false;
     final bool constrainedKeyboardLayout =
         widget.compactKeyboardLayout ||
-        ((_connectionController?.state.showBanner ?? false) &&
-            mediaQuery.viewInsets.bottom > 0);
+        (hasVisibleConnectionBanner && mediaQuery.viewInsets.bottom > 0);
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: constrainedKeyboardLayout ? 48 : null,
@@ -150,29 +151,77 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Text(widget.title),
       ),
       body: SafeArea(
-        child: Column(
-          children: <Widget>[
-            if (_connectionController case final controller?)
-              ConnectionBanner(
-                state: controller.state,
-                onRetry: () => controller.retry(),
-              ),
-            Expanded(child: _buildBody()),
-            if (widget.status == ChatScreenStatus.ready && composer != null)
-              ChatComposer(
-                controller: composer,
-                onAddAttachment: widget.onAddAttachment,
-                onRemoveQueuedAttachment: widget.onRemoveQueuedAttachment,
-                onOpenAttachment: widget.onOpenAttachment,
-                isSelectingAttachments: widget.isSelectingAttachments,
+        child: hasVisibleConnectionBanner && mediaQuery.viewInsets.bottom > 0
+            ? _buildScrollableConstrainedBody(
+                composer: composer,
                 compactKeyboardLayout: constrainedKeyboardLayout,
-                savesLocallyOnly: widget.savesLocallyOnly,
+              )
+            : _buildStandardBody(
+                composer: composer,
+                compactKeyboardLayout: constrainedKeyboardLayout,
               ),
-          ],
-        ),
       ),
     );
   }
+
+  Widget _buildStandardBody({
+    required ComposerController? composer,
+    required bool compactKeyboardLayout,
+  }) => Column(
+    children: <Widget>[
+      _buildConnectionBanner(),
+      Expanded(child: _buildBody()),
+      if (widget.status == ChatScreenStatus.ready && composer != null)
+        _buildComposer(composer, compactKeyboardLayout),
+    ],
+  );
+
+  Widget _buildScrollableConstrainedBody({
+    required ComposerController? composer,
+    required bool compactKeyboardLayout,
+  }) => LayoutBuilder(
+    builder: (BuildContext context, BoxConstraints constraints) {
+      final double messageViewport = (constraints.maxHeight * 0.25).clamp(
+        48,
+        160,
+      );
+      return SingleChildScrollView(
+        key: const ValueKey<String>('connection-keyboard-scroll'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _buildConnectionBanner(),
+            SizedBox(height: messageViewport, child: _buildBody()),
+            if (widget.status == ChatScreenStatus.ready && composer != null)
+              _buildComposer(composer, compactKeyboardLayout),
+          ],
+        ),
+      );
+    },
+  );
+
+  Widget _buildConnectionBanner() {
+    if (_connectionController case final controller?) {
+      return ConnectionBanner(
+        state: controller.state,
+        onRetry: () => controller.retry(),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildComposer(
+    ComposerController composer,
+    bool compactKeyboardLayout,
+  ) => ChatComposer(
+    controller: composer,
+    onAddAttachment: widget.onAddAttachment,
+    onRemoveQueuedAttachment: widget.onRemoveQueuedAttachment,
+    onOpenAttachment: widget.onOpenAttachment,
+    isSelectingAttachments: widget.isSelectingAttachments,
+    compactKeyboardLayout: compactKeyboardLayout,
+    savesLocallyOnly: widget.savesLocallyOnly,
+  );
 
   Widget _buildBody() {
     if (widget.status == ChatScreenStatus.accessRevoked) {
