@@ -392,6 +392,469 @@ class LandscapeWorkflowColumns extends StatelessWidget {
   }
 }
 
+class LandscapeWorkflowResultPane extends StatelessWidget {
+  const LandscapeWorkflowResultPane({
+    super.key,
+    required this.kind,
+    this.style = const WorkflowResultStyle(),
+    this.assetBuilder,
+  });
+
+  final WorkflowResultKind kind;
+  final WorkflowResultStyle style;
+  final WorkflowAssetBuilder? assetBuilder;
+
+  @override
+  Widget build(BuildContext context) => switch (kind) {
+    WorkflowResultKind.approval => _LandscapeApproval(
+      style: style,
+      assetBuilder: assetBuilder,
+    ),
+    WorkflowResultKind.analytics => _LandscapeAnalytics(
+      style: style,
+      assetBuilder: assetBuilder,
+    ),
+    WorkflowResultKind.schedule => _LandscapeSchedule(style: style),
+    WorkflowResultKind.notice => throw UnsupportedError(
+      'No landscape notice reference exists.',
+    ),
+  };
+}
+
+class _LandscapeApproval extends StatelessWidget {
+  const _LandscapeApproval({required this.style, this.assetBuilder});
+  final WorkflowResultStyle style;
+  final WorkflowAssetBuilder? assetBuilder;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(23, 32, 23, 24),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '오늘의 승인 요청',
+                style: TextStyle(
+                  color: style.ink,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 25,
+                ),
+              ),
+            ),
+            Text(
+              '3건',
+              style: TextStyle(
+                color: style.primary,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text('지금 처리하면 더 원활한 업무가 가능해요.', style: TextStyle(color: style.muted)),
+        const SizedBox(height: 20),
+        for (final item in WorkflowResultFixtures.approvals) ...[
+          _ApprovalRow(item: item, style: style, assetBuilder: assetBuilder),
+          const SizedBox(height: 10),
+        ],
+        _Frame(
+          style: style,
+          tint: const Color(0xFFE2EEFE),
+          child: Row(
+            children: [
+              _RoleAsset(
+                role: 'workflow.approval.automation.landscape',
+                size: 50,
+                style: style,
+                assetBuilder: assetBuilder,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '반복 승인 규칙을 만들까요?',
+                      style: TextStyle(
+                        color: style.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '반복되는 승인 업무를 자동화하여\n더 중요한 일에 집중할 수 있어요.',
+                      style: TextStyle(
+                        color: style.muted,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _MiniButton('자동화 설정', style, true),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _LandscapeAnalytics extends StatelessWidget {
+  const _LandscapeAnalytics({required this.style, this.assetBuilder});
+  final WorkflowResultStyle style;
+  final WorkflowAssetBuilder? assetBuilder;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _Frame(
+          style: style,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '오늘의 핵심 지표',
+                      style: TextStyle(
+                        color: style.ink,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    '● 실시간 기준  오전 10:24',
+                    style: TextStyle(color: Color(0xFF52B582), fontSize: 10),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(flex: 221, child: _Kpi('매출', '4,820,000원', style)),
+                  const SizedBox(width: 10),
+                  Expanded(flex: 210, child: _Kpi('인건비율', '21.4%', style)),
+                  const SizedBox(width: 10),
+                  Expanded(flex: 212, child: _Kpi('근무 인원', '8명', style)),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _Frame(
+          style: style,
+          child: SizedBox(
+            height: 230,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '시간대별 매출',
+                        style: TextStyle(
+                          color: style.ink,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: style.primary,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        '매출',
+                        style: TextStyle(color: Colors.white, fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: CustomPaint(
+                    painter: _ChartPainter(style.primary, style.border),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _Frame(
+          style: style,
+          child: Row(
+            children: [
+              _RoleAsset(
+                role: 'workflow.analytics.insight.landscape',
+                size: 44,
+                style: style,
+                assetBuilder: assetBuilder,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AI 인사이트',
+                      style: TextStyle(
+                        color: style.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      '오후 7시에 매출이 가장 높았어요.',
+                      style: TextStyle(
+                        color: style.ink,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
+                    ),
+                    Text(
+                      '저녁 시간대에 전체 매출의 28%가 발생했어요.',
+                      style: TextStyle(color: style.muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(13),
+                decoration: BoxDecoration(
+                  color: style.paleBlue,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Text(
+                  '저녁 시간대\n추가 매출 기회가 있어요!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: style.primary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _LandscapeSchedule extends StatelessWidget {
+  const _LandscapeSchedule({required this.style});
+  final WorkflowResultStyle style;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(16),
+    child: _Frame(
+      style: style,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text(
+                '10월 19일 - 10월 25일',
+                style: TextStyle(
+                  color: style.ink,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: style.success,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Text(
+                  '✓ 충돌 없음',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '요청하신 조건이 모두 반영된 근무표 초안입니다.',
+            style: TextStyle(color: style.muted, fontSize: 12),
+          ),
+          const SizedBox(height: 16),
+          _LandscapeScheduleGrid(style: style),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+            color: const Color(0xFFF7F9FC),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 92,
+                  child: Text(
+                    '일별 근무 인원',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 10),
+                  ),
+                ),
+                for (final count in const [
+                  '4명',
+                  '6명',
+                  '6명',
+                  '6명',
+                  '6명',
+                  '6명',
+                  '4명',
+                ])
+                  Expanded(
+                    child: Text(
+                      count,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: _Action(label: '✓  근무표 확정', style: style, primary: true),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _Action(label: '수정하기', style: style, primary: false),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _LandscapeScheduleGrid extends StatelessWidget {
+  const _LandscapeScheduleGrid({required this.style});
+  final WorkflowResultStyle style;
+  @override
+  Widget build(BuildContext context) {
+    const days = [
+      '10/19\n(일)',
+      '10/20\n(월)',
+      '10/21\n(화)',
+      '10/22\n(수)',
+      '10/23\n(목)',
+      '10/24\n(금)',
+      '10/25\n(토)',
+    ];
+    return Table(
+      border: TableBorder.all(color: style.border),
+      columnWidths: const {0: FlexColumnWidth(1.35)},
+      children: [
+        TableRow(
+          decoration: const BoxDecoration(color: Color(0xFFF7F9FC)),
+          children: [
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(8),
+                child: Text(
+                  '직원명',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            for (final day in days)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(7),
+                  child: Text(
+                    day,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 9, height: 1.35),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        for (final person in WorkflowResultFixtures.landscapeSchedule)
+          TableRow(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+                child: Text(
+                  person.name,
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              for (final shift in person.shifts)
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.all(4),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 6,
+                      horizontal: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: shift == '휴무'
+                          ? const Color(0xFFEBEBED)
+                          : (shift == '오후'
+                                ? const Color(0xFF8FC1FE)
+                                : const Color(0xFFD7EAFE)),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Text(
+                      shift,
+                      style: TextStyle(
+                        color: shift == '휴무'
+                            ? style.muted
+                            : const Color(0xFF245EA8),
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
 class _Frame extends StatelessWidget {
   const _Frame({required this.child, required this.style, this.tint});
   final Widget child;

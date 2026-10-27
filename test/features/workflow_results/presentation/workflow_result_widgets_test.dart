@@ -83,4 +83,22 @@ void main() {
     expect(side / total, closeTo(.1979, .0001));
     expect(chat / total, closeTo(.3164, .0001));
   });
+
+  for (final kind in [
+    WorkflowResultKind.approval,
+    WorkflowResultKind.analytics,
+    WorkflowResultKind.schedule,
+  ]) {
+    testWidgets('landscape $kind has its own result presentation', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        LandscapeWorkflowResultPane(kind: kind),
+        size: const Size(760, 900),
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byType(LandscapeWorkflowResultPane), findsOneWidget);
+    });
+  }
 }
