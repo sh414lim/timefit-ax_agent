@@ -14,6 +14,21 @@ import 'package:timefit_native/src/app_environment.dart';
 
 const List<int> _pdfFixture = <int>[37, 80, 68, 70, 45, 49, 46, 55];
 
+Future<Finder> _openConversationList(WidgetTester tester) async {
+  await _pumpUntilFinder(tester, find.byTooltip('메뉴 샘플'));
+  await tester.tap(find.byTooltip('메뉴 샘플'));
+  await _settleFileIo(tester);
+  final Finder create = find.text('새 대화 시작');
+  await _pumpUntilFinder(tester, create);
+  return create;
+}
+
+Future<void> _createConversationFromHome(WidgetTester tester) async {
+  final Finder create = await _openConversationList(tester);
+  await tester.tap(create);
+  await _settleFileIo(tester);
+}
+
 void main() {
   testWidgets('staging keeps placeholder and never opens the dev database', (
     WidgetTester tester,
@@ -63,9 +78,7 @@ void main() {
         ),
       );
       await _settleFileIo(tester);
-      await _pumpUntilFinder(tester, find.text('새 대화 시작'));
-      await tester.tap(find.text('새 대화 시작'));
-      await _settleFileIo(tester);
+      await _createConversationFromHome(tester);
       await _pumpUntilFinder(tester, find.byType(TextField));
       final String draft = List<String>.filled(464, '긴').join();
       await tester.enterText(find.byType(TextField), draft);
@@ -159,7 +172,7 @@ void main() {
           ),
         );
         await _settleFileIo(tester);
-        await _pumpUntilFinder(tester, find.text('새 대화 시작'));
+        final Finder create = await _openConversationList(tester);
 
         expect(find.text('개발용 로컬 모드 · 로그인/서버 연결 없음'), findsOneWidget);
         expect(
@@ -170,7 +183,6 @@ void main() {
           isEmpty,
         );
 
-        final create = find.text('새 대화 시작');
         await tester.tap(create);
         await tester.tap(create);
         await _settleFileIo(tester);
@@ -204,8 +216,6 @@ void main() {
         expect(find.text('전송 대기 중'), findsOneWidget);
 
         await tester.tap(find.byType(BackButton).last);
-        await _settleFileIo(tester);
-        await tester.tap(find.byTooltip('메뉴 샘플'));
         await _settleFileIo(tester);
         await _pumpUntilFinder(tester, find.text('재시작 뒤에도 남는 메시지'));
         expect(find.text('새 대화'), findsWidgets);
@@ -293,14 +303,9 @@ void main() {
 
       try {
         await mount();
-        await _pumpUntilFinder(tester, find.text('새 대화 시작'));
-        await tester.tap(find.text('새 대화 시작'));
-        await _settleFileIo(tester);
+        await _createConversationFromHome(tester);
         await tester.tap(find.byType(BackButton).last);
         await _settleFileIo(tester);
-
-        await tester.tap(find.byTooltip('메뉴 샘플'));
-        await tester.pumpAndSettle();
 
         await tester.tap(find.byTooltip('대화 메뉴'));
         await tester.pumpAndSettle();
@@ -427,9 +432,7 @@ void main() {
 
       try {
         await mount();
-        await _pumpUntilFinder(tester, find.text('새 대화 시작'));
-        await tester.tap(find.text('새 대화 시작'));
-        await _settleFileIo(tester);
+        await _createConversationFromHome(tester);
         await _pumpUntilFinder(tester, find.byTooltip('첨부 추가'));
 
         await pickFile();
@@ -600,9 +603,7 @@ void main() {
         ),
       );
       await _settleFileIo(tester);
-      await _pumpUntilFinder(tester, find.text('새 대화 시작'));
-      await tester.tap(find.text('새 대화 시작'));
-      await _settleFileIo(tester);
+      await _createConversationFromHome(tester);
       await _pumpUntilFinder(tester, find.byTooltip('첨부 추가'));
       await tester.tap(find.byTooltip('첨부 추가'));
       await tester.pumpAndSettle();

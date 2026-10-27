@@ -525,14 +525,21 @@ class _DevChatShellState extends State<DevChatShell>
     final bool compactKeyboardLayout =
         MediaQuery.orientationOf(context) == Orientation.landscape &&
         View.of(context).viewInsets.bottom > 0;
+    final bool showingSourceHome =
+        _initializationError == null &&
+        _listController != null &&
+        _selectedConversationId == null &&
+        !_showingArchive &&
+        !_showingConversationList;
     return Scaffold(
       body: Column(
         children: <Widget>[
-          _DevLocalModeBanner(
-            compact: compactKeyboardLayout,
-            includesWaitingStatus:
-                compactKeyboardLayout && _selectedConversationId != null,
-          ),
+          if (!showingSourceHome)
+            _DevLocalModeBanner(
+              compact: compactKeyboardLayout,
+              includesWaitingStatus:
+                  compactKeyboardLayout && _selectedConversationId != null,
+            ),
           Expanded(child: _buildContent(compactKeyboardLayout)),
         ],
       ),

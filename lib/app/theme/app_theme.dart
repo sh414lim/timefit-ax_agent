@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'timefit_ax_visual_tokens.dart';
 import 'tokens.dart';
 
 abstract final class AppTheme {
@@ -22,6 +23,9 @@ abstract final class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colorScheme,
+      extensions: <ThemeExtension<dynamic>>[
+        isLight ? TimeFitAxVisualTokens.light : TimeFitAxVisualTokens.dark,
+      ],
       scaffoldBackgroundColor: colorScheme.surface,
       textTheme:
           const TextTheme(

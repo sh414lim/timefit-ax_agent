@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/timefit_ax_visual_tokens.dart';
 import '../../../app/theme/tokens.dart';
 import '../../conversations/application/conversation_list_controller.dart';
+import 'business_preview_screen.dart';
 import 'demo_home_action.dart';
+import 'widgets/brand_asset_slot.dart';
+import 'widgets/demo_quick_composer.dart';
+import 'widgets/reconstructed_action_glyph.dart';
 
 class DemoHomeScreen extends StatefulWidget {
   const DemoHomeScreen({
@@ -72,270 +77,418 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool expanded = MediaQuery.sizeOf(context).width >= 1024;
+    final tokens = TimeFitAxVisualTokens.of(context);
+    final preview = _preview;
     return Scaffold(
-      backgroundColor: Theme.of(context).brightness == Brightness.light
-          ? AppPalette.lightCanvas
-          : AppPalette.darkCanvas,
-      body: SafeArea(
-        child: Row(
-          children: <Widget>[
-            if (expanded)
-              _HomeNavigation(
-                recent: _recent,
-                onOpenConversation: widget.onOpenConversation,
-                onNewConversation: widget.onNewConversation,
-                onShowAll: widget.onOpenConversationList,
-                onShowArchive: widget.onOpenArchive,
-              ),
-            Expanded(
+      backgroundColor: tokens.canvas,
+      body: preview == null
+          ? SafeArea(
               child: LayoutBuilder(
-                builder: (BuildContext context, BoxConstraints constraints) =>
-                    Column(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  final bool expanded = constraints.maxWidth >= 900;
+                  return expanded
+                      ? _ExpandedHome(
+                          recent: _recent,
+                          onOpenConversation: widget.onOpenConversation,
+                          onOpenConversationList: widget.onOpenConversationList,
+                          onOpenArchive: widget.onOpenArchive,
+                          onNewConversation: widget.onNewConversation,
+                          onSelected: _select,
+                          draftController: _draft,
+                          draftFocusNode: _draftFocus,
+                        )
+                      : _MobileHome(
+                          onOpenConversationList: widget.onOpenConversationList,
+                          onSelected: _select,
+                          draftController: _draft,
+                          draftFocusNode: _draftFocus,
+                        );
+                },
+              ),
+            )
+          : DemoBusinessPreviewScreen(
+              action: preview,
+              onBack: () => setState(() => _preview = null),
+              draftController: _draft,
+              draftFocusNode: _draftFocus,
+            ),
+    );
+  }
+}
+
+class _MobileHome extends StatelessWidget {
+  const _MobileHome({
+    required this.onOpenConversationList,
+    required this.onSelected,
+    required this.draftController,
+    required this.draftFocusNode,
+  });
+
+  final VoidCallback onOpenConversationList;
+  final ValueChanged<DemoHomeAction> onSelected;
+  final TextEditingController draftController;
+  final FocusNode draftFocusNode;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (BuildContext context, BoxConstraints constraints) => Column(
+      children: <Widget>[
+        Expanded(
+          child: SingleChildScrollView(
+            primary: false,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: (constraints.maxHeight - 84).clamp(
+                  0,
+                  double.infinity,
+                ),
+              ),
+              child: _MobileHomeContent(
+                onOpenConversationList: onOpenConversationList,
+                onSelected: onSelected,
+              ),
+            ),
+          ),
+        ),
+        ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: (constraints.maxHeight - AppTouchTarget.minimum).clamp(
+              0,
+              double.infinity,
+            ),
+          ),
+          child: SingleChildScrollView(
+            primary: false,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: DemoQuickComposer(
+              controller: draftController,
+              focusNode: draftFocusNode,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _MobileHomeContent extends StatelessWidget {
+  const _MobileHomeContent({
+    required this.onOpenConversationList,
+    required this.onSelected,
+  });
+
+  final VoidCallback onOpenConversationList;
+  final ValueChanged<DemoHomeAction> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TimeFitAxVisualTokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        SizedBox(
+          height: 52,
+          child: Row(
+            children: <Widget>[
+              const TimeFitAssetSlot(
+                kind: TimeFitAssetKind.squareLogo,
+                width: 40,
+                height: 40,
+                keyName: 'mobile-home-logo-slot',
+              ),
+              const SizedBox(width: AppSpacing.x12),
+              Expanded(
+                child: Text(
+                  'TimeFit AX',
+                  style: TextStyle(
+                    color: tokens.deepText,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const _DemoBadge(),
+              _SourceHeaderButton(
+                tooltip: '알림 샘플',
+                onPressed: () {},
+                glyph: _HeaderGlyph.bell,
+              ),
+              _SourceHeaderButton(
+                tooltip: '메뉴 샘플',
+                onPressed: onOpenConversationList,
+                glyph: _HeaderGlyph.more,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 28),
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double robotWidth = (MediaQuery.sizeOf(context).width * .398)
+                .clamp(136, 176);
+            return Center(
+              child: TimeFitAssetSlot(
+                kind: TimeFitAssetKind.mobileRobot,
+                width: robotWidth,
+                height: robotWidth,
+                keyName: 'mobile-home-robot-slot',
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: AppSpacing.x16),
+        Text(
+          '무엇을 도와드릴까요?',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: tokens.deepText,
+            fontSize: 30,
+            height: 1.12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.x12),
+        Text(
+          '매장 운영부터 근무, 비용, 커뮤니케이션까지\nTimeFit AX가 함께합니다.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: tokens.secondaryText, height: 1.45),
+        ),
+        const SizedBox(height: 28),
+        _ActionGrid(expanded: false, onSelected: onSelected),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+}
+
+class _ExpandedHome extends StatelessWidget {
+  const _ExpandedHome({
+    required this.recent,
+    required this.onOpenConversation,
+    required this.onOpenConversationList,
+    required this.onOpenArchive,
+    required this.onNewConversation,
+    required this.onSelected,
+    required this.draftController,
+    required this.draftFocusNode,
+  });
+
+  final ConversationListState recent;
+  final ValueChanged<String> onOpenConversation;
+  final VoidCallback onOpenConversationList;
+  final VoidCallback onOpenArchive;
+  final VoidCallback onNewConversation;
+  final ValueChanged<DemoHomeAction> onSelected;
+  final TextEditingController draftController;
+  final FocusNode draftFocusNode;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TimeFitAxVisualTokens.of(context);
+    final double width = MediaQuery.sizeOf(context).width;
+    return Row(
+      children: <Widget>[
+        SizedBox(
+          key: const Key('expanded-home-sidebar'),
+          width: width * .178,
+          child: _ExpandedNavigation(
+            recent: recent,
+            onOpenConversation: onOpenConversation,
+            onShowAll: onOpenConversationList,
+            onShowArchive: onOpenArchive,
+            onNewConversation: onNewConversation,
+          ),
+        ),
+        Expanded(
+          child: ColoredBox(
+            color: tokens.canvas,
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) =>
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 28, 20, 22),
+                    child: Column(
                       children: <Widget>[
                         Expanded(
                           child: SingleChildScrollView(
-                            primary: false,
-                            keyboardDismissBehavior:
-                                ScrollViewKeyboardDismissBehavior.onDrag,
-                            child: _HomeContent(
-                              expanded: expanded,
-                              preview: _preview,
-                              onSelected: _select,
-                              onOpenConversationList:
-                                  widget.onOpenConversationList,
-                              onNewConversation: widget.onNewConversation,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: (constraints.maxHeight - 104).clamp(
+                                  0,
+                                  double.infinity,
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  const TimeFitAssetSlot(
+                                    kind: TimeFitAssetKind.tabletSymbol,
+                                    width: 90,
+                                    height: 78,
+                                    keyName: 'expanded-home-symbol-slot',
+                                  ),
+                                  const SizedBox(height: AppSpacing.x20),
+                                  Text.rich(
+                                    TextSpan(
+                                      children: <InlineSpan>[
+                                        const TextSpan(text: '무엇을 '),
+                                        TextSpan(
+                                          text: '도와드릴까요?',
+                                          style: TextStyle(
+                                            color: tokens.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: tokens.deepText,
+                                      fontSize: 38,
+                                      height: 1.15,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.x12),
+                                  Text(
+                                    '매장 운영부터 근무, 비용, 커뮤니케이션까지',
+                                    style: TextStyle(
+                                      color: tokens.secondaryText,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 34),
+                                  _ActionGrid(
+                                    expanded: true,
+                                    onSelected: onSelected,
+                                  ),
+                                  const SizedBox(height: 32),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                        ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxHeight:
-                                (constraints.maxHeight - AppTouchTarget.minimum)
-                                    .clamp(0, double.infinity),
-                          ),
-                          child: SingleChildScrollView(
-                            primary: false,
-                            keyboardDismissBehavior:
-                                ScrollViewKeyboardDismissBehavior.onDrag,
-                            child: _QuickComposer(
-                              controller: _draft,
-                              focusNode: _draftFocus,
-                            ),
-                          ),
+                        DemoQuickComposer(
+                          controller: draftController,
+                          focusNode: draftFocusNode,
                         ),
                       ],
                     ),
+                  ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExpandedNavigation extends StatelessWidget {
+  const _ExpandedNavigation({
+    required this.recent,
+    required this.onOpenConversation,
+    required this.onShowAll,
+    required this.onShowArchive,
+    required this.onNewConversation,
+  });
+
+  final ConversationListState recent;
+  final ValueChanged<String> onOpenConversation;
+  final VoidCallback onShowAll;
+  final VoidCallback onShowArchive;
+  final VoidCallback onNewConversation;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TimeFitAxVisualTokens.of(context);
+    return ColoredBox(
+      color: tokens.sidebar,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 28, 20, 22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Center(
+              child: Column(
+                children: <Widget>[
+                  const TimeFitAssetSlot(
+                    kind: TimeFitAssetKind.squareLogo,
+                    width: 72,
+                    height: 72,
+                    keyName: 'expanded-home-logo-slot',
+                  ),
+                  const SizedBox(height: AppSpacing.x8),
+                  Text(
+                    'TimeFit AX',
+                    style: TextStyle(
+                      color: tokens.deepText,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
+            ),
+            const SizedBox(height: AppSpacing.x24),
+            FilledButton.icon(
+              onPressed: onNewConversation,
+              icon: const Icon(Icons.add),
+              label: const Text('새 대화'),
+              style: FilledButton.styleFrom(backgroundColor: tokens.primary),
+            ),
+            const SizedBox(height: AppSpacing.x24),
+            Text(
+              '최근 대화',
+              style: TextStyle(
+                color: tokens.secondaryText,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.x8),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              minTileHeight: AppTouchTarget.minimum,
+              leading: const Icon(Icons.chat_bubble_outline, size: 20),
+              title: const Text('모든 대화'),
+              onTap: onShowAll,
+            ),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: <Widget>[
+                  for (final conversation in recent.conversations.take(4))
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      leading: const Icon(Icons.chat_bubble_outline, size: 18),
+                      title: Text(
+                        conversation.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => onOpenConversation(conversation.id),
+                    ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.archive_outlined, size: 20),
+                    title: const Text('보관'),
+                    onTap: onShowArchive,
+                  ),
+                ],
+              ),
+            ),
+            const _DemoBadge(),
+            const SizedBox(height: AppSpacing.x8),
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.settings_outlined),
+              title: Text('설정'),
             ),
           ],
         ),
       ),
     );
   }
-}
-
-class _HomeContent extends StatelessWidget {
-  const _HomeContent({
-    required this.expanded,
-    required this.preview,
-    required this.onSelected,
-    required this.onOpenConversationList,
-    required this.onNewConversation,
-  });
-
-  final bool expanded;
-  final DemoHomeAction? preview;
-  final ValueChanged<DemoHomeAction> onSelected;
-  final VoidCallback onOpenConversationList;
-  final VoidCallback onNewConversation;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.all(expanded ? AppSpacing.x32 : AppSpacing.x16),
-    child: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1040),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            if (!expanded)
-              _MobileHomeHeader(onOpenConversationList: onOpenConversationList),
-            if (!expanded)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: onNewConversation,
-                  style: TextButton.styleFrom(
-                    minimumSize: const Size(0, AppTouchTarget.minimum),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  icon: const Icon(Icons.add_comment_outlined),
-                  label: const Text('새 대화 시작'),
-                ),
-              ),
-            SizedBox(height: expanded ? AppSpacing.x16 : AppSpacing.x8),
-            _HomeHero(expanded: expanded),
-            SizedBox(height: expanded ? AppSpacing.x24 : AppSpacing.x12),
-            _ActionGrid(expanded: expanded, onSelected: onSelected),
-            if (preview case final action?) ...<Widget>[
-              const SizedBox(height: AppSpacing.x16),
-              _PreviewNotice(action: action),
-            ],
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-class _MobileHomeHeader extends StatelessWidget {
-  const _MobileHomeHeader({required this.onOpenConversationList});
-
-  final VoidCallback onOpenConversationList;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: <Widget>[
-      Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.primary),
-      const SizedBox(width: AppSpacing.x8),
-      const Expanded(child: Text('TimeFit AX', style: AppTypography.cardTitle)),
-      IconButton(
-        tooltip: '알림 샘플',
-        onPressed: () {},
-        icon: const Icon(Icons.notifications_none),
-      ),
-      IconButton(
-        tooltip: '메뉴 샘플',
-        onPressed: onOpenConversationList,
-        icon: const Icon(Icons.more_vert),
-      ),
-    ],
-  );
-}
-
-class _HomeNavigation extends StatelessWidget {
-  const _HomeNavigation({
-    required this.recent,
-    required this.onOpenConversation,
-    required this.onNewConversation,
-    required this.onShowAll,
-    required this.onShowArchive,
-  });
-
-  final ConversationListState recent;
-  final ValueChanged<String> onOpenConversation;
-  final VoidCallback onNewConversation;
-  final VoidCallback onShowAll;
-  final VoidCallback onShowArchive;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 248,
-    child: Material(
-      color: Theme.of(context).colorScheme.surface,
-      child: ListView(
-        padding: const EdgeInsets.all(AppSpacing.x16),
-        children: <Widget>[
-          const ListTile(
-            leading: Icon(Icons.auto_awesome),
-            title: Text('TimeFit AX', style: AppTypography.cardTitle),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.x8),
-            child: FilledButton.icon(
-              onPressed: onNewConversation,
-              icon: const Icon(Icons.add_comment_outlined),
-              label: const Text('새 대화'),
-            ),
-          ),
-          const ListTile(leading: Icon(Icons.home_outlined), title: Text('홈')),
-          ListTile(
-            leading: const Icon(Icons.chat_outlined),
-            title: const Text('최근 대화'),
-            onTap: onShowAll,
-          ),
-          for (final conversation in recent.conversations.take(3))
-            ListTile(
-              dense: true,
-              leading: const Icon(Icons.chat_bubble_outline, size: 18),
-              title: Text(
-                conversation.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              onTap: () => onOpenConversation(conversation.id),
-            ),
-          ListTile(
-            leading: const Icon(Icons.archive_outlined),
-            title: const Text('보관'),
-            onTap: onShowArchive,
-          ),
-          const Divider(),
-          const ListTile(
-            leading: Icon(Icons.settings_outlined),
-            title: Text('설정'),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _HomeHero extends StatelessWidget {
-  const _HomeHero({required this.expanded});
-
-  final bool expanded;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    label: '임시 브랜드 이미지',
-    child: Column(
-      children: <Widget>[
-        Container(
-          width: expanded ? 72 : 80,
-          height: expanded ? 72 : 80,
-          decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.light
-                ? AppPalette.lightBrandTint
-                : AppPalette.darkBrandTint,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            expanded ? Icons.auto_awesome : Icons.smart_toy_outlined,
-            size: expanded ? 42 : 46,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.x16),
-        Text.rich(
-          TextSpan(
-            children: <InlineSpan>[
-              const TextSpan(text: '무엇을 '),
-              TextSpan(
-                text: '도와드릴까요?',
-                style: TextStyle(color: Theme.of(context).colorScheme.primary),
-              ),
-            ],
-          ),
-          textAlign: TextAlign.center,
-          style: AppTypography.hero,
-        ),
-        const SizedBox(height: AppSpacing.x4),
-        Text(
-          '매장 운영부터 근무, 비용, 커뮤니케이션까지',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: AppSpacing.x4),
-        Text(
-          '임시 이미지',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
-    ),
-  );
 }
 
 class _ActionGrid extends StatelessWidget {
@@ -347,22 +500,26 @@ class _ActionGrid extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (BuildContext context, BoxConstraints constraints) {
       final bool largeText = MediaQuery.textScalerOf(context).scale(16) >= 24;
-      final int columns = largeText
+      final int columns = largeText || (!expanded && constraints.maxWidth < 360)
           ? 1
-          : expanded && constraints.maxWidth >= 900
+          : expanded
           ? 4
           : 2;
+      final double gap = expanded ? 12 : 8;
       final double cardWidth =
-          (constraints.maxWidth - (columns - 1) * AppSpacing.x12) / columns;
+          (constraints.maxWidth - (columns - 1) * gap) / columns;
       return Wrap(
-        spacing: AppSpacing.x12,
-        runSpacing: AppSpacing.x12,
+        spacing: gap,
+        runSpacing: gap,
         children: <Widget>[
           for (final action in DemoHomeAction.values)
             SizedBox(
               width: cardWidth,
               child: _ActionCard(
                 action: action,
+                expanded: expanded,
+                largeText: largeText,
+                cardWidth: cardWidth,
                 onTap: () => onSelected(action),
               ),
             ),
@@ -373,177 +530,306 @@ class _ActionGrid extends StatelessWidget {
 }
 
 class _ActionCard extends StatelessWidget {
-  const _ActionCard({required this.action, required this.onTap});
+  const _ActionCard({
+    required this.action,
+    required this.expanded,
+    required this.largeText,
+    required this.cardWidth,
+    required this.onTap,
+  });
+
   final DemoHomeAction action;
+  final bool expanded;
+  final bool largeText;
+  final double cardWidth;
   final VoidCallback onTap;
 
+  Color _tint(TimeFitAxVisualTokens tokens) => switch (action) {
+    DemoHomeAction.storeOverview => tokens.paleBlue,
+    DemoHomeAction.weeklySchedule => tokens.mint,
+    DemoHomeAction.costAnalysis => tokens.lavender,
+    DemoHomeAction.employeeAnnouncement => tokens.orange,
+  };
+
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: '${action.label}, ${action.description}, 샘플 미리보기',
-    onTap: onTap,
-    excludeSemantics: true,
-    child: Card(
-      color: Theme.of(context).brightness == Brightness.light
-          ? Colors.white
-          : AppPalette.darkSurfaceSubtle,
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.feature),
-        side: BorderSide(
-          color: Theme.of(context).brightness == Brightness.light
-              ? AppPalette.lightBorder
-              : AppPalette.darkBorder,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.x12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) {
+    final tokens = TimeFitAxVisualTokens.of(context);
+    final Widget content = expanded
+        ? Stack(
             children: <Widget>[
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.light
-                          ? AppPalette.lightBrandTint
-                          : AppPalette.darkBrandTint,
-                      borderRadius: BorderRadius.circular(AppRadius.medium),
-                    ),
-                    child: Icon(
-                      action.icon,
-                      color: Theme.of(context).colorScheme.primary,
+                  _ActionIcon(
+                    action: action,
+                    color: _tint(tokens),
+                    square: true,
+                  ),
+                  const SizedBox(height: AppSpacing.x12),
+                  Text(action.label, style: _titleStyle(tokens)),
+                  const SizedBox(height: AppSpacing.x4),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 34),
+                    child: Text(
+                      action.description,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: tokens.secondaryText,
+                        fontSize: 10.5,
+                        height: 1.25,
+                      ),
                     ),
                   ),
-                  const Spacer(),
-                  const Icon(Icons.chevron_right, size: 22),
                 ],
               ),
-              const SizedBox(height: AppSpacing.x8),
-              Text(
-                action.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.cardTitle,
-              ),
-              Text(
-                action.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall,
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: CircleAvatar(
+                  radius: 17,
+                  backgroundColor: tokens.subtleSurface,
+                  foregroundColor: tokens.secondaryText,
+                  child: const Icon(Icons.arrow_forward, size: 18),
+                ),
               ),
             ],
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-class _PreviewNotice extends StatelessWidget {
-  const _PreviewNotice({required this.action});
-  final DemoHomeAction action;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(AppSpacing.x16),
-      child: Text('${action.label} · 합성 미리보기만 선택했습니다. 실제 업무 처리는 없습니다.'),
-    ),
-  );
-}
-
-class _QuickComposer extends StatelessWidget {
-  const _QuickComposer({required this.controller, required this.focusNode});
-  final TextEditingController controller;
-  final FocusNode focusNode;
-
-  @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.transparent,
-    child: SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: Material(
-          color: Theme.of(context).brightness == Brightness.light
-              ? Colors.white
-              : AppPalette.darkSurfaceSubtle,
-          elevation: 4,
-          shadowColor: const Color(0x24000000),
-          borderRadius: BorderRadius.circular(AppRadius.feature),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.x12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                const Text(
-                  '샘플 화면 · 입력 내용은 실제 업무 시스템에 전송되지 않습니다.',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppSpacing.x8),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.light
-                        ? AppPalette.lightSurfaceSubtle
-                        : AppPalette.darkCanvas,
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                    border: Border.all(
-                      color: Theme.of(context).brightness == Brightness.light
-                          ? AppPalette.lightBorder
-                          : AppPalette.darkBorder,
+          )
+        : Row(
+            children: <Widget>[
+              _ActionIcon(action: action, color: _tint(tokens), square: false),
+              const SizedBox(width: AppSpacing.x8),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    FittedBox(
+                      alignment: Alignment.centerLeft,
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        action.label,
+                        maxLines: 1,
+                        style: _titleStyle(tokens),
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    children: <Widget>[
-                      IconButton(
-                        tooltip: '샘플 첨부 자리',
-                        onPressed: () {},
-                        constraints: const BoxConstraints.tightFor(
-                          width: 48,
-                          height: 48,
-                        ),
-                        icon: const Icon(Icons.attach_file),
+                    const SizedBox(height: 3),
+                    Text(
+                      action.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: tokens.secondaryText,
+                        fontSize: 11.5,
+                        height: 1.35,
                       ),
-                      Expanded(
-                        child: TextField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          minLines: 1,
-                          maxLines: 5,
-                          textInputAction: TextInputAction.newline,
-                          decoration: const InputDecoration(
-                            hintText: '업무를 요청해 보세요',
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                      IconButton.filled(
-                        tooltip: '샘플 미리보기',
-                        onPressed: () {},
-                        constraints: const BoxConstraints.tightFor(
-                          width: 48,
-                          height: 48,
-                        ),
-                        icon: const Icon(Icons.arrow_upward),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+              Icon(Icons.chevron_right, color: tokens.secondaryText, size: 20),
+            ],
+          );
+    return Semantics(
+      button: true,
+      label: '${action.label}, ${action.description}, 샘플 미리보기',
+      onTap: onTap,
+      excludeSemantics: true,
+      child: SizedBox(
+        // The source cards are compact at 100%, while accessibility scaling
+        // needs enough height for the same unabridged label and description.
+        height: _height,
+        child: Material(
+          color: tokens.surface,
+          elevation: 1,
+          shadowColor: const Color(0x12071A39),
+          borderRadius: BorderRadius.circular(expanded ? 16 : 13),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(expanded ? 16 : 13),
+            child: Container(
+              padding: EdgeInsets.all(expanded ? 16 : 10),
+              decoration: BoxDecoration(
+                border: Border.all(color: tokens.border),
+                borderRadius: BorderRadius.circular(expanded ? 16 : 13),
+              ),
+              child: content,
             ),
           ),
         ),
       ),
+    );
+  }
+
+  double get _height {
+    if (expanded) return largeText ? 280 : 162;
+    if (largeText) return 170;
+    // At the 432 logical source viewport this resolves to the measured
+    // 2.15:1 card aspect. Narrower accessibility adaptations get a small
+    // content floor instead of clipping the Korean two-line descriptions.
+    if (cardWidth >= 190 && cardWidth <= 220) return cardWidth / 2.15;
+    return 98;
+  }
+
+  TextStyle _titleStyle(TimeFitAxVisualTokens tokens) => TextStyle(
+    color: tokens.deepText,
+    fontWeight: FontWeight.w700,
+    fontSize: expanded ? 16 : 13,
+  );
+}
+
+class _ActionIcon extends StatelessWidget {
+  const _ActionIcon({
+    required this.action,
+    required this.color,
+    required this.square,
+  });
+
+  final DemoHomeAction action;
+  final Color color;
+  final bool square;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: square ? 48 : 42,
+    height: square ? 48 : 42,
+    decoration: BoxDecoration(
+      color: color,
+      shape: square ? BoxShape.rectangle : BoxShape.circle,
+      borderRadius: square ? BorderRadius.circular(12) : null,
+    ),
+    child: Center(
+      child: ReconstructedHomeActionGlyph(
+        action: action,
+        color: square
+            ? TimeFitAxVisualTokens.of(context).expandedHomePrimary
+            : TimeFitAxVisualTokens.of(context).mobileHomePrimary,
+        size: square ? 25 : 23,
+      ),
     ),
   );
+}
+
+class _DemoBadge extends StatelessWidget {
+  const _DemoBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TimeFitAxVisualTokens.of(context);
+    return Semantics(
+      label: '데모 화면, 실제 업무 시스템에 연결되지 않음',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: tokens.paleBlue,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          '데모',
+          style: TextStyle(
+            color: tokens.primary,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _HeaderGlyph { bell, more }
+
+class _SourceHeaderButton extends StatelessWidget {
+  const _SourceHeaderButton({
+    required this.tooltip,
+    required this.onPressed,
+    required this.glyph,
+  });
+
+  final String tooltip;
+  final VoidCallback onPressed;
+  final _HeaderGlyph glyph;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: tooltip,
+    onPressed: onPressed,
+    icon: CustomPaint(
+      size: const Size.square(23),
+      painter: _SourceHeaderGlyphPainter(
+        glyph: glyph,
+        color: TimeFitAxVisualTokens.of(context).deepText,
+      ),
+    ),
+  );
+}
+
+final class _SourceHeaderGlyphPainter extends CustomPainter {
+  const _SourceHeaderGlyphPainter({required this.glyph, required this.color});
+  final _HeaderGlyph glyph;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (glyph == _HeaderGlyph.more) {
+      final Paint dot = Paint()..color = color;
+      for (final y in const <double>[.24, .5, .76]) {
+        canvas.drawCircle(
+          Offset(size.width * .5, size.height * y),
+          size.shortestSide * .075,
+          dot,
+        );
+      }
+      return;
+    }
+    final Paint stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.shortestSide * .075
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final Path bell = Path()
+      ..moveTo(size.width * .22, size.height * .68)
+      ..quadraticBezierTo(
+        size.width * .31,
+        size.height * .57,
+        size.width * .31,
+        size.height * .39,
+      )
+      ..quadraticBezierTo(
+        size.width * .31,
+        size.height * .16,
+        size.width * .5,
+        size.height * .16,
+      )
+      ..quadraticBezierTo(
+        size.width * .69,
+        size.height * .16,
+        size.width * .69,
+        size.height * .39,
+      )
+      ..quadraticBezierTo(
+        size.width * .69,
+        size.height * .57,
+        size.width * .78,
+        size.height * .68,
+      )
+      ..close();
+    canvas.drawPath(bell, stroke);
+    canvas.drawArc(
+      Rect.fromCenter(
+        center: Offset(size.width * .5, size.height * .67),
+        width: size.width * .25,
+        height: size.height * .25,
+      ),
+      0,
+      3.14159,
+      false,
+      stroke,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SourceHeaderGlyphPainter oldDelegate) =>
+      oldDelegate.glyph != glyph || oldDelegate.color != color;
 }

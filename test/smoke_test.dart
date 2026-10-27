@@ -30,7 +30,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('개발용 로컬 모드 · 로그인/서버 연결 없음'), findsOneWidget);
+    expect(find.text('개발용 로컬 모드 · 로그인/서버 연결 없음'), findsNothing);
+    expect(find.text('데모'), findsWidgets);
     expect(find.text('무엇을 도와드릴까요?'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());

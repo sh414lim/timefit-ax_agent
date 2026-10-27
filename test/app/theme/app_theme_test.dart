@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/app.dart';
 import 'package:timefit_native/app/bootstrap.dart';
 import 'package:timefit_native/app/theme/app_theme.dart';
+import 'package:timefit_native/app/theme/timefit_ax_visual_tokens.dart';
 import 'package:timefit_native/app/theme/tokens.dart';
 import 'package:timefit_native/src/app_environment.dart';
 
@@ -39,6 +40,14 @@ void main() {
   test('light and dark themes expose matching brightness', () {
     expect(AppTheme.light().brightness, Brightness.light);
     expect(AppTheme.dark().brightness, Brightness.dark);
+    expect(
+      AppTheme.light().extension<TimeFitAxVisualTokens>(),
+      same(TimeFitAxVisualTokens.light),
+    );
+    expect(
+      AppTheme.dark().extension<TimeFitAxVisualTokens>(),
+      same(TimeFitAxVisualTokens.dark),
+    );
   });
 
   for (final (String name, ThemeData theme) in <(String, ThemeData)>[
