@@ -31,7 +31,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('개발용 로컬 모드 · 로그인/서버 연결 없음'), findsOneWidget);
-    expect(find.text('아직 대화가 없습니다'), findsOneWidget);
+    expect(find.text('오늘 어떤 업무를 도와드릴까요?'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await _pumpUntil(tester, () => disposalComplete);
     await tester.runAsync(() => attachmentRoot.delete(recursive: true));
@@ -43,6 +43,7 @@ void main() {
     await tester.pumpWidget(
       const TimeFitBootstrapApp(environment: AppEnvironment.staging),
     );
+    await tester.pumpAndSettle();
 
     expect(find.text('TimeFit Staging'), findsOneWidget);
   });

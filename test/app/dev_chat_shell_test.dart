@@ -206,7 +206,7 @@ void main() {
         await tester.tap(find.byType(BackButton).last);
         await _settleFileIo(tester);
         await _pumpUntilFinder(tester, find.text('재시작 뒤에도 남는 메시지'));
-        expect(find.text('새 대화'), findsNWidgets(2));
+        expect(find.text('새 대화'), findsOneWidget);
         expect(find.text('재시작 뒤에도 남는 메시지'), findsOneWidget);
 
         await tester.pumpWidget(const SizedBox.shrink());
@@ -226,9 +226,10 @@ void main() {
         );
         await _settleFileIo(tester);
         await _pumpUntilFinder(tester, find.text('재시작 뒤에도 남는 메시지'));
-        expect(find.text('새 대화'), findsNWidgets(2));
+        expect(find.text('새 대화'), findsOneWidget);
         expect(find.text('재시작 뒤에도 남는 메시지'), findsOneWidget);
 
+        await tester.ensureVisible(find.byType(ConversationListRow).first);
         await tester.tap(find.byType(ConversationListRow).first);
         await _settleFileIo(tester);
         expect(find.text('재시작 뒤에도 남는 메시지'), findsOneWidget);
@@ -293,6 +294,10 @@ void main() {
         await tester.tap(find.byType(BackButton).last);
         await _settleFileIo(tester);
 
+        await tester.ensureVisible(find.text('모든 대화'));
+        await tester.tap(find.text('모든 대화'));
+        await tester.pumpAndSettle();
+
         await tester.tap(find.byTooltip('대화 메뉴'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('이름 변경'));
@@ -339,6 +344,7 @@ void main() {
         disposalComplete = false;
         await mount();
         await _pumpUntilFinder(tester, find.text('보관된 대화'));
+        await tester.ensureVisible(find.text('보관된 대화'));
         await tester.tap(find.text('보관된 대화'));
         await _settleFileIo(tester);
         expect(find.text('로컬 이름'), findsOneWidget);
@@ -461,6 +467,7 @@ void main() {
         disposalComplete = false;
         await mount();
         await _pumpUntilFinder(tester, find.byType(ConversationListRow));
+        await tester.ensureVisible(find.byType(ConversationListRow).first);
         await tester.tap(find.byType(ConversationListRow).first);
         await _settleFileIo(tester);
         await _pumpUntilFinder(tester, find.byTooltip('첨부 추가'));

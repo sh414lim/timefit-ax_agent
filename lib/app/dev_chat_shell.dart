@@ -28,6 +28,7 @@ import '../features/conversations/domain/conversation_summary.dart';
 import '../features/conversations/presentation/archived_conversation_screen.dart';
 import '../features/conversations/presentation/conversation_list_screen.dart';
 import '../features/conversations/presentation/conversation_menu.dart';
+import '../features/home/presentation/home_screen.dart';
 
 typedef DevChatDatabaseFactory = Future<AppDatabase> Function();
 typedef DevAttachmentRootFactory = Future<Directory> Function();
@@ -103,6 +104,7 @@ class _DevChatShellState extends State<DevChatShell>
   Object? _initializationError;
   bool _creatingConversation = false;
   bool _showingArchive = false;
+  bool _showingConversationList = false;
   bool _selectingAttachments = false;
   bool _disposed = false;
   int _conversationGeneration = 0;
@@ -160,6 +162,7 @@ class _DevChatShellState extends State<DevChatShell>
         _attachmentDrafts = attachmentDrafts;
         _attachmentRoot = attachmentRoot;
       });
+      unawaited(listController.load());
     } on Object catch (error) {
       if (database != null) await database.close();
       if (mounted) setState(() => _initializationError = error);
@@ -591,8 +594,20 @@ class _DevChatShellState extends State<DevChatShell>
         onOpenConversation: _openConversation,
       );
     }
+    if (!_showingConversationList) {
+      return DemoHomeScreen(
+        conversationController: controller,
+        onOpenConversation: _openConversation,
+        onOpenConversationList: () =>
+            setState(() => _showingConversationList = true),
+        onOpenArchive: () => setState(() => _showingArchive = true),
+        onNewConversation: () => unawaited(_createConversation()),
+      );
+    }
     return ConversationListScreen(
       controller: controller,
+      loadOnMount: false,
+      onBack: () => setState(() => _showingConversationList = false),
       onNewConversation: () => unawaited(_createConversation()),
       onOpenSettings: () => _showLocalNotice('설정은 로컬 개발 모드에서 비활성화되어 있습니다.'),
       onOpenArchive: () => setState(() => _showingArchive = true),

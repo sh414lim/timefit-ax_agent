@@ -14,6 +14,7 @@ class ConversationListScreen extends StatefulWidget {
     required this.onOpenSettings,
     required this.onOpenArchive,
     required this.onOpenConversation,
+    this.onBack,
     this.loadOnMount = true,
     this.currentTime,
     this.onConversationAction,
@@ -26,6 +27,7 @@ class ConversationListScreen extends StatefulWidget {
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenArchive;
   final ValueChanged<String> onOpenConversation;
+  final VoidCallback? onBack;
   final bool loadOnMount;
   final DateTime Function()? currentTime;
   final void Function(ConversationSummary, ConversationMenuAction)?
@@ -77,6 +79,9 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onBack == null
+            ? null
+            : BackButton(onPressed: widget.onBack),
         title: const Text('대화'),
         actions: <Widget>[
           Semantics(
