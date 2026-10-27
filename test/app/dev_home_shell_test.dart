@@ -64,8 +64,7 @@ void main() {
   ) async {
     final (_, disposed) = await _mount(tester);
     await tester.enterText(find.byType(TextField), 'HOME MEMORY QA');
-    await tester.ensureVisible(find.text('모든 대화'));
-    await tester.tap(find.text('모든 대화'));
+    await tester.tap(find.byTooltip('메뉴 샘플'));
     await _settle(tester);
     await tester.tap(find.byType(BackButton));
     await _settle(tester);
@@ -98,5 +97,31 @@ void main() {
       expect(tester.takeException(), isNull);
       await _unmount(tester, disposed);
     });
+  }
+
+  for (final width in <double>[320, 390, 430]) {
+    for (final height in <double>[719, 720, 721]) {
+      testWidgets(
+        '$width x $height keyboard transition uses available constraints',
+        (tester) async {
+          tester.view.devicePixelRatio = 1;
+          tester.view.physicalSize = Size(width, height);
+          tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+          tester.platformDispatcher.textScaleFactorTestValue = 2;
+          addTearDown(tester.view.reset);
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          final (_, disposed) = await _mount(tester);
+
+          await tester.showKeyboard(find.byType(TextField));
+          await tester.enterText(find.byType(TextField), '높이 경계 초안 ' * 20);
+          await tester.pump();
+
+          expect(tester.takeException(), isNull);
+          expect(find.byTooltip('샘플 첨부 자리'), findsOneWidget);
+          expect(find.byTooltip('샘플 미리보기'), findsOneWidget);
+          await _unmount(tester, disposed);
+        },
+      );
+    }
   }
 }

@@ -160,6 +160,37 @@ void main() {
     expect(find.byType(SingleChildScrollView), findsWidgets);
   });
 
+  testWidgets('320dp cards size to their default-scale content', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 700);
+    addTearDown(tester.view.reset);
+    final controller = ConversationListController(
+      repository: _Repository(const <ConversationSummary>[]),
+    );
+    await controller.load();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: DemoHomeScreen(
+          conversationController: controller,
+          onOpenConversation: (_) {},
+          onOpenConversationList: () {},
+          onOpenArchive: () {},
+          onNewConversation: () {},
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    for (final action in DemoHomeAction.values) {
+      expect(find.bySemanticsLabel(RegExp(action.label)), findsOneWidget);
+    }
+  });
+
   testWidgets('external draft survives a route-style unmount and remount', (
     tester,
   ) async {

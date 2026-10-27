@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../app/theme/tokens.dart';
 import '../../conversations/application/conversation_list_controller.dart';
-import '../../conversations/domain/conversation_summary.dart';
-import '../../conversations/presentation/widgets/conversation_list_row.dart';
 import 'demo_home_action.dart';
 
 class DemoHomeScreen extends StatefulWidget {
@@ -75,9 +73,6 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final bool expanded = MediaQuery.sizeOf(context).width >= 1024;
-    final bool keyboardConstrained =
-        View.of(context).viewInsets.bottom > 0 &&
-        MediaQuery.sizeOf(context).height < 720;
     return Scaffold(
       backgroundColor: Theme.of(context).brightness == Brightness.light
           ? AppPalette.lightCanvas
@@ -87,59 +82,49 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
           children: <Widget>[
             if (expanded)
               _HomeNavigation(
+                recent: _recent,
+                onOpenConversation: widget.onOpenConversation,
+                onNewConversation: widget.onNewConversation,
                 onShowAll: widget.onOpenConversationList,
                 onShowArchive: widget.onOpenArchive,
               ),
             Expanded(
-              child: keyboardConstrained
-                  ? SingleChildScrollView(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      child: Column(
-                        children: <Widget>[
-                          _HomeContent(
-                            expanded: expanded,
-                            preview: _preview,
-                            recent: _recent,
-                            onSelected: _select,
-                            onOpenConversation: widget.onOpenConversation,
-                            onOpenConversationList:
-                                widget.onOpenConversationList,
-                            onOpenArchive: widget.onOpenArchive,
-                            onNewConversation: widget.onNewConversation,
-                          ),
-                          _QuickComposer(
-                            controller: _draft,
-                            focusNode: _draftFocus,
-                          ),
-                        ],
-                      ),
-                    )
-                  : Column(
+              child: LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) =>
+                    Column(
                       children: <Widget>[
                         Expanded(
                           child: SingleChildScrollView(
+                            primary: false,
                             keyboardDismissBehavior:
                                 ScrollViewKeyboardDismissBehavior.onDrag,
                             child: _HomeContent(
                               expanded: expanded,
                               preview: _preview,
-                              recent: _recent,
                               onSelected: _select,
-                              onOpenConversation: widget.onOpenConversation,
                               onOpenConversationList:
                                   widget.onOpenConversationList,
-                              onOpenArchive: widget.onOpenArchive,
                               onNewConversation: widget.onNewConversation,
                             ),
                           ),
                         ),
-                        _QuickComposer(
-                          controller: _draft,
-                          focusNode: _draftFocus,
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxHeight: constraints.maxHeight,
+                          ),
+                          child: SingleChildScrollView(
+                            primary: false,
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            child: _QuickComposer(
+                              controller: _draft,
+                              focusNode: _draftFocus,
+                            ),
+                          ),
                         ),
                       ],
                     ),
+              ),
             ),
           ],
         ),
@@ -152,21 +137,15 @@ class _HomeContent extends StatelessWidget {
   const _HomeContent({
     required this.expanded,
     required this.preview,
-    required this.recent,
     required this.onSelected,
-    required this.onOpenConversation,
     required this.onOpenConversationList,
-    required this.onOpenArchive,
     required this.onNewConversation,
   });
 
   final bool expanded;
   final DemoHomeAction? preview;
-  final ConversationListState recent;
   final ValueChanged<DemoHomeAction> onSelected;
-  final ValueChanged<String> onOpenConversation;
   final VoidCallback onOpenConversationList;
-  final VoidCallback onOpenArchive;
   final VoidCallback onNewConversation;
 
   @override
@@ -178,31 +157,29 @@ class _HomeContent extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            if (!expanded) const _MobileHomeHeader(),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                onPressed: onNewConversation,
-                icon: const Icon(Icons.add_comment_outlined),
-                label: const Text('새 대화 시작'),
+            if (!expanded)
+              _MobileHomeHeader(onOpenConversationList: onOpenConversationList),
+            if (!expanded)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onNewConversation,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, AppTouchTarget.minimum),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.add_comment_outlined),
+                  label: const Text('새 대화 시작'),
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.x16),
-            const _HomeHero(),
-            const SizedBox(height: AppSpacing.x24),
+            SizedBox(height: expanded ? AppSpacing.x16 : AppSpacing.x8),
+            _HomeHero(expanded: expanded),
+            SizedBox(height: expanded ? AppSpacing.x24 : AppSpacing.x12),
             _ActionGrid(expanded: expanded, onSelected: onSelected),
             if (preview case final action?) ...<Widget>[
               const SizedBox(height: AppSpacing.x16),
               _PreviewNotice(action: action),
             ],
-            const SizedBox(height: AppSpacing.x24),
-            _RecentConversations(
-              state: recent,
-              onOpen: onOpenConversation,
-              onShowAll: onOpenConversationList,
-              onShowArchive: onOpenArchive,
-              onNewConversation: onNewConversation,
-            ),
           ],
         ),
       ),
@@ -211,7 +188,9 @@ class _HomeContent extends StatelessWidget {
 }
 
 class _MobileHomeHeader extends StatelessWidget {
-  const _MobileHomeHeader();
+  const _MobileHomeHeader({required this.onOpenConversationList});
+
+  final VoidCallback onOpenConversationList;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -226,7 +205,7 @@ class _MobileHomeHeader extends StatelessWidget {
       ),
       IconButton(
         tooltip: '메뉴 샘플',
-        onPressed: () {},
+        onPressed: onOpenConversationList,
         icon: const Icon(Icons.more_vert),
       ),
     ],
@@ -234,8 +213,17 @@ class _MobileHomeHeader extends StatelessWidget {
 }
 
 class _HomeNavigation extends StatelessWidget {
-  const _HomeNavigation({required this.onShowAll, required this.onShowArchive});
+  const _HomeNavigation({
+    required this.recent,
+    required this.onOpenConversation,
+    required this.onNewConversation,
+    required this.onShowAll,
+    required this.onShowArchive,
+  });
 
+  final ConversationListState recent;
+  final ValueChanged<String> onOpenConversation;
+  final VoidCallback onNewConversation;
   final VoidCallback onShowAll;
   final VoidCallback onShowArchive;
 
@@ -251,10 +239,13 @@ class _HomeNavigation extends StatelessWidget {
             leading: Icon(Icons.auto_awesome),
             title: Text('TimeFit AX', style: AppTypography.cardTitle),
           ),
-          ListTile(
-            leading: const Icon(Icons.add_comment_outlined),
-            title: const Text('로컬 새 대화'),
-            onTap: onShowAll,
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.x8),
+            child: FilledButton.icon(
+              onPressed: onNewConversation,
+              icon: const Icon(Icons.add_comment_outlined),
+              label: const Text('새 대화'),
+            ),
           ),
           const ListTile(leading: Icon(Icons.home_outlined), title: Text('홈')),
           ListTile(
@@ -262,6 +253,17 @@ class _HomeNavigation extends StatelessWidget {
             title: const Text('최근 대화'),
             onTap: onShowAll,
           ),
+          for (final conversation in recent.conversations.take(3))
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.chat_bubble_outline, size: 18),
+              title: Text(
+                conversation.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () => onOpenConversation(conversation.id),
+            ),
           ListTile(
             leading: const Icon(Icons.archive_outlined),
             title: const Text('보관'),
@@ -279,7 +281,9 @@ class _HomeNavigation extends StatelessWidget {
 }
 
 class _HomeHero extends StatelessWidget {
-  const _HomeHero();
+  const _HomeHero({required this.expanded});
+
+  final bool expanded;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -287,17 +291,31 @@ class _HomeHero extends StatelessWidget {
     child: Column(
       children: <Widget>[
         Container(
-          width: 64,
-          height: 64,
+          width: expanded ? 72 : 80,
+          height: expanded ? 72 : 80,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(AppRadius.hero),
+            color: Theme.of(context).brightness == Brightness.light
+                ? AppPalette.lightBrandTint
+                : AppPalette.darkBrandTint,
+            shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.smart_toy_outlined, size: 38),
+          child: Icon(
+            expanded ? Icons.auto_awesome : Icons.smart_toy_outlined,
+            size: expanded ? 42 : 46,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ),
         const SizedBox(height: AppSpacing.x16),
-        const Text(
-          '무엇을 도와드릴까요?',
+        Text.rich(
+          TextSpan(
+            children: <InlineSpan>[
+              const TextSpan(text: '무엇을 '),
+              TextSpan(
+                text: '도와드릴까요?',
+                style: TextStyle(color: Theme.of(context).colorScheme.primary),
+              ),
+            ],
+          ),
           textAlign: TextAlign.center,
           style: AppTypography.hero,
         ),
@@ -309,7 +327,7 @@ class _HomeHero extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.x4),
         Text(
-          '임시 vector 이미지 · 정식 로고와 로봇 자산은 아직 적용되지 않았습니다.',
+          '임시 이미지',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodySmall,
         ),
@@ -332,20 +350,20 @@ class _ActionGrid extends StatelessWidget {
           : expanded && constraints.maxWidth >= 900
           ? 4
           : 2;
-      return GridView.count(
-        crossAxisCount: columns,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: AppSpacing.x12,
-        mainAxisSpacing: AppSpacing.x12,
-        childAspectRatio: columns == 1
-            ? 0.95
-            : columns == 4
-            ? 1.25
-            : 1.35,
+      final double cardWidth =
+          (constraints.maxWidth - (columns - 1) * AppSpacing.x12) / columns;
+      return Wrap(
+        spacing: AppSpacing.x12,
+        runSpacing: AppSpacing.x12,
         children: <Widget>[
           for (final action in DemoHomeAction.values)
-            _ActionCard(action: action, onTap: () => onSelected(action)),
+            SizedBox(
+              width: cardWidth,
+              child: _ActionCard(
+                action: action,
+                onTap: () => onSelected(action),
+              ),
+            ),
         ],
       );
     },
@@ -364,7 +382,9 @@ class _ActionCard extends StatelessWidget {
     onTap: onTap,
     excludeSemantics: true,
     child: Card(
-      color: Theme.of(context).colorScheme.surface,
+      color: Theme.of(context).brightness == Brightness.light
+          ? Colors.white
+          : AppPalette.darkSurfaceSubtle,
       elevation: 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.feature),
@@ -378,20 +398,32 @@ class _ActionCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.x8),
+          padding: const EdgeInsets.all(AppSpacing.x12),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(AppRadius.medium),
-                ),
-                child: Icon(action.icon),
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.light
+                          ? AppPalette.lightBrandTint
+                          : AppPalette.darkBrandTint,
+                      borderRadius: BorderRadius.circular(AppRadius.medium),
+                    ),
+                    child: Icon(
+                      action.icon,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.chevron_right, size: 22),
+                ],
               ),
-              const SizedBox(height: AppSpacing.x4),
+              const SizedBox(height: AppSpacing.x8),
               Text(
                 action.label,
                 maxLines: 1,
@@ -400,8 +432,9 @@ class _ActionCard extends StatelessWidget {
               ),
               Text(
                 action.description,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
           ),
@@ -424,57 +457,6 @@ class _PreviewNotice extends StatelessWidget {
   );
 }
 
-class _RecentConversations extends StatelessWidget {
-  const _RecentConversations({
-    required this.state,
-    required this.onOpen,
-    required this.onShowAll,
-    required this.onShowArchive,
-    required this.onNewConversation,
-  });
-  final ConversationListState state;
-  final ValueChanged<String> onOpen;
-  final VoidCallback onShowAll;
-  final VoidCallback onShowArchive;
-  final VoidCallback onNewConversation;
-
-  @override
-  Widget build(BuildContext context) {
-    final List<ConversationSummary> recent = state.conversations
-        .take(3)
-        .toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Text('최근 대화', style: Theme.of(context).textTheme.titleLarge),
-        Wrap(
-          alignment: WrapAlignment.end,
-          children: <Widget>[
-            TextButton(onPressed: onShowArchive, child: const Text('보관된 대화')),
-            TextButton(onPressed: onShowAll, child: const Text('모든 대화')),
-          ],
-        ),
-        if (state.phase == ConversationListPhase.loading)
-          const LinearProgressIndicator()
-        else if (state.phase == ConversationListPhase.error)
-          const Text('최근 대화를 표시하지 못했습니다.')
-        else if (recent.isEmpty)
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[Text('저장된 로컬 대화가 없습니다.')],
-          )
-        else
-          for (final conversation in recent)
-            ConversationListRow(
-              conversation: conversation,
-              updatedAtLabel: '이 기기에 저장됨',
-              onTap: () => onOpen(conversation.id),
-            ),
-      ],
-    );
-  }
-}
-
 class _QuickComposer extends StatelessWidget {
   const _QuickComposer({required this.controller, required this.focusNode});
   final TextEditingController controller;
@@ -482,72 +464,82 @@ class _QuickComposer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: Theme.of(context).colorScheme.surface,
+    color: Colors.transparent,
     child: SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            const Text(
-              '샘플 화면 · 입력 내용은 실제 업무 시스템에 전송되지 않습니다.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppSpacing.x8),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-                border: Border.all(
-                  color: Theme.of(context).brightness == Brightness.light
-                      ? AppPalette.lightBorder
-                      : AppPalette.darkBorder,
+        child: Material(
+          color: Theme.of(context).brightness == Brightness.light
+              ? Colors.white
+              : AppPalette.darkSurfaceSubtle,
+          elevation: 4,
+          shadowColor: const Color(0x24000000),
+          borderRadius: BorderRadius.circular(AppRadius.feature),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.x12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                const Text(
+                  '샘플 화면 · 입력 내용은 실제 업무 시스템에 전송되지 않습니다.',
+                  textAlign: TextAlign.center,
                 ),
-                boxShadow: const <BoxShadow>[
-                  BoxShadow(color: Color(0x12000000), blurRadius: 8),
-                ],
-              ),
-              child: Row(
-                children: <Widget>[
-                  IconButton(
-                    tooltip: '샘플 첨부 자리',
-                    onPressed: () {},
-                    constraints: const BoxConstraints.tightFor(
-                      width: 48,
-                      height: 48,
+                const SizedBox(height: AppSpacing.x8),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.light
+                        ? AppPalette.lightSurfaceSubtle
+                        : AppPalette.darkCanvas,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                    border: Border.all(
+                      color: Theme.of(context).brightness == Brightness.light
+                          ? AppPalette.lightBorder
+                          : AppPalette.darkBorder,
                     ),
-                    icon: const Icon(Icons.attach_file),
                   ),
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      minLines: 1,
-                      maxLines: 5,
-                      textInputAction: TextInputAction.newline,
-                      decoration: const InputDecoration(
-                        hintText: '업무를 요청해 보세요',
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
+                  child: Row(
+                    children: <Widget>[
+                      IconButton(
+                        tooltip: '샘플 첨부 자리',
+                        onPressed: () {},
+                        constraints: const BoxConstraints.tightFor(
+                          width: 48,
+                          height: 48,
+                        ),
+                        icon: const Icon(Icons.attach_file),
                       ),
-                    ),
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          minLines: 1,
+                          maxLines: 5,
+                          textInputAction: TextInputAction.newline,
+                          decoration: const InputDecoration(
+                            hintText: '업무를 요청해 보세요',
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                          ),
+                        ),
+                      ),
+                      IconButton.filled(
+                        tooltip: '샘플 미리보기',
+                        onPressed: () {},
+                        constraints: const BoxConstraints.tightFor(
+                          width: 48,
+                          height: 48,
+                        ),
+                        icon: const Icon(Icons.arrow_upward),
+                      ),
+                    ],
                   ),
-                  IconButton.filled(
-                    tooltip: '샘플 미리보기',
-                    onPressed: () {},
-                    constraints: const BoxConstraints.tightFor(
-                      width: 48,
-                      height: 48,
-                    ),
-                    icon: const Icon(Icons.arrow_upward),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     ),
