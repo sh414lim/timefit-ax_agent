@@ -19,6 +19,7 @@ class DemoBusinessPreviewScreen extends StatelessWidget {
     required this.draftController,
     required this.draftFocusNode,
     this.isApprovalPreview = false,
+    this.composerKey,
     super.key,
   });
 
@@ -28,6 +29,7 @@ class DemoBusinessPreviewScreen extends StatelessWidget {
     required this.onBack,
     required this.draftController,
     required this.draftFocusNode,
+    this.composerKey,
     super.key,
   }) : action = DemoHomeAction.storeOverview,
        isApprovalPreview = true;
@@ -36,6 +38,7 @@ class DemoBusinessPreviewScreen extends StatelessWidget {
   final VoidCallback onBack;
   final TextEditingController draftController;
   final FocusNode draftFocusNode;
+  final Key? composerKey;
   final bool isApprovalPreview;
 
   WorkflowResultKind get _kind {
@@ -71,6 +74,7 @@ class DemoBusinessPreviewScreen extends StatelessWidget {
               onBack: onBack,
               draftController: draftController,
               draftFocusNode: draftFocusNode,
+              composerKey: composerKey,
               isApprovalPreview: isApprovalPreview,
             )
           : _MobilePreview(
@@ -80,6 +84,7 @@ class DemoBusinessPreviewScreen extends StatelessWidget {
               onBack: onBack,
               draftController: draftController,
               draftFocusNode: draftFocusNode,
+              composerKey: composerKey,
               isApprovalPreview: isApprovalPreview,
             ),
     );
@@ -94,6 +99,7 @@ class _MobilePreview extends StatelessWidget {
     required this.onBack,
     required this.draftController,
     required this.draftFocusNode,
+    required this.composerKey,
     required this.isApprovalPreview,
   });
 
@@ -103,6 +109,7 @@ class _MobilePreview extends StatelessWidget {
   final VoidCallback onBack;
   final TextEditingController draftController;
   final FocusNode draftFocusNode;
+  final Key? composerKey;
   final bool isApprovalPreview;
 
   @override
@@ -165,6 +172,7 @@ class _MobilePreview extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
                   child: DemoQuickComposer(
+                    key: composerKey,
                     controller: draftController,
                     focusNode: draftFocusNode,
                     placeholder: isApprovalPreview
@@ -191,6 +199,7 @@ class _ExpandedPreview extends StatelessWidget {
     required this.onBack,
     required this.draftController,
     required this.draftFocusNode,
+    required this.composerKey,
     required this.isApprovalPreview,
   });
 
@@ -200,6 +209,7 @@ class _ExpandedPreview extends StatelessWidget {
   final VoidCallback onBack;
   final TextEditingController draftController;
   final FocusNode draftFocusNode;
+  final Key? composerKey;
   final bool isApprovalPreview;
 
   @override
@@ -213,6 +223,7 @@ class _ExpandedPreview extends StatelessWidget {
       action: action,
       draftController: draftController,
       draftFocusNode: draftFocusNode,
+      composerKey: composerKey,
       isApprovalPreview: isApprovalPreview,
     );
     final Widget result = ColoredBox(
@@ -523,11 +534,13 @@ class _ExpandedChat extends StatelessWidget {
     required this.action,
     required this.draftController,
     required this.draftFocusNode,
+    required this.composerKey,
     required this.isApprovalPreview,
   });
   final DemoHomeAction action;
   final TextEditingController draftController;
   final FocusNode draftFocusNode;
+  final Key? composerKey;
   final bool isApprovalPreview;
 
   @override
@@ -575,6 +588,7 @@ class _ExpandedChat extends StatelessWidget {
             ),
           ),
           DemoQuickComposer(
+            key: composerKey,
             controller: draftController,
             focusNode: draftFocusNode,
             placeholder: isApprovalPreview

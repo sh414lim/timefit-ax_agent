@@ -40,6 +40,9 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
   late final TextEditingController _draft =
       widget.draftController ?? TextEditingController();
   late final FocusNode _draftFocus = widget.draftFocusNode ?? FocusNode();
+  // One mounted editor moves with the presentation. Keeping only its controller
+  // and FocusNode would dispose EditableText and close the platform IME client.
+  final GlobalKey _composerKey = GlobalKey(debugLabel: 'demo-home-composer');
   DemoHomeAction? _preview;
 
   @override
@@ -96,12 +99,14 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
                           onSelected: _select,
                           draftController: _draft,
                           draftFocusNode: _draftFocus,
+                          composerKey: _composerKey,
                         )
                       : _MobileHome(
                           onOpenConversationList: widget.onOpenConversationList,
                           onSelected: _select,
                           draftController: _draft,
                           draftFocusNode: _draftFocus,
+                          composerKey: _composerKey,
                         );
                 },
               ),
@@ -111,6 +116,7 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
               onBack: () => setState(() => _preview = null),
               draftController: _draft,
               draftFocusNode: _draftFocus,
+              composerKey: _composerKey,
             ),
     );
   }
@@ -122,12 +128,14 @@ class _MobileHome extends StatelessWidget {
     required this.onSelected,
     required this.draftController,
     required this.draftFocusNode,
+    required this.composerKey,
   });
 
   final VoidCallback onOpenConversationList;
   final ValueChanged<DemoHomeAction> onSelected;
   final TextEditingController draftController;
   final FocusNode draftFocusNode;
+  final Key composerKey;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -157,6 +165,7 @@ class _MobileHome extends StatelessWidget {
                 primary: false,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: DemoQuickComposer(
+                  key: composerKey,
                   controller: draftController,
                   focusNode: draftFocusNode,
                 ),
@@ -275,6 +284,7 @@ class _ExpandedHome extends StatelessWidget {
     required this.onSelected,
     required this.draftController,
     required this.draftFocusNode,
+    required this.composerKey,
   });
 
   final ConversationListState recent;
@@ -285,6 +295,7 @@ class _ExpandedHome extends StatelessWidget {
   final ValueChanged<DemoHomeAction> onSelected;
   final TextEditingController draftController;
   final FocusNode draftFocusNode;
+  final Key composerKey;
 
   @override
   Widget build(BuildContext context) {
@@ -371,6 +382,7 @@ class _ExpandedHome extends StatelessWidget {
                           ),
                         ),
                         DemoQuickComposer(
+                          key: composerKey,
                           controller: draftController,
                           focusNode: draftFocusNode,
                         ),
