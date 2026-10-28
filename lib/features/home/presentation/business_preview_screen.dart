@@ -107,51 +107,78 @@ class _MobilePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SafeArea(
-    child: Column(
-      children: <Widget>[
-        _MobileHeader(
-          title: _previewTitle(action, isApprovalPreview),
-          onBack: onBack,
-        ),
-        Expanded(
-          child: ListView(
-            key: const Key('mobile-workflow-scroll'),
-            cacheExtent: 1200,
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-            children: <Widget>[
-              _ConversationExcerpt(
-                action: action,
-                isApprovalPreview: isApprovalPreview,
-                compact: true,
-              ),
-              const SizedBox(height: AppSpacing.x8),
-              _WorkflowResult(
-                kind: kind,
-                style: style,
-                assetBuilder: _workflowAssetBuilder,
-                landscape: false,
-                compact: true,
-              ),
-              _PostResultConversation(
-                action: action,
-                isApprovalPreview: isApprovalPreview,
-                compact: true,
-              ),
-            ],
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        const headerHeight = 56.0;
+        const resultViewport = AppTouchTarget.minimum;
+        const composerPadding = 14.0;
+        final inputMinimum = DemoQuickComposer.minimumInputViewportHeight(
+          context,
+        );
+        // Retain the source layout at normal heights. If the keyboard leaves
+        // less than one scaled line, a 44dp result viewport and the header,
+        // scroll the bounded shell instead of overflowing or shrinking text.
+        final bodyHeight = constraints.maxHeight.clamp(
+          headerHeight + resultViewport + inputMinimum + composerPadding,
+          double.infinity,
+        );
+        final inputMaximum =
+            bodyHeight - headerHeight - resultViewport - composerPadding;
+        return SingleChildScrollView(
+          key: const Key('mobile-preview-viewport-scroll'),
+          primary: false,
+          child: SizedBox(
+            height: bodyHeight,
+            child: Column(
+              children: <Widget>[
+                _MobileHeader(
+                  title: _previewTitle(action, isApprovalPreview),
+                  onBack: onBack,
+                ),
+                Expanded(
+                  child: ListView(
+                    key: const Key('mobile-workflow-scroll'),
+                    cacheExtent: 1200,
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+                    children: <Widget>[
+                      _ConversationExcerpt(
+                        action: action,
+                        isApprovalPreview: isApprovalPreview,
+                        compact: true,
+                      ),
+                      const SizedBox(height: AppSpacing.x8),
+                      _WorkflowResult(
+                        kind: kind,
+                        style: style,
+                        assetBuilder: _workflowAssetBuilder,
+                        landscape: false,
+                        compact: true,
+                      ),
+                      _PostResultConversation(
+                        action: action,
+                        isApprovalPreview: isApprovalPreview,
+                        compact: true,
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                  child: DemoQuickComposer(
+                    controller: draftController,
+                    focusNode: draftFocusNode,
+                    placeholder: isApprovalPreview
+                        ? '승인 요청에 대해 질문하세요'
+                        : action.composerPlaceholder,
+                    variant: _composerVariant(action, isApprovalPreview),
+                    inputMaxHeight: inputMaximum,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-          child: DemoQuickComposer(
-            controller: draftController,
-            focusNode: draftFocusNode,
-            placeholder: isApprovalPreview
-                ? '승인 요청에 대해 질문하세요'
-                : action.composerPlaceholder,
-            variant: _composerVariant(action, isApprovalPreview),
-          ),
-        ),
-      ],
+        );
+      },
     ),
   );
 }
@@ -239,6 +266,7 @@ class _MobileHeader extends StatelessWidget {
           child: IconButton(
             tooltip: '홈으로 돌아가기',
             onPressed: onBack,
+            constraints: const BoxConstraints.tightFor(width: 44, height: 44),
             icon: const Icon(Icons.arrow_back),
           ),
         ),

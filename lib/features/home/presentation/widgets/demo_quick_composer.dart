@@ -11,6 +11,7 @@ class DemoQuickComposer extends StatelessWidget {
     required this.focusNode,
     this.placeholder = 'TimeFit에게 물어보세요',
     this.variant = DemoComposerVariant.home,
+    this.inputMaxHeight,
     super.key,
   });
 
@@ -18,6 +19,29 @@ class DemoQuickComposer extends StatelessWidget {
   final FocusNode focusNode;
   final String placeholder;
   final DemoComposerVariant variant;
+
+  /// A viewport bound, not a line or text-length limit. Return, selection and
+  /// composing text keep the same TextField state when the keyboard changes.
+  final double? inputMaxHeight;
+
+  static double minimumInputViewportHeight(BuildContext context) {
+    final theme = Theme.of(context);
+    final painter = TextPainter(
+      text: TextSpan(
+        text: '가Ag',
+        style: theme.useMaterial3
+            ? theme.textTheme.bodyLarge
+            : theme.textTheme.titleMedium,
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      locale: Localizations.maybeLocaleOf(context),
+    )..layout();
+    final height = painter.height + AppSpacing.x12 * 2;
+    painter.dispose();
+    // Keep both a complete scaled input line and the existing touch targets.
+    return height.clamp(62, double.infinity);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,22 +66,25 @@ class DemoQuickComposer extends StatelessWidget {
         ? tokens.secondaryText
         : Colors.white;
     final bool separated = variant == DemoComposerVariant.approval;
-    final Widget input = TextField(
-      controller: controller,
-      focusNode: focusNode,
-      minLines: 1,
-      maxLines: 5,
-      textInputAction: TextInputAction.newline,
-      decoration: InputDecoration(
-        hintText: placeholder,
-        hintStyle: TextStyle(color: tokens.secondaryText),
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.x12,
-          vertical: AppSpacing.x12,
+    final Widget input = ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: inputMaxHeight ?? double.infinity),
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        minLines: 1,
+        maxLines: 5,
+        textInputAction: TextInputAction.newline,
+        decoration: InputDecoration(
+          hintText: placeholder,
+          hintStyle: TextStyle(color: tokens.secondaryText),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.x12,
+            vertical: AppSpacing.x12,
+          ),
         ),
       ),
     );
