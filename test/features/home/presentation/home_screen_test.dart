@@ -549,6 +549,142 @@ void main() {
     );
   }
 
+  testWidgets('mobile Home cards preserve source-scaled icon and copy size', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(432, 900);
+    addTearDown(tester.view.reset);
+    final controller = ConversationListController(
+      repository: _Repository(const <ConversationSummary>[]),
+    );
+    await controller.load();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: DemoHomeScreen(
+          conversationController: controller,
+          onOpenConversation: (_) {},
+          onOpenConversationList: () {},
+          onOpenArchive: () {},
+          onNewConversation: () {},
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSize(
+        find.byKey(const Key('home-action-icon-field-storeOverview')),
+      ),
+      const Size.square(48),
+    );
+    final Text description = tester.widget<Text>(
+      find.byKey(const Key('home-action-description-storeOverview')),
+    );
+    expect(description.style!.fontSize, 9.5);
+    final Text title = tester.widget<Text>(find.text('오늘 매장 현황'));
+    expect(title.style!.fontSize, 12.5);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'expanded store analysis preserves source conversation and questions',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1366, 768);
+      addTearDown(tester.view.reset);
+      final draft = TextEditingController();
+      final focus = FocusNode();
+      addTearDown(draft.dispose);
+      addTearDown(focus.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: DemoBusinessPreviewScreen(
+            action: DemoHomeAction.storeOverview,
+            onBack: () {},
+            draftController: draft,
+            draftFocusNode: focus,
+          ),
+        ),
+      );
+
+      expect(find.text('매장 분석'), findsOneWidget);
+      expect(find.text('오늘 매장 운영 상황을 한눈에 보여줘.'), findsOneWidget);
+      expect(find.text('매출과 인건비를 분석했어요.'), findsOneWidget);
+      expect(find.textContaining('오늘은 전반적으로 안정적인 운영 흐름을'), findsOneWidget);
+      for (final String question in const <String>[
+        '어제와 비교해서 어떤가요',
+        '시간대별 상세 매출을 보여줘',
+        '인건비를 더 줄일 수 있는 방법이 있을까',
+        '인기 메뉴 순위를 알려줘',
+      ]) {
+        expect(find.text(question), findsOneWidget);
+      }
+      expect(
+        find.byKey(const Key('expanded-analysis-suggestion-list')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('expanded notice and approval keep their follow-up guidance', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1366, 768);
+    addTearDown(tester.view.reset);
+    final draft = TextEditingController();
+    final focus = FocusNode();
+    addTearDown(draft.dispose);
+    addTearDown(focus.dispose);
+
+    Future<void> pump(Widget preview) =>
+        tester.pumpWidget(MaterialApp(theme: AppTheme.light(), home: preview));
+
+    await pump(
+      DemoBusinessPreviewScreen(
+        action: DemoHomeAction.employeeAnnouncement,
+        onBack: () {},
+        draftController: draft,
+        draftFocusNode: focus,
+      ),
+    );
+    expect(
+      find.byKey(const Key('notice-final-assistant-bubble')),
+      findsOneWidget,
+    );
+
+    await pump(
+      DemoBusinessPreviewScreen.approvals(
+        onBack: () {},
+        draftController: draft,
+        draftFocusNode: focus,
+      ),
+    );
+    expect(
+      find.byKey(const Key('approval-final-assistant-bubble')),
+      findsOneWidget,
+    );
+    final List<Color?> roleColors =
+        <String>[
+          'workflow-workflow.approval.leave',
+          'workflow-workflow.approval.shift',
+          'workflow-workflow.approval.receipt',
+        ].map((String key) {
+          final Container field = tester.widget<Container>(
+            find.byKey(Key(key)),
+          );
+          return (field.decoration! as BoxDecoration).color;
+        }).toList();
+    expect(roleColors.toSet(), hasLength(3));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('workflow screens preserve source-specific composer variants', (
     tester,
   ) async {
@@ -749,10 +885,10 @@ void main() {
       (await pump(const Size(1366, 768), approval: true)).variant,
       DemoComposerVariant.home,
     );
-    expect(find.text('피크 시간 보기'), findsNothing);
+    expect(find.text('시간대별 상세 매출을 보여줘'), findsNothing);
     await pump(const Size(1366, 768), action: DemoHomeAction.storeOverview);
-    expect(find.text('피크 시간 보기'), findsOneWidget);
-    expect(find.text('인건비 확인'), findsOneWidget);
+    expect(find.text('시간대별 상세 매출을 보여줘'), findsOneWidget);
+    expect(find.text('인건비를 더 줄일 수 있는 방법이 있을까'), findsOneWidget);
   });
 
   testWidgets('approval send plane remains inside its source field', (

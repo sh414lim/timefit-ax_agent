@@ -43,6 +43,9 @@ void main() {
       expect(find.textContaining('근무 변경'), findsOneWidget);
       expect(find.textContaining('영수증 확인'), findsOneWidget);
       expect(find.byType(Switch), findsOneWidget);
+      expect(find.byKey(const Key('approval-deadline-pill')), findsOneWidget);
+      expect(find.byKey(const Key('approval-deadline-clock')), findsOneWidget);
+      expect(find.textContaining('◷'), findsNothing);
       final SemanticsData approve = tester
           .getSemantics(find.bySemanticsLabel(RegExp('승인 미리보기')).first)
           .getSemanticsData();
@@ -97,6 +100,9 @@ void main() {
     expect(sales / labour, closeTo(268 / 220, .02));
     expect(people / labour, closeTo(225 / 220, .02));
     expect(find.byKey(const Key('analytics-kpi-comparison-매출')), findsNothing);
+    expect(find.byKey(const Key('analytics-kpi-glyph-매출')), findsNothing);
+    expect(find.byKey(const Key('analytics-kpi-glyph-인건비율')), findsNothing);
+    expect(find.byKey(const Key('analytics-kpi-glyph-근무 인원')), findsNothing);
   });
 
   testWidgets('landscape analytics keeps labeled source peaks', (tester) async {
@@ -114,6 +120,9 @@ void main() {
       find.byKey(const Key('analytics-kpi-comparison-매출')),
       findsOneWidget,
     );
+    expect(find.byKey(const Key('analytics-kpi-glyph-매출')), findsOneWidget);
+    expect(find.byKey(const Key('analytics-kpi-glyph-인건비율')), findsOneWidget);
+    expect(find.byKey(const Key('analytics-kpi-glyph-근무 인원')), findsOneWidget);
     expect(
       tester
           .getSemantics(find.bySemanticsLabel(RegExp('시간대별 매출 차트.*단위 원')))

@@ -4,6 +4,8 @@ Original tracking baseline: `712e5136aa39b43048abfbaf69190405b0f98c02`
 
 Current correction baseline: `5dc2dafa5bd3157a32709cd2f75fce0a7ee5e39d`
 
+Follow-up correction base: `0c3364cf416f14fa92b7a00848a3b7bb2ad65327`
+
 Sources reviewed directly in the signed-in Library viewer:
 
 - mobile Home, approval, notice, and analytics PNG/JPEG reference pairs;
@@ -25,7 +27,7 @@ one-frame composition failures without changing the demo-only data boundary:
   insight/chips, schedule actions, and approval automation/confirmation above
   the composer in the supplied `402x874` frame;
 - mobile analytics retains a saturated outgoing bubble and plain unequal KPI
-  tiles, while expanded analytics uses a pale outgoing bubble, desktop KPI
+  tiles without role glyphs, while expanded analytics uses a pale outgoing bubble, desktop KPI
   comparisons, paperclip composer, and four source question chips;
 - expanded approval uses the paperclip/filled-send composer. The mobile
   approval plus remains outside its pale input field while the plane is now
@@ -38,9 +40,11 @@ one-frame composition failures without changing the demo-only data boundary:
   height rather than one fixed cutoff.
 
 These are local structural corrections, not a visual-acceptance claim. The
-expanded analysis second four-line AI bubble is still open because its exact
-source copy is unavailable and is not invented. Original logo, robot, glyph
-and font exports remain unavailable; reconstructed assets remain comparison
+follow-up branch uses the measurement catalogue's explicitly labelled
+estimated viewer transcription for the expanded analysis explanation and four
+questions. It is regression-tested as a presentation candidate, but remains
+subject to direct source-byte confirmation. Original logo, robot, glyph and
+font exports remain unavailable; reconstructed assets remain comparison
 targets rather than exemptions.
 
 ### Evidence correction
@@ -73,7 +77,7 @@ meaning from the source review.
 | M_HOME hero field | implemented, pending visual QA | Uses a stronger radial falloff instead of a flat ellipse; final falloff and aspect still need new capture comparison. |
 | M_HOME robot silhouette | implemented, pending visual QA | Head/bezel/face, eyes, ears, antenna, rays, speech-tail torso and independently sized chest mark are reconstructed. |
 | M_HOME action grid | partial, pending visual QA | Source-density two-column cards remain. The block is placed from available height and retains responsive one-column adaptation, but exact source glyph/text scale remains open. |
-| M_HOME card copy | functional regression closed, fidelity open | Width 402 and 432 regressions assert all four `RenderParagraph`s do not exceed two lines. The current small type is not treated as source typography approval. |
+| M_HOME card copy | functional regression closed, fidelity open | Width 402 and 432 regressions assert all four `RenderParagraph`s do not exceed their responsive three-line bound. Mobile fields are 44/48dp and copy is 12.5/9.5dp while the 2.15:1 source card ratio remains fixed. These measured approximations are not source typography approval. |
 | M_HOME mobile tile colour | implemented | All four mobile fields are pale blue with blue glyphs. |
 | M_HOME quick-action paths | partial, pending visual QA | Controlled bar/calendar/database/document-pen painters remain; exact path overlay is blocked. |
 | M_HOME composer gap | implemented, pending visual QA | Available-height rhythm brings cards and composer together without a fixed height cutoff. Final same-aspect anchors still require a new capture. |
@@ -84,12 +88,12 @@ meaning from the source review.
 | M_NOTICE result card density | implemented, pending visual QA | Compact mobile presentation keeps both actions and the final confirmation above the composer at the source-height fixture. Exact source bbox density still needs capture review. |
 | M_NOTICE final assistant bubble | implemented | Confirmation bubble and timestamp are restored before the composer. |
 | M_NOTICE composer variant | implemented | Paperclip with pale-blue send treatment. |
-| M_APPROVAL current screen | pending visual QA | Component exists; no general Home route is invented. |
+| M_APPROVAL current screen | pending visual QA | Component exists; no general Home route is invented. Role fields now preserve orange/mint/lavender separation and the due state uses a clock pill. A component-only Simulator capture is still required and must be labelled as such. |
 | M_APPROVAL composer variant | implemented | Plus remains outside the pale field; the unfilled grey plane is now inside the text field as in the mobile source. |
 | M_ANALYSIS outgoing bubble | implemented | Saturated blue surface and white text. |
 | M_ANALYSIS assistant avatar | implemented | TimeFit mark and timestamp. |
 | M_ANALYSIS result density | implemented, pending visual QA | Compact result keeps insight and both mobile chips above the composer at the source-height fixture. Exact source bbox density needs capture review. |
-| M_ANALYSIS KPI widths | implemented | Mobile keeps unequal 268/220/225 proportions without desktop role/comparison pills; landscape keeps separate 221/210/212 anatomy. |
+| M_ANALYSIS KPI widths | implemented | Mobile keeps unequal 268/220/225 proportions without desktop role glyphs or comparison pills; landscape keeps role glyphs, comparison pills, and separate 221/210/212 anatomy. |
 | M_ANALYSIS chart anatomy | implemented | Unit, axes, labels, smooth curve, area fill, dots and two peak callouts. Expanded semantics use raw won and labelled peak anchors match the 800,000-won axis. |
 | M_ANALYSIS insight/chips | implemented, pending visual QA | Sparkle, divider, supporting copy, timestamp and both suggestion chips are in the initial source-height composition. |
 | M_ANALYSIS composer variant | implemented | Plus leading control with filled blue send. |
@@ -101,7 +105,7 @@ meaning from the source review.
 | L_HOME sidebar | partial | Existing recent conversation data/navigation remains; source-only sample rows are not written to Drift. |
 | L_HOME free mark | implemented, pending visual QA | Uses the same reconstructed mark family without a square. |
 | L_HOME tile variants | implemented | Blue/green/purple/orange fields and role-specific glyph colours are separated from mobile. |
-| L_ANALYSIS shell details | partial | Selected/recent rows, timestamps, pale outgoing bubble and all four question chips are present. The second four-line AI explanation remains open because its exact source copy has not been recovered. |
+| L_ANALYSIS shell details | implemented candidate, pending visual QA | The title is `매장 분석`; selected/recent rows, timestamps, pale outgoing bubble, a second detailed assistant explanation, and four vertically stacked full-sentence questions are present. The long copy comes from the catalogue's estimated viewer transcription and still needs direct source-byte confirmation. |
 | L_ANALYSIS result anatomy | implemented, pending visual QA | Live state, unequal KPI blocks, role glyphs, comparison pills, raw-won semantics, source-consistent peak anchors, chart and insight are present. |
 | L_ANALYSIS sidebar brand | implemented | Free blue mark and all-blue wordmark. |
 | L_SCHEDULE shell details | implemented, pending visual QA | Selected recent row, chat timestamps and bottom suggestion chips. |
@@ -128,9 +132,9 @@ meaning from the source review.
   screens remain proposals and cannot contribute to nine-screen fidelity.
 - The visible demo disclosure intentionally differs from the source and must
   not be masked from a future comparison.
-- The expanded analysis source's second four-line assistant explanation is not
-  recreated from guessed copy. Its measured geometry is known, but its exact
-  wording remains unavailable.
+- The expanded analysis long copy is implemented only from the measurement
+  catalogue's estimated viewer transcription. Exact source bytes remain
+  unavailable, so copy identity and line breaks remain unverified.
 - The preserved iPad buffers from the `5dc2daf` evidence set are portrait-shaped
   renders despite their filenames. They remain historical artifacts only; a
   corrected, truly landscape capture is still required.

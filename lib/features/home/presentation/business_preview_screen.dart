@@ -509,7 +509,7 @@ class _ExpandedChat extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Text(
-          _previewTitle(action, isApprovalPreview),
+          _expandedPreviewTitle(action, isApprovalPreview),
           style: TextStyle(
             color: TimeFitAxVisualTokens.of(context).deepText,
             fontSize: 26,
@@ -520,18 +520,20 @@ class _ExpandedChat extends StatelessWidget {
         Expanded(
           child: ListView(
             children: <Widget>[
-              _ConversationExcerpt(
-                action: action,
-                isApprovalPreview: isApprovalPreview,
-                solidAnalysisOutgoing: false,
-              ),
-              if (!isApprovalPreview &&
-                  action == DemoHomeAction.storeOverview) ...<Widget>[
-                const SizedBox(height: AppSpacing.x24),
-                const _SuggestionChips(
-                  labels: <String>['어제와 비교', '비용 절감 제안', '피크 시간 보기', '인건비 확인'],
+              if (!isApprovalPreview && action == DemoHomeAction.storeOverview)
+                const _ExpandedStoreAnalysisConversation()
+              else
+                _ConversationExcerpt(
+                  action: action,
+                  isApprovalPreview: isApprovalPreview,
+                  solidAnalysisOutgoing: false,
                 ),
-              ],
+              if (isApprovalPreview ||
+                  action == DemoHomeAction.employeeAnnouncement)
+                _PostResultConversation(
+                  action: action,
+                  isApprovalPreview: isApprovalPreview,
+                ),
             ],
           ),
         ),
@@ -552,6 +554,45 @@ class _ExpandedChat extends StatelessWidget {
         ],
       ],
     ),
+  );
+}
+
+class _ExpandedStoreAnalysisConversation extends StatelessWidget {
+  const _ExpandedStoreAnalysisConversation();
+
+  static const List<String> questions = <String>[
+    '어제와 비교해서 어떤가요',
+    '시간대별 상세 매출을 보여줘',
+    '인건비를 더 줄일 수 있는 방법이 있을까',
+    '인기 메뉴 순위를 알려줘',
+  ];
+
+  @override
+  Widget build(BuildContext context) => const Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: <Widget>[
+      _ChatBubble(
+        text: '오늘 매장 운영 상황을 한눈에 보여줘.',
+        outgoing: true,
+        timestamp: '오전 10:24',
+      ),
+      SizedBox(height: AppSpacing.x16),
+      _ChatBubble(
+        text: '매출과 인건비를 분석했어요.',
+        outgoing: false,
+        timestamp: '오전 10:24',
+      ),
+      SizedBox(height: AppSpacing.x16),
+      _ChatBubble(
+        text:
+            '오늘은 전반적으로 안정적인 운영 흐름을 보였고 점심과 저녁 시간대에 '
+            '매출이 크게 상승했어요. 주요 지표와 시간대별 추이를 오른쪽에서 확인할 수 있어요.',
+        outgoing: false,
+        timestamp: '오전 10:25',
+      ),
+      SizedBox(height: AppSpacing.x20),
+      _StackedSuggestionQuestions(labels: questions),
+    ],
   );
 }
 
@@ -815,6 +856,51 @@ class _SuggestionChips extends StatelessWidget {
   }
 }
 
+class _StackedSuggestionQuestions extends StatelessWidget {
+  const _StackedSuggestionQuestions({required this.labels});
+
+  final List<String> labels;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TimeFitAxVisualTokens.of(context);
+    return Column(
+      key: const Key('expanded-analysis-suggestion-list'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        for (final String label in labels) ...<Widget>[
+          Container(
+            constraints: const BoxConstraints(minHeight: 42),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: tokens.surface,
+              border: Border.all(color: tokens.border),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(color: tokens.deepText, fontSize: 11),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 15,
+                  color: tokens.primary,
+                ),
+              ],
+            ),
+          ),
+          if (label != labels.last) const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
 Widget _workflowAssetBuilder(BuildContext context, String role, double size) {
   final tokens = TimeFitAxVisualTokens.of(context);
   if (role.contains('.automation')) {
@@ -849,6 +935,33 @@ Widget _workflowAssetBuilder(BuildContext context, String role, double size) {
         dimension: size,
         child: CustomPaint(
           painter: _InsightSparklePainter(color: tokens.primary),
+        ),
+      ),
+    );
+  }
+  final bool approvalRole = role.startsWith('workflow.approval.');
+  if (approvalRole) {
+    final (Color field, Color glyph) = switch (role) {
+      'workflow.approval.leave' => (tokens.orange, const Color(0xFFE4893B)),
+      'workflow.approval.shift' => (tokens.mint, const Color(0xFF3DA17D)),
+      'workflow.approval.receipt' => (tokens.lavender, const Color(0xFF755AC4)),
+      _ => (tokens.paleBlue, tokens.primary),
+    };
+    return Semantics(
+      image: true,
+      label: '$role 재구성 아이콘',
+      child: Container(
+        key: Key('workflow-$role'),
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: field,
+          borderRadius: BorderRadius.circular(size / 3),
+        ),
+        alignment: Alignment.center,
+        child: CustomPaint(
+          size: Size.square(size * .52),
+          painter: _WorkflowRoleGlyphPainter(role: role, color: glyph),
         ),
       ),
     );
@@ -1132,6 +1245,13 @@ final class _WorkflowRoleGlyphPainter extends CustomPainter {
 
 String _previewTitle(DemoHomeAction action, bool isApprovalPreview) =>
     isApprovalPreview ? '승인 업무 도우미' : action.previewTitle;
+
+String _expandedPreviewTitle(DemoHomeAction action, bool isApprovalPreview) =>
+    isApprovalPreview
+    ? '승인 업무 도우미'
+    : action == DemoHomeAction.storeOverview
+    ? '매장 분석'
+    : action.previewTitle;
 
 DemoComposerVariant _composerVariant(
   DemoHomeAction action,

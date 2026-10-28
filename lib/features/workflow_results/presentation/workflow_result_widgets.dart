@@ -1222,12 +1222,35 @@ class _ApprovalRow extends StatelessWidget {
                 ),
                 if (item.deadline != null) ...[
                   SizedBox(height: compact ? 2 : 5),
-                  Text(
-                    '◷ ${item.deadline}',
-                    style: const TextStyle(
-                      color: Color(0xFFA97818),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
+                  Container(
+                    key: const Key('approval-deadline-pill'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3DA),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const Icon(
+                          Icons.access_time_rounded,
+                          key: Key('approval-deadline-clock'),
+                          color: Color(0xFFA97818),
+                          size: 11,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          item.deadline!,
+                          style: const TextStyle(
+                            color: Color(0xFFA97818),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1280,11 +1303,13 @@ class _Kpi extends StatelessWidget {
     this.style, {
     this.compact = false,
     this.showComparison = false,
+    this.showGlyph = true,
   });
   final String label, value;
   final WorkflowResultStyle style;
   final bool compact;
   final bool showComparison;
+  final bool showGlyph;
   @override
   Widget build(BuildContext context) => Container(
     key: Key('analytics-kpi-$label'),
@@ -1297,6 +1322,7 @@ class _Kpi extends StatelessWidget {
     child: LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final Widget glyph = Container(
+          key: Key('analytics-kpi-glyph-$label'),
           width: compact ? 21 : 24,
           height: compact ? 21 : 24,
           decoration: BoxDecoration(
@@ -1342,8 +1368,7 @@ class _Kpi extends StatelessWidget {
           children: [
             Row(
               children: <Widget>[
-                glyph,
-                const SizedBox(width: 6),
+                if (showGlyph) ...<Widget>[glyph, const SizedBox(width: 6)],
                 Expanded(child: labelText),
                 if (showComparison && !compactHeader) comparison,
               ],
@@ -1486,6 +1511,7 @@ class _KpiStrip extends StatelessWidget {
               style,
               compact: compact,
               showComparison: landscape,
+              showGlyph: landscape,
             ),
             const SizedBox(height: 8),
             _Kpi(
@@ -1494,6 +1520,7 @@ class _KpiStrip extends StatelessWidget {
               style,
               compact: compact,
               showComparison: landscape,
+              showGlyph: landscape,
             ),
             const SizedBox(height: 8),
             _Kpi(
@@ -1502,6 +1529,7 @@ class _KpiStrip extends StatelessWidget {
               style,
               compact: compact,
               showComparison: landscape,
+              showGlyph: landscape,
             ),
           ],
         );
@@ -1516,6 +1544,7 @@ class _KpiStrip extends StatelessWidget {
               style,
               compact: compact,
               showComparison: landscape,
+              showGlyph: landscape,
             ),
           ),
           SizedBox(width: landscape ? 10 : 8),
@@ -1527,6 +1556,7 @@ class _KpiStrip extends StatelessWidget {
               style,
               compact: compact,
               showComparison: landscape,
+              showGlyph: landscape,
             ),
           ),
           SizedBox(width: landscape ? 10 : 8),
@@ -1538,6 +1568,7 @@ class _KpiStrip extends StatelessWidget {
               style,
               compact: compact,
               showComparison: landscape,
+              showGlyph: landscape,
             ),
           ),
         ],

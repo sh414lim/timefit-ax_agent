@@ -618,8 +618,9 @@ class _ActionCard extends StatelessWidget {
                 color: _tint(tokens),
                 glyphColor: _glyphColor(tokens),
                 square: false,
+                size: cardWidth >= 190 ? 48 : 44,
               ),
-              const SizedBox(width: 4),
+              SizedBox(width: cardWidth >= 190 ? 8 : 6),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -635,11 +636,11 @@ class _ActionCard extends StatelessWidget {
                     Text(
                       action.description,
                       key: Key('home-action-description-${action.name}'),
-                      maxLines: 2,
+                      maxLines: 3,
                       overflow: TextOverflow.clip,
                       style: TextStyle(
                         color: tokens.secondaryText,
-                        fontSize: 9,
+                        fontSize: 9.5,
                         height: 1.25,
                         fontWeight: FontWeight.w500,
                       ),
@@ -668,7 +669,7 @@ class _ActionCard extends StatelessWidget {
             onTap: onTap,
             borderRadius: BorderRadius.circular(expanded ? 16 : 13),
             child: Container(
-              padding: EdgeInsets.all(expanded ? 16 : 5),
+              padding: EdgeInsets.all(expanded ? 16 : 6),
               decoration: BoxDecoration(
                 border: Border.all(color: tokens.border),
                 borderRadius: BorderRadius.circular(expanded ? 16 : 13),
@@ -694,7 +695,7 @@ class _ActionCard extends StatelessWidget {
   TextStyle _titleStyle(TimeFitAxVisualTokens tokens) => TextStyle(
     color: tokens.deepText,
     fontWeight: FontWeight.w700,
-    fontSize: expanded ? 16 : 12,
+    fontSize: expanded ? 16 : 12.5,
   );
 }
 
@@ -704,30 +705,36 @@ class _ActionIcon extends StatelessWidget {
     required this.color,
     required this.glyphColor,
     required this.square,
+    this.size,
   });
 
   final DemoHomeAction action;
   final Color color;
   final Color glyphColor;
   final bool square;
+  final double? size;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: square ? 48 : 32,
-    height: square ? 48 : 32,
-    decoration: BoxDecoration(
-      color: color,
-      shape: square ? BoxShape.rectangle : BoxShape.circle,
-      borderRadius: square ? BorderRadius.circular(12) : null,
-    ),
-    child: Center(
-      child: ReconstructedHomeActionGlyph(
-        action: action,
-        color: glyphColor,
-        size: square ? 25 : 18,
+  Widget build(BuildContext context) {
+    final double fieldSize = size ?? (square ? 48 : 32);
+    return Container(
+      key: Key('home-action-icon-field-${action.name}'),
+      width: fieldSize,
+      height: fieldSize,
+      decoration: BoxDecoration(
+        color: color,
+        shape: square ? BoxShape.rectangle : BoxShape.circle,
+        borderRadius: square ? BorderRadius.circular(12) : null,
       ),
-    ),
-  );
+      child: Center(
+        child: ReconstructedHomeActionGlyph(
+          action: action,
+          color: glyphColor,
+          size: square ? 25 : fieldSize * .5,
+        ),
+      ),
+    );
+  }
 }
 
 class _DemoBadge extends StatelessWidget {
