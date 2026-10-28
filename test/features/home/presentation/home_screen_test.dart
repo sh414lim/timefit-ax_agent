@@ -550,11 +550,19 @@ void main() {
           final paragraph = tester.renderObject<RenderParagraph>(
             find.byKey(Key('home-action-description-${action.name}')),
           );
+          final Text description = tester.widget<Text>(
+            find.byKey(Key('home-action-description-${action.name}')),
+          );
           expect(paragraph.didExceedMaxLines, isFalse, reason: action.name);
           expect(
             _paintedLineCount(paragraph, action.description),
             lessThanOrEqualTo(2),
             reason: action.name,
+          );
+          expect(
+            description.style!.letterSpacing ?? 0,
+            0,
+            reason: '${action.name} keeps normal source tracking',
           );
         }
         expect(tester.takeException(), isNull);
@@ -596,7 +604,9 @@ void main() {
     final Text description = tester.widget<Text>(
       find.byKey(const Key('home-action-description-storeOverview')),
     );
-    expect(description.style!.fontSize, 9.5);
+    expect(description.data, '매출 방문객 운영 현황을 한눈에 확인하세요');
+    expect(description.style!.fontSize, 7.9);
+    expect(description.style!.letterSpacing ?? 0, 0);
     final Text title = tester.widget<Text>(find.text('오늘 매장 현황'));
     expect(title.style!.fontSize, 12.5);
     expect(tester.takeException(), isNull);
@@ -628,11 +638,19 @@ void main() {
       expect(find.text('매장 분석'), findsOneWidget);
       expect(find.text('오늘 매장 운영 상황을 한눈에 보여줘.'), findsOneWidget);
       expect(find.text('매출과 인건비를 분석했어요.'), findsOneWidget);
-      final Finder detail = find.textContaining('오늘은 전반적으로 안정적인 운영 흐름을');
+      const String sourceDetail =
+          '오늘은 전반적으로 안정적인 운영 흐름을\n'
+          '보였고 점심과 저녁 시간대에 매출이\n'
+          '크게 상승했어요 주요 지표와 시간대별 추이를\n'
+          '오른쪽에서 확인할 수 있어요';
+      final Finder detail = find.text(sourceDetail);
       expect(detail, findsOneWidget);
       final Text detailText = tester.widget<Text>(detail);
       final RenderParagraph detailParagraph = tester
           .renderObject<RenderParagraph>(detail);
+      expect(detailText.data, sourceDetail);
+      expect(detailText.style!.fontSize, 9.1);
+      expect(detailText.style!.letterSpacing ?? 0, 0);
       expect(
         _paintedLineCount(detailParagraph, detailText.data!),
         4,

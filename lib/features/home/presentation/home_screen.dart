@@ -640,13 +640,12 @@ class _ActionCard extends StatelessWidget {
                       overflow: TextOverflow.clip,
                       style: TextStyle(
                         color: tokens.secondaryText,
-                        fontSize: 9.5,
-                        height: 1.25,
-                        // The supplied Korean Home copy uses a visibly compact
-                        // two-line setting. The source font file is unavailable,
-                        // so keep the measured type height while matching its
-                        // narrower tracking instead of shrinking the glyphs.
-                        letterSpacing: cardWidth < 190 ? -1.8 : -1.25,
+                        // The 432dp reference is a 2x rendering of the
+                        // measured 864px source. Preserve its two 25px ink
+                        // rows with normal tracking, then scale the type with
+                        // the narrower 402dp responsive card.
+                        fontSize: cardWidth < 190 ? 7.25 : 7.9,
+                        height: 1.55,
                         fontWeight: FontWeight.w500,
                       ),
                     ),

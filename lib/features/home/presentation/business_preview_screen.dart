@@ -503,58 +503,68 @@ class _ExpandedChat extends StatelessWidget {
   final bool isApprovalPreview;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(28, 32, 24, 20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Text(
-          _expandedPreviewTitle(action, isApprovalPreview),
-          style: TextStyle(
-            color: TimeFitAxVisualTokens.of(context).deepText,
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
+  Widget build(BuildContext context) {
+    final bool sourceStoreAnalysis =
+        !isApprovalPreview && action == DemoHomeAction.storeOverview;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        sourceStoreAnalysis ? 14 : 28,
+        32,
+        sourceStoreAnalysis ? 14 : 24,
+        20,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            _expandedPreviewTitle(action, isApprovalPreview),
+            style: TextStyle(
+              color: TimeFitAxVisualTokens.of(context).deepText,
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-        ),
-        const SizedBox(height: AppSpacing.x24),
-        Expanded(
-          child: ListView(
-            children: <Widget>[
-              if (!isApprovalPreview && action == DemoHomeAction.storeOverview)
-                const _ExpandedStoreAnalysisConversation()
-              else
-                _ConversationExcerpt(
-                  action: action,
-                  isApprovalPreview: isApprovalPreview,
-                  solidAnalysisOutgoing: false,
-                ),
-              if (isApprovalPreview ||
-                  action == DemoHomeAction.employeeAnnouncement)
-                _PostResultConversation(
-                  action: action,
-                  isApprovalPreview: isApprovalPreview,
-                ),
-            ],
+          const SizedBox(height: AppSpacing.x24),
+          Expanded(
+            child: ListView(
+              children: <Widget>[
+                if (!isApprovalPreview &&
+                    action == DemoHomeAction.storeOverview)
+                  const _ExpandedStoreAnalysisConversation()
+                else
+                  _ConversationExcerpt(
+                    action: action,
+                    isApprovalPreview: isApprovalPreview,
+                    solidAnalysisOutgoing: false,
+                  ),
+                if (isApprovalPreview ||
+                    action == DemoHomeAction.employeeAnnouncement)
+                  _PostResultConversation(
+                    action: action,
+                    isApprovalPreview: isApprovalPreview,
+                  ),
+              ],
+            ),
           ),
-        ),
-        DemoQuickComposer(
-          controller: draftController,
-          focusNode: draftFocusNode,
-          placeholder: isApprovalPreview
-              ? '승인 요청에 대해 질문하세요'
-              : action.composerPlaceholder,
-          variant: _expandedComposerVariant(action, isApprovalPreview),
-        ),
-        if (!isApprovalPreview &&
-            action == DemoHomeAction.weeklySchedule) ...<Widget>[
-          const SizedBox(height: AppSpacing.x12),
-          const _SuggestionChips(
-            labels: <String>['직원 교대 요청 반영', '다른 주도 만들어줘', '근무 시간 규칙 변경'],
+          DemoQuickComposer(
+            controller: draftController,
+            focusNode: draftFocusNode,
+            placeholder: isApprovalPreview
+                ? '승인 요청에 대해 질문하세요'
+                : action.composerPlaceholder,
+            variant: _expandedComposerVariant(action, isApprovalPreview),
           ),
+          if (!isApprovalPreview &&
+              action == DemoHomeAction.weeklySchedule) ...<Widget>[
+            const SizedBox(height: AppSpacing.x12),
+            const _SuggestionChips(
+              labels: <String>['직원 교대 요청 반영', '다른 주도 만들어줘', '근무 시간 규칙 변경'],
+            ),
+          ],
         ],
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
 class _ExpandedStoreAnalysisConversation extends StatelessWidget {
@@ -585,10 +595,18 @@ class _ExpandedStoreAnalysisConversation extends StatelessWidget {
       SizedBox(height: AppSpacing.x16),
       _ChatBubble(
         text:
-            '오늘은 전반적으로 안정적인 운영 흐름을 보였어요. '
-            '점심·저녁 매출이 상승했어요.',
+            '오늘은 전반적으로 안정적인 운영 흐름을\n'
+            '보였고 점심과 저녁 시간대에 매출이\n'
+            '크게 상승했어요 주요 지표와 시간대별 추이를\n'
+            '오른쪽에서 확인할 수 있어요',
         outgoing: false,
         timestamp: '오전 10:25',
+        // The source bitmap paints this copy as four compact rows inside a
+        // 373px bubble. At the 1024×576 comparison scale this maps to the
+        // normal-tracking size and inset below without dropping any copy.
+        fontSize: 9.1,
+        lineHeight: 1.5,
+        horizontalPadding: 10,
       ),
       SizedBox(height: AppSpacing.x20),
       _StackedSuggestionQuestions(labels: questions),
@@ -641,12 +659,18 @@ class _ChatBubble extends StatelessWidget {
     this.solidOutgoing = false,
     this.timestamp,
     this.compact = false,
+    this.fontSize,
+    this.lineHeight,
+    this.horizontalPadding,
   });
   final String text;
   final bool outgoing;
   final bool solidOutgoing;
   final String? timestamp;
   final bool compact;
+  final double? fontSize;
+  final double? lineHeight;
+  final double? horizontalPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -678,7 +702,7 @@ class _ChatBubble extends StatelessWidget {
                       : null,
                   constraints: const BoxConstraints(maxWidth: 470),
                   padding: EdgeInsets.symmetric(
-                    horizontal: compact ? 16 : 18,
+                    horizontal: horizontalPadding ?? (compact ? 16 : 18),
                     vertical: compact ? 10 : 13,
                   ),
                   decoration: BoxDecoration(
@@ -695,6 +719,8 @@ class _ChatBubble extends StatelessWidget {
                       color: outgoing && solidOutgoing
                           ? Colors.white
                           : tokens.deepText,
+                      fontSize: fontSize,
+                      height: lineHeight,
                     ),
                   ),
                 ),

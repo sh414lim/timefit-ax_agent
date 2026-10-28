@@ -57,14 +57,15 @@ memory-only demo contract:
   request card. It no longer inherits the narrow text column left between the
   role field and action buttons, and 320x760 plus 1024x768 regressions assert
   that the clock and label remain inside the pill without overflow;
-- the expanded store explanation is shortened from the estimated viewer
-  transcription to the four painted lines visible at the proposed 1024x576
-  comparison fixture. This remains a presentation candidate, not proof of the
-  unavailable source text bytes;
-- the Home body retains its measured 9.5dp height but uses compact Korean
-  tracking to approximate the unavailable source font width. All four cards
-  now retain the supplied two-line composition at both 402dp and 432dp without
-  clipping.
+- the expanded store explanation preserves the catalogue's complete four-line
+  viewer transcription. Its source-observed line grouping, 373px bubble ratio,
+  and scaled normal-tracking type are asserted together at the 1024x576
+  comparison fixture instead of shortening the sentence;
+- the Home body uses normal tracking and punctuation-free copy recorded by the
+  source measurement. Its type size and line height are derived from the 2x
+  864px bitmap, then proportionally adapted for the 402dp responsive card. All
+  four cards retain the supplied two-line composition at 402dp and 432dp
+  without clipping or negative letter spacing.
 
 These fixes remove deterministic layout differences only. They do not resolve
 the original brand vectors, runtime font identity, same-canvas overlay, or
@@ -128,7 +129,7 @@ meaning from the source review.
 | L_HOME sidebar | partial | Existing recent conversation data/navigation remains; source-only sample rows are not written to Drift. |
 | L_HOME free mark | implemented, pending visual QA | Uses the same reconstructed mark family without a square. |
 | L_HOME tile variants | implemented | Blue/green/purple/orange fields and role-specific glyph colours are separated from mobile. |
-| L_ANALYSIS shell details | implemented candidate, pending visual QA | The title is `매장 분석`; selected/recent rows, timestamps, pale outgoing bubble, a four-line second assistant explanation, and four vertically stacked full-sentence questions are present. The explanation is adapted from the catalogue's estimated viewer transcription to the observed four-line composition and still needs direct source-byte confirmation. |
+| L_ANALYSIS shell details | implemented candidate, pending visual QA | The title is `매장 분석`; selected/recent rows, timestamps, pale outgoing bubble, the complete four-line viewer transcription, and four vertically stacked full-sentence questions are present. Copy and normal tracking are regression-tested, while exact source-byte identity still needs confirmation. |
 | L_ANALYSIS result anatomy | implemented, pending visual QA | Live state, unequal KPI blocks, role glyphs, comparison pills, raw-won semantics, source-consistent peak anchors, chart and insight are present. |
 | L_ANALYSIS sidebar brand | implemented | Free blue mark and all-blue wordmark. |
 | L_SCHEDULE shell details | implemented, pending visual QA | Selected recent row, chat timestamps and bottom suggestion chips. |
@@ -139,7 +140,7 @@ meaning from the source review.
 | RESPONSIVE small widths | implemented | Existing 320/390/430 checks plus 402/432 copy checks remain. |
 | RESPONSIVE text 100/200% | implemented as functional gate | No-overflow/scroll checks remain separate from source fidelity. |
 | RESPONSIVE keyboard | implemented as functional gate | Draft/focus/reachability tests remain; the source does not establish keyboard visuals. |
-| RESPONSIVE rotation | pending corrected Simulator evidence | State preservation remains tested. Prior upright `2064x2752` buffers are not landscape evidence; final raw viewport/orientation/native dimensions must be recorded. |
+| RESPONSIVE rotation | host-tested; new Simulator capture not run | State preservation remains tested. Prior upright `2064x2752` buffers are not landscape evidence. The user withdrew the new capture requirement, so no replacement Simulator image is claimed. |
 | UX behaviour contract | preserved | Preview actions remain memory-only; Drift/message/attachment/Outbox mutation remains zero. |
 
 ## Explicit unresolved items
@@ -155,10 +156,11 @@ meaning from the source review.
   screens remain proposals and cannot contribute to nine-screen fidelity.
 - The visible demo disclosure intentionally differs from the source and must
   not be masked from a future comparison.
-- The expanded analysis copy is adapted from the measurement catalogue's
-  estimated viewer transcription to the observed four-line composition. Exact
-  source bytes remain unavailable, so copy identity remains unverified even
-  though the local line-count regression is deterministic.
+- The expanded analysis uses the complete measurement-catalogue viewer
+  transcription and explicit observed line grouping. Exact source bytes remain
+  unavailable, so copy identity remains unverified even though copy, tracking,
+  and line-count regressions are deterministic.
 - The preserved iPad buffers from the `5dc2daf` evidence set are portrait-shaped
-  renders despite their filenames. They remain historical artifacts only; a
-  corrected, truly landscape capture is still required.
+  renders despite their filenames. They remain historical artifacts only; no
+  corrected landscape capture was produced after the user withdrew that
+  requirement.
