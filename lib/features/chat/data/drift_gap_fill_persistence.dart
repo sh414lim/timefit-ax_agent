@@ -23,19 +23,27 @@ final class DriftGapFillPersistence implements GapFillPersistence {
   final LocalRepositorySession _session;
 
   @override
-  Future<int> readLatestSequence(String conversationId) => _session.read(
-    () async {
-      final expression = _database.localMessages.sequence.max();
-      final row =
-          await (_database.selectOnly(_database.localMessages)
-                ..addColumns([expression])
-                ..where(
-                  _database.localMessages.conversationId.equals(conversationId),
-                ))
-              .getSingle();
-      return row.read(expression) ?? 0;
-    },
-  );
+  Future<int> readLatestSequence(String conversationId) =>
+      _session.read(() async {
+        final rows = await _database
+            .customSelect(
+              'SELECT sequence FROM local_messages '
+              'WHERE conversation_id = ? AND sequence IS NOT NULL '
+              'ORDER BY sequence ASC',
+              variables: [Variable<String>(conversationId)],
+              readsFrom: {_database.localMessages},
+            )
+            .get();
+        int? latestContiguous;
+        for (final row in rows) {
+          final sequence = row.read<int>('sequence');
+          if (latestContiguous != null && sequence != latestContiguous + 1) {
+            return latestContiguous;
+          }
+          latestContiguous = sequence;
+        }
+        return latestContiguous ?? 0;
+      });
 
   @override
   Future<void> persist(
@@ -81,7 +89,12 @@ final class DriftGapFillPersistence implements GapFillPersistence {
           : await (_database.select(
               _database.outboxCommands,
             )..where((row) => row.id.equals(local.localId))).getSingleOrNull();
-      if (command != null && command.commandType == 'local_send_text_v1') {
+      if (command != null) {
+        if (command.commandType != 'local_send_text_v1') {
+          throw const CanonicalIdentityConflict(
+            'gap-fill cannot reconcile this local command type',
+          );
+        }
         final expected = LocalTextCommand(
           id: local!.localId,
           conversationId: message.conversationId,
@@ -107,7 +120,7 @@ final class DriftGapFillPersistence implements GapFillPersistence {
       await (_database.update(_database.localMessages)
             ..where((candidate) => candidate.localId.equals(row.localId)))
           .write(const LocalMessagesCompanion(deliveryState: Value('sent')));
-      if (command != null && command.commandType == 'local_send_text_v1') {
+      if (command != null) {
         await (_database.update(
           _database.outboxCommands,
         )..where((candidate) => candidate.id.equals(command.id))).write(

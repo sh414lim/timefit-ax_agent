@@ -136,6 +136,7 @@ final class GapFillController {
   }
 
   Future<GapFillResult> _drain(Object token, int generation) async {
+    int? requiredProgressBeyond;
     try {
       while (_currentRun(token, generation)) {
         final target = _targetSequence;
@@ -158,6 +159,16 @@ final class GapFillController {
           _error(GapFillFailure.persistenceFailed, target);
           return GapFillResult.failed;
         }
+        if (requiredProgressBeyond case final previousAfter?
+            when afterSequence <= previousAfter) {
+          _error(
+            GapFillFailure.persistenceFailed,
+            target,
+            latestSequence: afterSequence,
+          );
+          return GapFillResult.failed;
+        }
+        requiredProgressBeyond = null;
         if (afterSequence >= target) {
           _emit(
             GapFillState(
@@ -229,6 +240,7 @@ final class GapFillController {
         if (!_current(request, token, generation)) {
           return GapFillResult.cancelled;
         }
+        requiredProgressBeyond = request.afterSequence;
         _request = null;
         // Re-read persistence on the next iteration. This incorporates an
         // own-send/RPC race and any larger hint received while this page was
@@ -278,17 +290,17 @@ final class GapFillController {
       clientSequences[message.clientMessageId] = message.sequence;
       serverSequences[message.serverId] = message.sequence;
     }
-    final accepted = bySequence.values.toList()
+    final sorted = bySequence.values.toList()
       ..sort((a, b) => a.sequence.compareTo(b.sequence));
+    final accepted = <CanonicalLocalMessage>[];
+    var expected = request.afterSequence + 1;
+    for (final message in sorted) {
+      if (message.sequence != expected) break;
+      accepted.add(message);
+      expected += 1;
+    }
     if (accepted.isEmpty) {
       throw const FormatException('Gap-fill page made no progress');
-    }
-    var expected = request.afterSequence + 1;
-    for (final message in accepted) {
-      if (message.sequence != expected) {
-        throw const FormatException('Gap-fill page contains a hole');
-      }
-      expected += 1;
     }
     return List.unmodifiable(accepted);
   }

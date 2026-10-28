@@ -41,9 +41,10 @@ GapFillPage _page(
 );
 
 final class _FakePersistence implements GapFillPersistence {
-  _FakePersistence({this.latest = 0});
+  _FakePersistence({this.latest = 0, this.advanceLatest = true});
 
   int latest;
+  final bool advanceLatest;
   Object? readError;
   Object? persistError;
   int readCount = 0;
@@ -68,7 +69,7 @@ final class _FakePersistence implements GapFillPersistence {
     if (request.isCancelled) throw StateError('cancelled');
     for (final message in acceptedMessages) {
       stored[message.sequence] = message;
-      latest = message.sequence;
+      if (advanceLatest) latest = message.sequence;
     }
   }
 }
@@ -200,8 +201,23 @@ void main() {
       expect(persistence.stored.keys, [5, 6, 7, 8]);
     });
 
-    test('hole and empty no-progress pages never persist', () async {
+    test('hole persists only the contiguous prefix then refetches', () async {
       source.enqueue(_page([_message(5), _message(7)], latestSequence: 8));
+      source.enqueue(_page([_message(6), _message(7), _message(8)]));
+
+      expect(
+        await controller.onHint(
+          const GapFillHint(conversationId: 'one', sequence: 8),
+        ),
+        GapFillResult.completed,
+      );
+      expect(source.requests.map((request) => request.afterSequence), [4, 5]);
+      expect(persistence.stored.keys, [5, 6, 7, 8]);
+      expect(persistence.persistCount, 2);
+    });
+
+    test('first-sequence hole and empty no-progress never persist', () async {
+      source.enqueue(_page([_message(6), _message(7)], latestSequence: 8));
       expect(
         await controller.onHint(
           const GapFillHint(conversationId: 'one', sequence: 8),
@@ -216,6 +232,52 @@ void main() {
       expect(controller.state.failure, GapFillFailure.invalidPage);
       expect(persistence.stored, isEmpty);
       expect(persistence.persistCount, 0);
+    });
+
+    test('successful persistence must advance before another fetch', () async {
+      controller.dispose();
+      persistence = _FakePersistence(latest: 4, advanceLatest: false);
+      source = _QueuedSource()..enqueue(_page([_message(5)]));
+      controller = GapFillController(
+        source: source,
+        persistence: persistence,
+        conversationId: 'one',
+      );
+
+      expect(
+        await controller.onHint(
+          const GapFillHint(conversationId: 'one', sequence: 5),
+        ),
+        GapFillResult.failed,
+      );
+      expect(controller.state.failure, GapFillFailure.persistenceFailed);
+      expect(source.requests, hasLength(1));
+      expect(persistence.persistCount, 1);
+    });
+
+    test('canonical duplicates collapse but conflicts fail closed', () async {
+      final five = _message(5);
+      source.enqueue(_page([five, five]));
+      expect(
+        await controller.onHint(
+          const GapFillHint(conversationId: 'one', sequence: 5),
+        ),
+        GapFillResult.completed,
+      );
+      expect(persistence.stored.keys, [5]);
+
+      source.enqueue(
+        _page([_message(6, body: 'first'), _message(6, body: 'conflict')]),
+      );
+      expect(
+        await controller.onHint(
+          const GapFillHint(conversationId: 'one', sequence: 6),
+        ),
+        GapFillResult.failed,
+      );
+      expect(controller.state.failure, GapFillFailure.invalidPage);
+      expect(persistence.stored.keys, [5]);
+      expect(persistence.persistCount, 1);
     });
 
     test(
@@ -360,6 +422,36 @@ void main() {
       expect(source.requests.single.afterSequence, 4);
     });
 
+    test(
+      'existing local sequence hole resumes from its contiguous prefix',
+      () async {
+        for (final sequence in [1, 2, 4]) {
+          await database.messageDao.upsertCanonical(
+            _message(sequence),
+            fallbackLocalId: 'seed-$sequence',
+            fallbackClientCreatedAt: _now,
+          );
+        }
+        source.enqueue(
+          _page([_message(3), _message(4), _message(5)], latestSequence: 5),
+        );
+
+        expect(
+          await controller.onHint(
+            const GapFillHint(conversationId: 'one', sequence: 5),
+          ),
+          GapFillResult.completed,
+        );
+        expect(source.requests.single.afterSequence, 2);
+        expect(
+          (await database.messageDao.readTimeline(
+            'one',
+          )).map((row) => row.sequence),
+          [1, 2, 3, 4, 5],
+        );
+      },
+    );
+
     test('failed page insert rolls back every canonical row', () async {
       await seedThrough(4);
       await database.customStatement(
@@ -409,6 +501,95 @@ void main() {
       expect(own.deliveryState, 'sent');
       expect((await database.outboxDao.getAll()).single.state, 'completed');
     });
+
+    test(
+      'unsupported local command conflict rolls back canonical write',
+      () async {
+        await seedThrough(4);
+        await database.outboxDao.enqueueMessage(
+          LocalMessagesCompanion.insert(
+            localId: 'client-5',
+            conversationId: 'one',
+            clientMessageId: 'client-5',
+            senderKind: 'user',
+            bodyText: const Value('own body'),
+            messageKind: 'mixed',
+            clientCreatedAt: _now,
+            deliveryState: const Value('uploading'),
+          ),
+          OutboxCommandsCompanion.insert(
+            id: 'client-5',
+            commandType: 'local_send_message_v2',
+            aggregateId: 'one',
+            clientRequestId: 'client-5',
+            payloadJson: '{}',
+            nextAttemptAt: _now,
+            createdAt: _now,
+            updatedAt: _now,
+          ),
+        );
+        source.enqueue(_page([_message(5, body: 'own body')]));
+
+        expect(
+          await controller.onHint(
+            const GapFillHint(conversationId: 'one', sequence: 5),
+          ),
+          GapFillResult.failed,
+        );
+        expect(controller.state.failure, GapFillFailure.persistenceFailed);
+        final local = (await database.messageDao.getAll()).singleWhere(
+          (row) => row.localId == 'client-5',
+        );
+        expect(local.serverId, isNull);
+        expect(local.sequence, isNull);
+        expect(local.deliveryState, 'uploading');
+        expect((await database.outboxDao.getAll()).single.state, 'queued');
+      },
+    );
+
+    test(
+      'conversation switch rolls back a paused old write and keeps new run',
+      () async {
+        controller.dispose();
+        await session.dispose();
+        await database.close();
+
+        final pause = _PauseInsert()..enabled = true;
+        database = AppDatabase(NativeDatabase.memory().interceptWith(pause));
+        session = LocalRepositorySession.forDatabase(database);
+        persistence = DriftGapFillPersistence(
+          database: database,
+          session: session,
+        );
+        source = _QueuedSource()..enqueue(_page([_message(1)]));
+        controller = GapFillController(
+          source: source,
+          persistence: persistence,
+          conversationId: 'one',
+        );
+
+        final old = controller.onHint(
+          const GapFillHint(conversationId: 'one', sequence: 1),
+        );
+        await pause.entered.future;
+        controller.switchConversation('two');
+        source.enqueue(
+          _page([_message(1, conversationId: 'two')], conversationId: 'two'),
+        );
+        final fresh = controller.onHint(
+          const GapFillHint(conversationId: 'two', sequence: 1),
+        );
+        pause.resume.complete();
+
+        expect(await old, GapFillResult.cancelled);
+        expect(await fresh, GapFillResult.completed);
+        expect(await database.messageDao.readTimeline('one'), isEmpty);
+        final newRows = await database.messageDao.readTimeline('two');
+        expect(newRows, hasLength(1));
+        expect(newRows.single.sequence, 1);
+        expect(newRows.single.conversationId, 'two');
+      },
+    );
 
     test('session disposal fences a paused canonical write', () async {
       controller.dispose();
