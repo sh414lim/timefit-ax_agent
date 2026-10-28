@@ -74,6 +74,42 @@ final class _FakePersistence implements GapFillPersistence {
   }
 }
 
+final class _PausedReadPersistence implements GapFillPersistence {
+  _PausedReadPersistence({required this.latest, this.advanceLatest = true});
+
+  int latest;
+  final bool advanceLatest;
+  final readEntered = Completer<void>();
+  final readResume = Completer<int>();
+  int readCount = 0;
+  int persistCount = 0;
+  final stored = <int, CanonicalLocalMessage>{};
+
+  @override
+  Future<int> readLatestSequence(String conversationId) {
+    readCount += 1;
+    if (readCount == 1) {
+      readEntered.complete();
+      return readResume.future;
+    }
+    return Future<int>.value(latest);
+  }
+
+  @override
+  Future<void> persist(
+    GapFillRequest request,
+    GapFillPage originalPage,
+    List<CanonicalLocalMessage> acceptedMessages,
+  ) async {
+    persistCount += 1;
+    if (request.isCancelled) throw StateError('cancelled');
+    for (final message in acceptedMessages) {
+      stored[message.sequence] = message;
+      if (advanceLatest) latest = message.sequence;
+    }
+  }
+}
+
 final class _QueuedSource implements GapFillSource {
   final requests = <GapFillRequest>[];
   final _responses = <Future<GapFillPage> Function()>[];
@@ -199,6 +235,125 @@ void main() {
       expect(await coalesced, GapFillResult.completed);
       expect(source.requests.map((request) => request.afterSequence), [4, 5]);
       expect(persistence.stored.keys, [5, 6, 7, 8]);
+    });
+
+    test('higher hint joining a satisfied DB read is drained', () async {
+      controller.dispose();
+      final paused = _PausedReadPersistence(latest: 5);
+      source = _QueuedSource()
+        ..enqueue(_page([_message(6), _message(7), _message(8)]));
+      controller = GapFillController(
+        source: source,
+        persistence: paused,
+        conversationId: 'one',
+      );
+
+      final lower = controller.onHint(
+        const GapFillHint(conversationId: 'one', sequence: 5),
+      );
+      await paused.readEntered.future;
+      final higher = controller.onHint(
+        const GapFillHint(conversationId: 'one', sequence: 8),
+      );
+      paused.readResume.complete(5);
+
+      expect(await lower, GapFillResult.completed);
+      expect(await higher, GapFillResult.completed);
+      expect(source.requests.map((request) => request.afterSequence), [5]);
+      expect(paused.stored.keys, [6, 7, 8]);
+      expect(paused.readCount, 2);
+      expect(paused.persistCount, 1);
+    });
+
+    test('multiple hints joining a DB read coalesce to the highest', () async {
+      controller.dispose();
+      final paused = _PausedReadPersistence(latest: 5);
+      source = _QueuedSource()
+        ..enqueue(_page([_message(6), _message(7), _message(8)]));
+      controller = GapFillController(
+        source: source,
+        persistence: paused,
+        conversationId: 'one',
+      );
+
+      final results = <Future<GapFillResult>>[
+        controller.onHint(
+          const GapFillHint(conversationId: 'one', sequence: 5),
+        ),
+      ];
+      await paused.readEntered.future;
+      results.addAll(<Future<GapFillResult>>[
+        controller.onHint(
+          const GapFillHint(conversationId: 'one', sequence: 6),
+        ),
+        controller.onHint(
+          const GapFillHint(conversationId: 'one', sequence: 7),
+        ),
+        controller.onHint(
+          const GapFillHint(conversationId: 'one', sequence: 8),
+        ),
+      ]);
+      paused.readResume.complete(5);
+
+      expect(await Future.wait(results), everyElement(GapFillResult.completed));
+      expect(source.requests.map((request) => request.afterSequence), [5]);
+      expect(paused.stored.keys, [6, 7, 8]);
+      expect(paused.persistCount, 1);
+    });
+
+    test('conversation switch cancels hints waiting on a DB read', () async {
+      controller.dispose();
+      final paused = _PausedReadPersistence(latest: 5);
+      source = _QueuedSource();
+      controller = GapFillController(
+        source: source,
+        persistence: paused,
+        conversationId: 'one',
+      );
+
+      final lower = controller.onHint(
+        const GapFillHint(conversationId: 'one', sequence: 5),
+      );
+      await paused.readEntered.future;
+      final higher = controller.onHint(
+        const GapFillHint(conversationId: 'one', sequence: 8),
+      );
+      controller.switchConversation('two');
+      paused.readResume.complete(5);
+
+      expect(await lower, GapFillResult.cancelled);
+      expect(await higher, GapFillResult.cancelled);
+      expect(source.requests, isEmpty);
+      expect(paused.stored, isEmpty);
+      expect(controller.state.conversationId, 'two');
+    });
+
+    test('joined higher hint still fails closed on no DB progress', () async {
+      controller.dispose();
+      final paused = _PausedReadPersistence(latest: 5, advanceLatest: false);
+      source = _QueuedSource()
+        ..enqueue(_page([_message(6), _message(7), _message(8)]));
+      controller = GapFillController(
+        source: source,
+        persistence: paused,
+        conversationId: 'one',
+      );
+
+      final lower = controller.onHint(
+        const GapFillHint(conversationId: 'one', sequence: 5),
+      );
+      await paused.readEntered.future;
+      final higher = controller.onHint(
+        const GapFillHint(conversationId: 'one', sequence: 8),
+      );
+      paused.readResume.complete(5);
+
+      expect(await lower, GapFillResult.failed);
+      expect(await higher, GapFillResult.failed);
+      expect(controller.state.failure, GapFillFailure.persistenceFailed);
+      expect(source.requests.map((request) => request.afterSequence), [5]);
+      expect(paused.persistCount, 1);
+      expect(paused.stored.keys, [6, 7, 8]);
     });
 
     test('hole persists only the contiguous prefix then refetches', () async {

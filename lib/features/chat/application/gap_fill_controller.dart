@@ -139,8 +139,8 @@ final class GapFillController {
     int? requiredProgressBeyond;
     try {
       while (_currentRun(token, generation)) {
-        final target = _targetSequence;
-        if (target == null) return GapFillResult.ignored;
+        final targetAtReadStart = _targetSequence;
+        if (targetAtReadStart == null) return GapFillResult.ignored;
 
         int afterSequence;
         try {
@@ -149,12 +149,20 @@ final class GapFillController {
           );
         } on Object {
           if (_currentRun(token, generation)) {
-            _error(GapFillFailure.persistenceFailed, target);
+            _error(
+              GapFillFailure.persistenceFailed,
+              _targetSequence ?? targetAtReadStart,
+            );
             return GapFillResult.failed;
           }
           return GapFillResult.cancelled;
         }
         if (!_currentRun(token, generation)) return GapFillResult.cancelled;
+        // A higher hint can join while persistence is reading. The read may
+        // satisfy the target captured before the await but not the coalesced
+        // target. Refresh it before deciding that this drain is complete.
+        final target = _targetSequence;
+        if (target == null) return GapFillResult.ignored;
         if (afterSequence < 0) {
           _error(GapFillFailure.persistenceFailed, target);
           return GapFillResult.failed;
