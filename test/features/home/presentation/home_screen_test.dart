@@ -30,6 +30,14 @@ final class _Repository implements ConversationRepository {
   }
 }
 
+int _paintedLineCount(RenderParagraph paragraph, String text) => paragraph
+    .getBoxesForSelection(
+      TextSelection(baseOffset: 0, extentOffset: text.length),
+    )
+    .map((TextBox box) => (box.top * 100).round())
+    .toSet()
+    .length;
+
 void main() {
   testWidgets('actions and composer remain presentation-only', (tester) async {
     final repository = _Repository(const <ConversationSummary>[]);
@@ -514,7 +522,7 @@ void main() {
 
   for (final width in <double>[402, 432]) {
     testWidgets(
-      '$width mobile Home paints every description without ellipsis',
+      '$width mobile Home keeps source two-line descriptions without clipping',
       (tester) async {
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = Size(width, 900);
@@ -543,6 +551,11 @@ void main() {
             find.byKey(Key('home-action-description-${action.name}')),
           );
           expect(paragraph.didExceedMaxLines, isFalse, reason: action.name);
+          expect(
+            _paintedLineCount(paragraph, action.description),
+            lessThanOrEqualTo(2),
+            reason: action.name,
+          );
         }
         expect(tester.takeException(), isNull);
       },
@@ -593,7 +606,7 @@ void main() {
     'expanded store analysis preserves source conversation and questions',
     (tester) async {
       tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(1366, 768);
+      tester.view.physicalSize = const Size(1024, 576);
       addTearDown(tester.view.reset);
       final draft = TextEditingController();
       final focus = FocusNode();
@@ -615,7 +628,17 @@ void main() {
       expect(find.text('매장 분석'), findsOneWidget);
       expect(find.text('오늘 매장 운영 상황을 한눈에 보여줘.'), findsOneWidget);
       expect(find.text('매출과 인건비를 분석했어요.'), findsOneWidget);
-      expect(find.textContaining('오늘은 전반적으로 안정적인 운영 흐름을'), findsOneWidget);
+      final Finder detail = find.textContaining('오늘은 전반적으로 안정적인 운영 흐름을');
+      expect(detail, findsOneWidget);
+      final Text detailText = tester.widget<Text>(detail);
+      final RenderParagraph detailParagraph = tester
+          .renderObject<RenderParagraph>(detail);
+      expect(
+        _paintedLineCount(detailParagraph, detailText.data!),
+        4,
+        reason:
+            '1024×576 source-matching fixture keeps the four-line analysis explanation',
+      );
       for (final String question in const <String>[
         '어제와 비교해서 어떤가요',
         '시간대별 상세 매출을 보여줘',
@@ -631,6 +654,40 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final Size size in const <Size>[Size(320, 760), Size(1024, 768)]) {
+    testWidgets('approval deadline stays bounded at $size', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      addTearDown(tester.view.reset);
+      final TextEditingController draft = TextEditingController();
+      final FocusNode focus = FocusNode();
+      addTearDown(draft.dispose);
+      addTearDown(focus.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: DemoBusinessPreviewScreen.approvals(
+            onBack: () {},
+            draftController: draft,
+            draftFocusNode: focus,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final Rect pill = tester.getRect(
+        find.byKey(const Key('approval-deadline-pill')),
+      );
+      final Rect clock = tester.getRect(
+        find.byKey(const Key('approval-deadline-clock')),
+      );
+      expect(pill.contains(clock.topLeft), isTrue);
+      expect(pill.contains(clock.bottomRight), isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('expanded notice and approval keep their follow-up guidance', (
     tester,

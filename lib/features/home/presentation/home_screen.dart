@@ -642,6 +642,11 @@ class _ActionCard extends StatelessWidget {
                         color: tokens.secondaryText,
                         fontSize: 9.5,
                         height: 1.25,
+                        // The supplied Korean Home copy uses a visibly compact
+                        // two-line setting. The source font file is unavailable,
+                        // so keep the measured type height while matching its
+                        // narrower tracking instead of shrinking the glyphs.
+                        letterSpacing: cardWidth < 190 ? -1.8 : -1.25,
                         fontWeight: FontWeight.w500,
                       ),
                     ),

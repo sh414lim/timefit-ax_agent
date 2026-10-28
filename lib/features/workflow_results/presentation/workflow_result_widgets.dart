@@ -1189,78 +1189,85 @@ class _ApprovalRow extends StatelessWidget {
       'workflow.approval.shift',
       'workflow.approval.receipt',
     ];
+    final double roleSize = compact ? 42 : 52;
+    final double roleGap = compact ? 9 : 13;
     return _Frame(
       style: style,
       compact: compact,
-      child: Row(
-        children: [
-          _RoleAsset(
-            role: roles[item.tone],
-            size: compact ? 42 : 52,
-            style: style,
-            assetBuilder: assetBuilder,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              _RoleAsset(
+                role: roles[item.tone],
+                size: roleSize,
+                style: style,
+                assetBuilder: assetBuilder,
+              ),
+              SizedBox(width: roleGap),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      item.title,
+                      style: TextStyle(
+                        color: style.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: compact ? 2 : 5),
+                    Text(
+                      item.detail,
+                      style: TextStyle(
+                        color: style.muted,
+                        fontSize: compact ? 11.5 : 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              _MiniButton('상세 보기', style, false),
+              const SizedBox(width: 7),
+              _MiniButton('승인', style, true),
+            ],
           ),
-          SizedBox(width: compact ? 9 : 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.title,
-                  style: TextStyle(
-                    color: style.ink,
-                    fontWeight: FontWeight.w700,
-                  ),
+          if (item.deadline != null) ...<Widget>[
+            SizedBox(height: compact ? 3 : 6),
+            Padding(
+              padding: EdgeInsets.only(left: roleSize + roleGap),
+              child: Container(
+                key: const Key('approval-deadline-pill'),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3DA),
+                  borderRadius: BorderRadius.circular(999),
                 ),
-                SizedBox(height: compact ? 2 : 5),
-                Text(
-                  item.detail,
-                  style: TextStyle(
-                    color: style.muted,
-                    fontSize: compact ? 11.5 : 13,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Icon(
+                      Icons.access_time_rounded,
+                      key: Key('approval-deadline-clock'),
+                      color: Color(0xFFA97818),
+                      size: 11,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      item.deadline!,
+                      style: const TextStyle(
+                        color: Color(0xFFA97818),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
-                if (item.deadline != null) ...[
-                  SizedBox(height: compact ? 2 : 5),
-                  Container(
-                    key: const Key('approval-deadline-pill'),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3DA),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        const Icon(
-                          Icons.access_time_rounded,
-                          key: Key('approval-deadline-clock'),
-                          color: Color(0xFFA97818),
-                          size: 11,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          item.deadline!,
-                          style: const TextStyle(
-                            color: Color(0xFFA97818),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(width: 6),
-          _MiniButton('상세 보기', style, false),
-          const SizedBox(width: 7),
-          _MiniButton('승인', style, true),
+          ],
         ],
       ),
     );

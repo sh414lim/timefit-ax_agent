@@ -585,8 +585,8 @@ class _ExpandedStoreAnalysisConversation extends StatelessWidget {
       SizedBox(height: AppSpacing.x16),
       _ChatBubble(
         text:
-            '오늘은 전반적으로 안정적인 운영 흐름을 보였고 점심과 저녁 시간대에 '
-            '매출이 크게 상승했어요. 주요 지표와 시간대별 추이를 오른쪽에서 확인할 수 있어요.',
+            '오늘은 전반적으로 안정적인 운영 흐름을 보였어요. '
+            '점심·저녁 매출이 상승했어요.',
         outgoing: false,
         timestamp: '오전 10:25',
       ),

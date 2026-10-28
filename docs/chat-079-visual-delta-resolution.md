@@ -47,6 +47,29 @@ subject to direct source-byte confirmation. Original logo, robot, glyph and
 font exports remain unavailable; reconstructed assets remain comparison
 targets rather than exemptions.
 
+## Post-4faa0bc independent-QA correction
+
+The independent `REVIEW-4faa0bc.md` reproduced three remaining composition
+problems. This checkpoint closes their local bounds without changing the
+memory-only demo contract:
+
+- the first approval deadline is now a separate, title-aligned row inside the
+  request card. It no longer inherits the narrow text column left between the
+  role field and action buttons, and 320x760 plus 1024x768 regressions assert
+  that the clock and label remain inside the pill without overflow;
+- the expanded store explanation is shortened from the estimated viewer
+  transcription to the four painted lines visible at the proposed 1024x576
+  comparison fixture. This remains a presentation candidate, not proof of the
+  unavailable source text bytes;
+- the Home body retains its measured 9.5dp height but uses compact Korean
+  tracking to approximate the unavailable source font width. All four cards
+  now retain the supplied two-line composition at both 402dp and 432dp without
+  clipping.
+
+These fixes remove deterministic layout differences only. They do not resolve
+the original brand vectors, runtime font identity, same-canvas overlay, or
+Simulator capture requirements, so visual acceptance remains pending.
+
 ### Evidence correction
 
 The four previously named `*-ipadpro13-landscape-native-buffer.png` files are
@@ -77,7 +100,7 @@ meaning from the source review.
 | M_HOME hero field | implemented, pending visual QA | Uses a stronger radial falloff instead of a flat ellipse; final falloff and aspect still need new capture comparison. |
 | M_HOME robot silhouette | implemented, pending visual QA | Head/bezel/face, eyes, ears, antenna, rays, speech-tail torso and independently sized chest mark are reconstructed. |
 | M_HOME action grid | partial, pending visual QA | Source-density two-column cards remain. The block is placed from available height and retains responsive one-column adaptation, but exact source glyph/text scale remains open. |
-| M_HOME card copy | functional regression closed, fidelity open | Width 402 and 432 regressions assert all four `RenderParagraph`s do not exceed their responsive three-line bound. Mobile fields are 44/48dp and copy is 12.5/9.5dp while the 2.15:1 source card ratio remains fixed. These measured approximations are not source typography approval. |
+| M_HOME card copy | functional regression closed, fidelity open | Width 402 and 432 regressions assert all four descriptions retain at most two painted lines without clipping. Mobile fields remain 44/48dp, type remains 12.5/9.5dp, and compact tracking approximates the unavailable source font width while the 2.15:1 source card ratio stays fixed. This is not source-font approval. |
 | M_HOME mobile tile colour | implemented | All four mobile fields are pale blue with blue glyphs. |
 | M_HOME quick-action paths | partial, pending visual QA | Controlled bar/calendar/database/document-pen painters remain; exact path overlay is blocked. |
 | M_HOME composer gap | implemented, pending visual QA | Available-height rhythm brings cards and composer together without a fixed height cutoff. Final same-aspect anchors still require a new capture. |
@@ -88,7 +111,7 @@ meaning from the source review.
 | M_NOTICE result card density | implemented, pending visual QA | Compact mobile presentation keeps both actions and the final confirmation above the composer at the source-height fixture. Exact source bbox density still needs capture review. |
 | M_NOTICE final assistant bubble | implemented | Confirmation bubble and timestamp are restored before the composer. |
 | M_NOTICE composer variant | implemented | Paperclip with pale-blue send treatment. |
-| M_APPROVAL current screen | pending visual QA | Component exists; no general Home route is invented. Role fields now preserve orange/mint/lavender separation and the due state uses a clock pill. A component-only Simulator capture is still required and must be labelled as such. |
+| M_APPROVAL current screen | pending visual QA | Component exists; no general Home route is invented. Role fields preserve orange/mint/lavender separation and the clock deadline pill now occupies a bounded title-aligned row at narrow and expanded widths. A component-only Simulator capture is still required and must be labelled as such. |
 | M_APPROVAL composer variant | implemented | Plus remains outside the pale field; the unfilled grey plane is now inside the text field as in the mobile source. |
 | M_ANALYSIS outgoing bubble | implemented | Saturated blue surface and white text. |
 | M_ANALYSIS assistant avatar | implemented | TimeFit mark and timestamp. |
@@ -105,7 +128,7 @@ meaning from the source review.
 | L_HOME sidebar | partial | Existing recent conversation data/navigation remains; source-only sample rows are not written to Drift. |
 | L_HOME free mark | implemented, pending visual QA | Uses the same reconstructed mark family without a square. |
 | L_HOME tile variants | implemented | Blue/green/purple/orange fields and role-specific glyph colours are separated from mobile. |
-| L_ANALYSIS shell details | implemented candidate, pending visual QA | The title is `매장 분석`; selected/recent rows, timestamps, pale outgoing bubble, a second detailed assistant explanation, and four vertically stacked full-sentence questions are present. The long copy comes from the catalogue's estimated viewer transcription and still needs direct source-byte confirmation. |
+| L_ANALYSIS shell details | implemented candidate, pending visual QA | The title is `매장 분석`; selected/recent rows, timestamps, pale outgoing bubble, a four-line second assistant explanation, and four vertically stacked full-sentence questions are present. The explanation is adapted from the catalogue's estimated viewer transcription to the observed four-line composition and still needs direct source-byte confirmation. |
 | L_ANALYSIS result anatomy | implemented, pending visual QA | Live state, unequal KPI blocks, role glyphs, comparison pills, raw-won semantics, source-consistent peak anchors, chart and insight are present. |
 | L_ANALYSIS sidebar brand | implemented | Free blue mark and all-blue wordmark. |
 | L_SCHEDULE shell details | implemented, pending visual QA | Selected recent row, chat timestamps and bottom suggestion chips. |
@@ -132,9 +155,10 @@ meaning from the source review.
   screens remain proposals and cannot contribute to nine-screen fidelity.
 - The visible demo disclosure intentionally differs from the source and must
   not be masked from a future comparison.
-- The expanded analysis long copy is implemented only from the measurement
-  catalogue's estimated viewer transcription. Exact source bytes remain
-  unavailable, so copy identity and line breaks remain unverified.
+- The expanded analysis copy is adapted from the measurement catalogue's
+  estimated viewer transcription to the observed four-line composition. Exact
+  source bytes remain unavailable, so copy identity remains unverified even
+  though the local line-count regression is deterministic.
 - The preserved iPad buffers from the `5dc2daf` evidence set are portrait-shaped
   renders despite their filenames. They remain historical artifacts only; a
   corrected, truly landscape capture is still required.
