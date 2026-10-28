@@ -120,6 +120,7 @@ void main() {
       (size: const Size(393, 852), keyboard: 280.0, scale: 1.0, dark: false),
       (size: const Size(320, 640), keyboard: 280.0, scale: 2.0, dark: true),
       (size: const Size(852, 393), keyboard: 216.0, scale: 2.0, dark: true),
+      (size: const Size(900, 600), keyboard: 0.0, scale: 2.0, dark: false),
       (size: const Size(1024, 900), keyboard: 280.0, scale: 1.0, dark: false),
     ]) {
       testWidgets('${action.name} focused roundtrip $fixture', (tester) async {

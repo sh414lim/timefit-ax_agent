@@ -24,9 +24,10 @@ CHAT-070은 REL-001, REL-002, CHAT-053, CHAT-062에 의해 전체 완료가 차�
 - [x] dev-local Home의 네 가지 데모 프리뷰에서 852×393dp, 글자 200%, 키보드 216dp, 긴 초안의 183px overflow를 회귀 테스트로 고정한다. 입력 줄/버튼을 축소하지 않고 bounded input viewport 및 짧은 화면의 shell scroll로 처리한다.
 - [x] 위 프리뷰의 320/390/393/430/852/899dp 폭, 세로·가로, 글자 100/150/200%, light/dark 및 1024dp 기본형에서 입력 한 줄과 44dp 이상의 보내기·첨부·뒤로가기 전체 조작 영역 도달성을 확인한다. 반복 Home 왕복, resize 중 동일 EditableText State·focus·선택·IME, 입력 내부/결과 목록 스크롤을 검사한다. 상세 범위와 미해결 항목은 `evidence/chat-070-preview-keyboard.md`에 기록한다.
 
-## 별도로 남은 데모 프리뷰 경계
+## 데모 전환·확장형 로컬 보완
 
-- [ ] 900×600dp 확장형 근무표의 결과 카드: 한글 비교 폰트에서 글자 100%는 오른쪽 2.9px, 200%는 오른쪽 56px overflow가 수정 전 base에서도 재현된다. 200%에서는 확장형 대화 Column의 하단 105px overflow도 있다. 모바일 keyboard shell 수정과 별도이며, 해당 조건을 PASS로 포함하지 않았다.
+- [x] 키보드가 열린 Home → 네 가지 프리뷰 → Home 및 크기 전환에서 동일 EditableText와 실제 TextInput client를 유지한다. controller/FocusNode 유지뿐 아니라 clearClient/setClient/hide 호출 부재, selection/composing 보존, 후속 편집과 dispose 시 연결 종료를 검사한다.
+- [x] 900×600dp 확장형 근무표의 100/200% 가로 action overflow와 확장형 대화의 세로 overflow를 재현 후 수정한다. 짧은 높이의 대화/홈 사이드바는 scroll, 좁은 라벨/공지 제목·메타는 wrap을 허용하되 폰트·본문·데모 비활성 상태는 유지한다. 4개 화면의 추가 회귀와 한계는 `evidence/chat-070-preview-ime-and-expanded.md`에 기록한다.
 
 ## 실제 기기 수동 검증 필요
 

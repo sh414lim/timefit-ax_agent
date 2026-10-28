@@ -1046,12 +1046,14 @@ class _Heading extends StatelessWidget {
         assetBuilder: assetBuilder,
       ),
       SizedBox(width: compact ? 10 : 13),
-      Text(
-        title,
-        style: TextStyle(
-          color: style.ink,
-          fontSize: compact ? 21 : 23,
-          fontWeight: FontWeight.w800,
+      Flexible(
+        child: Text(
+          title,
+          style: TextStyle(
+            color: style.ink,
+            fontSize: compact ? 21 : 23,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
     ],
@@ -1104,7 +1106,9 @@ class _Meta extends StatelessWidget {
     children: [
       Icon(icon, color: const Color(0xFF818899), size: 22),
       const SizedBox(width: 13),
-      Text(text, style: TextStyle(color: style.ink, fontSize: 14)),
+      Flexible(
+        child: Text(text, style: TextStyle(color: style.ink, fontSize: 14)),
+      ),
     ],
   );
 }
@@ -1118,7 +1122,9 @@ class _Check extends StatelessWidget {
     children: [
       Icon(Icons.check_circle, color: style.primary, size: 23),
       const SizedBox(width: 12),
-      Text(text, style: TextStyle(color: style.ink, fontSize: 14)),
+      Flexible(
+        child: Text(text, style: TextStyle(color: style.ink, fontSize: 14)),
+      ),
     ],
   );
 }
@@ -1138,7 +1144,7 @@ class _Action extends StatelessWidget {
     enabled: false,
     label: '$label 미리보기, 실제 작업은 실행하지 않음',
     child: Container(
-      height: 48,
+      constraints: const BoxConstraints(minHeight: 48),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: primary ? style.primary : const Color(0xFFF3F5F8),
@@ -1158,11 +1164,14 @@ class _Action extends StatelessWidget {
             ),
             const SizedBox(width: 6),
           ],
-          Text(
-            label.replaceFirst('✓  ', ''),
-            style: TextStyle(
-              color: primary ? Colors.white : style.ink,
-              fontWeight: FontWeight.w700,
+          Flexible(
+            child: Text(
+              label.replaceFirst('✓  ', ''),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: primary ? Colors.white : style.ink,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],

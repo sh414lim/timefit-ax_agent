@@ -419,86 +419,110 @@ class _ExpandedNavigation extends StatelessWidget {
       color: tokens.sidebar,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 28, 20, 22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Center(
-              child: Column(
-                children: <Widget>[
-                  const TimeFitAssetSlot(
-                    kind: TimeFitAssetKind.squareLogo,
-                    width: 72,
-                    height: 72,
-                    keyName: 'expanded-home-logo-slot',
-                  ),
-                  const SizedBox(height: AppSpacing.x8),
-                  Text(
-                    'TimeFit AX',
-                    style: TextStyle(
-                      color: tokens.deepText,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            key: const Key('expanded-home-navigation-scroll'),
+            primary: false,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Center(
+                      child: Column(
+                        children: <Widget>[
+                          const TimeFitAssetSlot(
+                            kind: TimeFitAssetKind.squareLogo,
+                            width: 72,
+                            height: 72,
+                            keyName: 'expanded-home-logo-slot',
+                          ),
+                          const SizedBox(height: AppSpacing.x8),
+                          Text(
+                            'TimeFit AX',
+                            style: TextStyle(
+                              color: tokens.deepText,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.x24),
-            FilledButton.icon(
-              onPressed: onNewConversation,
-              icon: const Icon(Icons.add),
-              label: const Text('새 대화'),
-              style: FilledButton.styleFrom(backgroundColor: tokens.primary),
-            ),
-            const SizedBox(height: AppSpacing.x24),
-            Text(
-              '최근 대화',
-              style: TextStyle(
-                color: tokens.secondaryText,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.x8),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              minTileHeight: AppTouchTarget.minimum,
-              leading: const Icon(Icons.chat_bubble_outline, size: 20),
-              title: const Text('모든 대화'),
-              onTap: onShowAll,
-            ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: <Widget>[
-                  for (final conversation in recent.conversations.take(4))
+                    const SizedBox(height: AppSpacing.x24),
+                    FilledButton.icon(
+                      onPressed: onNewConversation,
+                      icon: const Icon(Icons.add),
+                      label: const Text('새 대화'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: tokens.primary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.x24),
+                    Text(
+                      '최근 대화',
+                      style: TextStyle(
+                        color: tokens.secondaryText,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.x8),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      leading: const Icon(Icons.chat_bubble_outline, size: 18),
-                      title: Text(
-                        conversation.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onTap: () => onOpenConversation(conversation.id),
+                      minTileHeight: AppTouchTarget.minimum,
+                      leading: const Icon(Icons.chat_bubble_outline, size: 20),
+                      title: const Text('모든 대화'),
+                      onTap: onShowAll,
                     ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.archive_outlined, size: 20),
-                    title: const Text('보관'),
-                    onTap: onShowArchive,
-                  ),
-                ],
+                    Expanded(
+                      child: SizedBox(
+                        height: AppTouchTarget.minimum,
+                        child: ListView(
+                          padding: EdgeInsets.zero,
+                          children: <Widget>[
+                            for (final conversation
+                                in recent.conversations.take(4))
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                                leading: const Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 18,
+                                ),
+                                title: Text(
+                                  conversation.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                onTap: () =>
+                                    onOpenConversation(conversation.id),
+                              ),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(
+                                Icons.archive_outlined,
+                                size: 20,
+                              ),
+                              title: const Text('보관'),
+                              onTap: onShowArchive,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const _DemoBadge(),
+                    const SizedBox(height: AppSpacing.x8),
+                    const ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.settings_outlined),
+                      title: Text('설정'),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const _DemoBadge(),
-            const SizedBox(height: AppSpacing.x8),
-            const ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.settings_outlined),
-              title: Text('설정'),
-            ),
-          ],
+          ),
         ),
       ),
     );

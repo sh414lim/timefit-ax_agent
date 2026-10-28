@@ -180,9 +180,8 @@ void main() {
       (size: const Size(852, 393), scale: 1.0, keyboard: 216.0, dark: false),
       (size: const Size(852, 320), scale: 2.0, keyboard: 216.0, dark: false),
       (size: const Size(899, 393), scale: 2.0, keyboard: 216.0, dark: false),
-      // The 900dp expanded schedule boundary has a separately recorded existing
-      // result-card overflow, outside this mobile-shell change. Its failing
-      // diagnostic is retained in the evidence, not counted as a passing case.
+      // The expanded 900dp boundary is covered separately by
+      // demo_expanded_preview_test.dart, including the original red regression.
       (size: const Size(1024, 768), scale: 1.0, keyboard: 0.0, dark: true),
     ]) {
       testWidgets('${action.name} reachable controls $fixture', (tester) async {

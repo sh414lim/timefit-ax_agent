@@ -554,56 +554,85 @@ class _ExpandedChat extends StatelessWidget {
         sourceStoreAnalysis ? 14 : 24,
         20,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          Text(
-            _expandedPreviewTitle(action, isApprovalPreview),
-            style: TextStyle(
-              color: TimeFitAxVisualTokens.of(context).deepText,
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.x24),
-          Expanded(
-            child: ListView(
-              children: <Widget>[
-                if (!isApprovalPreview &&
-                    action == DemoHomeAction.storeOverview)
-                  const _ExpandedStoreAnalysisConversation()
-                else
-                  _ConversationExcerpt(
-                    action: action,
-                    isApprovalPreview: isApprovalPreview,
-                    solidAnalysisOutgoing: false,
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          key: const Key('expanded-preview-chat-scroll'),
+          primary: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: IntrinsicHeight(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text(
+                    _expandedPreviewTitle(action, isApprovalPreview),
+                    style: TextStyle(
+                      color: TimeFitAxVisualTokens.of(context).deepText,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                if (isApprovalPreview ||
-                    action == DemoHomeAction.employeeAnnouncement)
-                  _PostResultConversation(
-                    action: action,
-                    isApprovalPreview: isApprovalPreview,
+                  const SizedBox(height: AppSpacing.x24),
+                  Expanded(
+                    // Bound intrinsic sizing without asking the lazy viewport
+                    // for its intrinsic height. At normal sizes Expanded still
+                    // assigns the original remaining conversation area.
+                    child: SizedBox(
+                      height: AppTouchTarget.minimum,
+                      child: ListView(
+                        key: const Key('expanded-preview-conversation-scroll'),
+                        children: <Widget>[
+                          if (!isApprovalPreview &&
+                              action == DemoHomeAction.storeOverview)
+                            const _ExpandedStoreAnalysisConversation()
+                          else
+                            _ConversationExcerpt(
+                              action: action,
+                              isApprovalPreview: isApprovalPreview,
+                              solidAnalysisOutgoing: false,
+                            ),
+                          if (isApprovalPreview ||
+                              action == DemoHomeAction.employeeAnnouncement)
+                            _PostResultConversation(
+                              action: action,
+                              isApprovalPreview: isApprovalPreview,
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-              ],
+                  DemoQuickComposer(
+                    key: composerKey,
+                    controller: draftController,
+                    focusNode: draftFocusNode,
+                    inputMaxHeight: constraints.maxHeight.clamp(
+                      DemoQuickComposer.minimumInputViewportHeight(context),
+                      double.infinity,
+                    ),
+                    placeholder: isApprovalPreview
+                        ? '승인 요청에 대해 질문하세요'
+                        : action.composerPlaceholder,
+                    variant: _expandedComposerVariant(
+                      action,
+                      isApprovalPreview,
+                    ),
+                  ),
+                  if (!isApprovalPreview &&
+                      action == DemoHomeAction.weeklySchedule) ...<Widget>[
+                    const SizedBox(height: AppSpacing.x12),
+                    const _SuggestionChips(
+                      labels: <String>[
+                        '직원 교대 요청 반영',
+                        '다른 주도 만들어줘',
+                        '근무 시간 규칙 변경',
+                      ],
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-          DemoQuickComposer(
-            key: composerKey,
-            controller: draftController,
-            focusNode: draftFocusNode,
-            placeholder: isApprovalPreview
-                ? '승인 요청에 대해 질문하세요'
-                : action.composerPlaceholder,
-            variant: _expandedComposerVariant(action, isApprovalPreview),
-          ),
-          if (!isApprovalPreview &&
-              action == DemoHomeAction.weeklySchedule) ...<Widget>[
-            const SizedBox(height: AppSpacing.x12),
-            const _SuggestionChips(
-              labels: <String>['직원 교대 요청 반영', '다른 주도 만들어줘', '근무 시간 규칙 변경'],
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

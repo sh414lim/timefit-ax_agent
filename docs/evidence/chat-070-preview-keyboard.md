@@ -3,6 +3,9 @@
 Base: `2e130575e738185b6863cefcc0e62614d5367ea1`. Local branch:
 `fix/chat-070-preview-keyboard`. Validation date: 2026-10-28.
 
+This is historical evidence for checkpoint `f2fd8ad`. The later IME and expanded
+boundary fixes are documented in `chat-070-preview-ime-and-expanded.md`.
+
 This fixes the mobile preview shell only. It does not complete CHAT-070, enable
 business actions, or establish source-image fidelity or device accessibility.
 The existing user Simulator, its in-memory Home draft and persisted data were
@@ -92,7 +95,7 @@ Diagnostic log names retained locally: `chat070-preview-red.log`,
 pair. Earlier fixture development failures were retained too; they are not
 counted as successful runs.
 
-## Unresolved expanded schedule boundary
+## Expanded schedule failure at this historical checkpoint
 
 A separate diagnostic at **900×600**, no keyboard, using the same Korean control
 font failed on both the new tree and the untouched base:
@@ -102,12 +105,12 @@ font failed on both the new tree and the untouched base:
   workflow result action row.
 
 This lies in the expanded chat/result-card path, not the mobile keyboard shell.
-It was not fixed or counted as a passing configuration, and no existing test was
+At this checkpoint it was not fixed or counted as a passing configuration, and no existing test was
 skipped or weakened. The exploratory diagnostic and failure logs remain as
 `qa_chat070_expanded_baseline_test.dart` and
 `chat070-preview-expanded-baseline.log`; the initial broad matrix failures are
-also retained. A width-aware action layout and bounded expanded chat need a
-separate change coordinated with the other result-card work. Do not interpret
+also retained. A later authorized, separate checkpoint adds a width-aware action
+layout and bounded expanded chat; see the follow-up evidence. Do not interpret
 the full in-repository suite PASS as coverage of this known failing boundary.
 
 ## Not run / boundaries
