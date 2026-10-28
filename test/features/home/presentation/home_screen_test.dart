@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/theme/app_theme.dart';
 import 'package:timefit_native/features/conversations/application/conversation_list_controller.dart';
@@ -38,7 +41,45 @@ int _paintedLineCount(RenderParagraph paragraph, String text) => paragraph
     .toSet()
     .length;
 
+List<String> _paintedLines(RenderParagraph paragraph, String text) {
+  final groups = <int, String>{};
+  for (var index = 0; index < text.length; index += 1) {
+    if (text[index] == '\n') continue;
+    final boxes = paragraph.getBoxesForSelection(
+      TextSelection(baseOffset: index, extentOffset: index + 1),
+    );
+    if (boxes.isEmpty) continue;
+    final row = (boxes.first.top * 1000).round();
+    groups[row] = '${groups[row] ?? ''}${text[index]}';
+  }
+  final rows = groups.keys.toList()..sort();
+  return rows.map((row) => groups[row]!.trim()).toList();
+}
+
+const String _koreanControlFont = 'HomeKoreanControl';
+
+ThemeData _koreanControlTheme() {
+  final base = AppTheme.light();
+  return base.copyWith(
+    textTheme: base.textTheme.apply(fontFamily: _koreanControlFont),
+    primaryTextTheme: base.primaryTextTheme.apply(
+      fontFamily: _koreanControlFont,
+    ),
+  );
+}
+
 void main() {
+  setUpAll(() async {
+    // This bundled font is a deterministic Korean layout control only. The
+    // source and iOS font identities remain unknown.
+    final bytes = File(
+      'test/fixtures/fonts/nanum_gothic/NanumGothic-Regular.ttf',
+    ).readAsBytesSync();
+    final loader = FontLoader(_koreanControlFont)
+      ..addFont(Future<ByteData>.value(ByteData.sublistView(bytes)));
+    await loader.load();
+  });
+
   testWidgets('actions and composer remain presentation-only', (tester) async {
     final repository = _Repository(const <ConversationSummary>[]);
     final controller = ConversationListController(repository: repository);
@@ -522,7 +563,7 @@ void main() {
 
   for (final width in <double>[402, 432]) {
     testWidgets(
-      '$width mobile Home keeps source two-line descriptions without clipping',
+      '$width mobile Home keeps full copy unclipped with the fallback font',
       (tester) async {
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = Size(width, 900);
@@ -556,7 +597,7 @@ void main() {
           expect(paragraph.didExceedMaxLines, isFalse, reason: action.name);
           expect(
             _paintedLineCount(paragraph, action.description),
-            lessThanOrEqualTo(2),
+            lessThanOrEqualTo(3),
             reason: action.name,
           );
           expect(
@@ -570,7 +611,7 @@ void main() {
     );
   }
 
-  testWidgets('mobile Home cards preserve source-scaled icon and copy size', (
+  testWidgets('mobile Home cards preserve measured icon and readable copy', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -605,12 +646,69 @@ void main() {
       find.byKey(const Key('home-action-description-storeOverview')),
     );
     expect(description.data, '매출 방문객 운영 현황을 한눈에 확인하세요');
-    expect(description.style!.fontSize, 7.9);
+    expect(description.style!.fontSize, 10.5);
+    expect(description.style!.height, 1.2);
     expect(description.style!.letterSpacing ?? 0, 0);
     final Text title = tester.widget<Text>(find.text('오늘 매장 현황'));
     expect(title.style!.fontSize, 12.5);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'mobile Home keeps measured first-card grouping with a Korean control font',
+    (tester) async {
+      tester.view.devicePixelRatio = 2;
+      tester.view.physicalSize = const Size(864, 1536);
+      tester.view.padding = const FakeViewPadding(top: 54, bottom: 32);
+      tester.view.viewPadding = const FakeViewPadding(top: 54, bottom: 32);
+      addTearDown(tester.view.reset);
+      final controller = ConversationListController(
+        repository: _Repository(const <ConversationSummary>[]),
+      );
+      await controller.load();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: _koreanControlTheme(),
+          home: DemoHomeScreen(
+            conversationController: controller,
+            onOpenConversation: (_) {},
+            onOpenConversationList: () {},
+            onOpenArchive: () {},
+            onNewConversation: () {},
+          ),
+        ),
+      );
+
+      for (final action in DemoHomeAction.values) {
+        final actionFinder = find.byKey(
+          Key('home-action-description-${action.name}'),
+        );
+        final actionParagraph = tester.renderObject<RenderParagraph>(
+          actionFinder,
+        );
+        expect(
+          _paintedLineCount(actionParagraph, action.description),
+          lessThanOrEqualTo(2),
+          reason: '${action.name} keeps the source one-to-two-line anatomy',
+        );
+        expect(actionParagraph.didExceedMaxLines, isFalse);
+      }
+
+      const String sourceCopy = '매출 방문객 운영 현황을 한눈에 확인하세요';
+      final firstFinder = find.byKey(
+        const Key('home-action-description-storeOverview'),
+      );
+      final paragraph = tester.renderObject<RenderParagraph>(firstFinder);
+      expect(_paintedLines(paragraph, sourceCopy), const <String>[
+        '매출 방문객 운영 현황을',
+        '한눈에 확인하세요',
+      ]);
+      expect(paragraph.didExceedMaxLines, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'expanded store analysis preserves source conversation and questions',
@@ -649,14 +747,10 @@ void main() {
       final RenderParagraph detailParagraph = tester
           .renderObject<RenderParagraph>(detail);
       expect(detailText.data, sourceDetail);
-      expect(detailText.style!.fontSize, 9.1);
+      expect(detailText.style!.fontSize, 10.5);
+      expect(detailText.style!.height, 1.45);
       expect(detailText.style!.letterSpacing ?? 0, 0);
-      expect(
-        _paintedLineCount(detailParagraph, detailText.data!),
-        4,
-        reason:
-            '1024×576 source-matching fixture keeps the four-line analysis explanation',
-      );
+      expect(detailParagraph.didExceedMaxLines, isFalse);
       for (final String question in const <String>[
         '어제와 비교해서 어떤가요',
         '시간대별 상세 매출을 보여줘',
@@ -669,6 +763,42 @@ void main() {
         find.byKey(const Key('expanded-analysis-suggestion-list')),
         findsOneWidget,
       );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'expanded analysis keeps measured four rows with a Korean control font',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.5;
+      tester.view.physicalSize = const Size(1536, 864);
+      addTearDown(tester.view.reset);
+      final draft = TextEditingController();
+      final focus = FocusNode();
+      addTearDown(draft.dispose);
+      addTearDown(focus.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: _koreanControlTheme(),
+          home: DemoBusinessPreviewScreen(
+            action: DemoHomeAction.storeOverview,
+            onBack: () {},
+            draftController: draft,
+            draftFocusNode: focus,
+          ),
+        ),
+      );
+
+      const String sourceDetail =
+          '오늘은 전반적으로 안정적인 운영 흐름을\n'
+          '보였고 점심과 저녁 시간대에 매출이\n'
+          '크게 상승했어요 주요 지표와 시간대별 추이를\n'
+          '오른쪽에서 확인할 수 있어요';
+      final finder = find.text(sourceDetail);
+      final paragraph = tester.renderObject<RenderParagraph>(finder);
+      expect(_paintedLines(paragraph, sourceDetail), sourceDetail.split('\n'));
+      expect(paragraph.didExceedMaxLines, isFalse);
       expect(tester.takeException(), isNull);
     },
   );

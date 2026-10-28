@@ -640,12 +640,13 @@ class _ActionCard extends StatelessWidget {
                       overflow: TextOverflow.clip,
                       style: TextStyle(
                         color: tokens.secondaryText,
-                        // The 432dp reference is a 2x rendering of the
-                        // measured 864px source. Preserve its two 25px ink
-                        // rows with normal tracking, then scale the type with
-                        // the narrower 402dp responsive card.
-                        fontSize: cardWidth < 190 ? 7.25 : 7.9,
-                        height: 1.55,
+                        // The source only establishes the two-line ink box,
+                        // not a font family or em size. Keep a readable body
+                        // size and normal tracking inside the measured card
+                        // content width; do not shrink glyphs merely to force
+                        // a particular line count in the Ahem test font.
+                        fontSize: 10.5,
+                        height: 1.2,
                         fontWeight: FontWeight.w500,
                       ),
                     ),

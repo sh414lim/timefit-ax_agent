@@ -601,12 +601,14 @@ class _ExpandedStoreAnalysisConversation extends StatelessWidget {
             '오른쪽에서 확인할 수 있어요',
         outgoing: false,
         timestamp: '오전 10:25',
-        // The source bitmap paints this copy as four compact rows inside a
-        // 373px bubble. At the 1024×576 comparison scale this maps to the
-        // normal-tracking size and inset below without dropping any copy.
-        fontSize: 9.1,
-        lineHeight: 1.5,
-        horizontalPadding: 10,
+        // The source establishes four compact rows and a bubble field, but
+        // not an em size or font family. Preserve the complete copy with a
+        // readable normal-tracking candidate instead of deriving tiny glyphs
+        // from the raster ink box.
+        fontSize: 10.5,
+        lineHeight: 1.45,
+        horizontalPadding: 15,
+        verticalPadding: 16,
       ),
       SizedBox(height: AppSpacing.x20),
       _StackedSuggestionQuestions(labels: questions),
@@ -662,6 +664,7 @@ class _ChatBubble extends StatelessWidget {
     this.fontSize,
     this.lineHeight,
     this.horizontalPadding,
+    this.verticalPadding,
   });
   final String text;
   final bool outgoing;
@@ -671,6 +674,7 @@ class _ChatBubble extends StatelessWidget {
   final double? fontSize;
   final double? lineHeight;
   final double? horizontalPadding;
+  final double? verticalPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -703,7 +707,7 @@ class _ChatBubble extends StatelessWidget {
                   constraints: const BoxConstraints(maxWidth: 470),
                   padding: EdgeInsets.symmetric(
                     horizontal: horizontalPadding ?? (compact ? 16 : 18),
-                    vertical: compact ? 10 : 13,
+                    vertical: verticalPadding ?? (compact ? 10 : 13),
                   ),
                   decoration: BoxDecoration(
                     color: outgoing

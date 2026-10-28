@@ -62,10 +62,13 @@ memory-only demo contract:
   and scaled normal-tracking type are asserted together at the 1024x576
   comparison fixture instead of shortening the sentence;
 - the Home body uses normal tracking and punctuation-free copy recorded by the
-  source measurement. Its type size and line height are derived from the 2x
-  864px bitmap, then proportionally adapted for the 402dp responsive card. All
-  four cards retain the supplied two-line composition at 402dp and 432dp
-  without clipping or negative letter spacing.
+  source measurement. Because the source font, DPR, and em size are unknown,
+  its 10.5dp type is a readable candidate checked inside the measured card
+  content ratio rather than a value reverse-engineered from the raster ink
+  box. A bundled Korean comparison font—not the source or iOS font—keeps the
+  measured first-card word grouping, while the fallback Ahem fixture verifies
+  all copy remains unclipped without claiming identical wrapping. Negative
+  letter spacing is not used.
 
 These fixes remove deterministic layout differences only. They do not resolve
 the original brand vectors, runtime font identity, same-canvas overlay, or
@@ -158,8 +161,11 @@ meaning from the source review.
   not be masked from a future comparison.
 - The expanded analysis uses the complete measurement-catalogue viewer
   transcription and explicit observed line grouping. Exact source bytes remain
-  unavailable, so copy identity remains unverified even though copy, tracking,
-  and line-count regressions are deterministic.
+  unavailable, and the 10.5dp normal-tracking type remains a readable
+  candidate rather than a recovered source font. A deterministic Korean
+  control verifies the recorded four rows and measured bubble proportion;
+  it does not establish the runtime source font. Copy identity remains
+  unverified even though copy and tracking regressions are deterministic.
 - The preserved iPad buffers from the `5dc2daf` evidence set are portrait-shaped
   renders despite their filenames. They remain historical artifacts only; no
   corrected landscape capture was produced after the user withdrew that
