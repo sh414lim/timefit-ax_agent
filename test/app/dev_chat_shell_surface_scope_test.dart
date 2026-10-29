@@ -58,6 +58,7 @@ void main() {
 
         harness.coordinator.state = LocalChatSessionState.active;
         await tester.pump();
+        await _openConversationListFromHome(tester);
         await _pumpUntilFinder(tester, find.byType(ConversationListRow));
         await _openConversationMenuAction(tester, '보관');
         await tester.pumpAndSettle();
@@ -108,6 +109,7 @@ void main() {
 
       harness.coordinator.state = LocalChatSessionState.active;
       await tester.pump();
+      await _openConversationListFromHome(tester);
       await _pumpUntilFinder(tester, find.byType(ConversationListRow));
       await tester.tap(find.byType(ConversationListRow).first);
       await _settleFileIo(tester);
@@ -127,6 +129,7 @@ void main() {
 
       harness.coordinator.state = LocalChatSessionState.active;
       await tester.pump();
+      await _openConversationListFromHome(tester);
       await _pumpUntilFinder(tester, find.byType(ConversationListRow));
       await tester.tap(find.byType(ConversationListRow).first);
       await _settleFileIo(tester);
@@ -420,6 +423,7 @@ final class _DevGateHarness {
       ),
     );
     await _settleFileIo(tester);
+    await _openConversationListFromHome(tester);
     await _pumpUntilFinder(tester, find.text('새 대화 시작'));
   }
 
@@ -624,4 +628,11 @@ Future<void> _pumpUntilFinder(WidgetTester tester, Finder finder) async {
     await tester.pump(const Duration(milliseconds: 10));
   }
   expect(finder, findsOneWidget);
+}
+
+Future<void> _openConversationListFromHome(WidgetTester tester) async {
+  final menu = find.byTooltip('메뉴 샘플');
+  await _pumpUntilFinder(tester, menu);
+  await tester.tap(menu);
+  await _settleFileIo(tester);
 }
