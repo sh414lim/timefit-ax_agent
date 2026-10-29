@@ -135,6 +135,13 @@ final class FakePrivateOpenHandle {
 }
 
 /// Deterministic test-only private-file model. It never touches disk.
+///
+/// This fake deliberately does not model file incarnations. Reseeding the
+/// same path while an older operation is active cannot prove that the older
+/// operation will spare the new file. Scripted outcomes are also queued by
+/// operation kind globally, not by namespace or path. Tests needing either
+/// guarantee must use a different model rather than infer production safety
+/// from this fake.
 final class FakePrivateChatFilesystem {
   final Map<FakePrivateNamespaceId, Map<FakePrivateRelativePath, bool>>
   _entries = <FakePrivateNamespaceId, Map<FakePrivateRelativePath, bool>>{};
@@ -144,6 +151,7 @@ final class FakePrivateChatFilesystem {
   final Map<_EntryKey, int> _openCounts = <_EntryKey, int>{};
   final Map<_EntryKey, List<Completer<void>>> _openDrainWaiters =
       <_EntryKey, List<Completer<void>>>{};
+  final Set<Object> _activeOperations = <Object>{};
   var _nextPendingId = 0;
 
   List<FakePendingFileOperation> get pendingOperations =>
@@ -202,18 +210,18 @@ final class FakePrivateChatFilesystem {
   Future<void> delete(
     FakePrivateNamespaceId namespaceId,
     FakePrivateRelativePath path,
-  ) async {
+  ) => _trackOperation(() async {
     await _applyScript(FakePrivateFileOperation.delete, namespaceId, path);
     await _waitForOpenHandles(_EntryKey(namespaceId, path));
     if (_entries[namespaceId]?[path] == false) {
       _entries[namespaceId]!.remove(path);
     }
-  }
+  });
 
   Future<void> renameToQuarantine(
     FakePrivateNamespaceId namespaceId,
     FakePrivateRelativePath path,
-  ) async {
+  ) => _trackOperation(() async {
     await _applyScript(
       FakePrivateFileOperation.renameToQuarantine,
       namespaceId,
@@ -223,12 +231,12 @@ final class FakePrivateChatFilesystem {
     if (_entries[namespaceId]?[path] == false) {
       _entries[namespaceId]![path] = true;
     }
-  }
+  });
 
   Future<void> unlinkQuarantined(
     FakePrivateNamespaceId namespaceId,
     FakePrivateRelativePath path,
-  ) async {
+  ) => _trackOperation(() async {
     await _applyScript(
       FakePrivateFileOperation.unlinkQuarantined,
       namespaceId,
@@ -238,25 +246,26 @@ final class FakePrivateChatFilesystem {
     if (_entries[namespaceId]?[path] == true) {
       _entries[namespaceId]!.remove(path);
     }
-  }
+  });
 
-  Future<void> purgeNamespace(FakePrivateNamespaceId namespaceId) async {
-    await _applyScript(
-      FakePrivateFileOperation.purgeNamespace,
-      namespaceId,
-      null,
-    );
-    final snapshot = List<FakePrivateFileSnapshot>.of(
-      listNamespace(namespaceId),
-    );
-    for (final entry in snapshot) {
-      if (entry.quarantined) {
-        await unlinkQuarantined(namespaceId, entry.path);
-      } else {
-        await delete(namespaceId, entry.path);
-      }
-    }
-  }
+  Future<void> purgeNamespace(FakePrivateNamespaceId namespaceId) =>
+      _trackOperation(() async {
+        await _applyScript(
+          FakePrivateFileOperation.purgeNamespace,
+          namespaceId,
+          null,
+        );
+        final snapshot = List<FakePrivateFileSnapshot>.of(
+          listNamespace(namespaceId),
+        );
+        for (final entry in snapshot) {
+          if (entry.quarantined) {
+            await unlinkQuarantined(namespaceId, entry.path);
+          } else {
+            await delete(namespaceId, entry.path);
+          }
+        }
+      });
 
   bool releasePending(int id, {required FakePrivateFileOutcome outcome}) {
     if (outcome == FakePrivateFileOutcome.remainPending) return false;
@@ -269,8 +278,21 @@ final class FakePrivateChatFilesystem {
   void verifyNoPending() {
     final hasPending = _pending.any((entry) => !entry._release.isCompleted);
     final hasOpenHandles = _openCounts.values.any((int count) => count > 0);
-    if (hasPending || hasOpenHandles) {
+    if (hasPending || hasOpenHandles || _activeOperations.isNotEmpty) {
       throw StateError('fake_private_filesystem_not_drained');
+    }
+  }
+
+  Future<void> _trackOperation(Future<void> Function() operation) {
+    final token = Object();
+    _activeOperations.add(token);
+    try {
+      return operation().whenComplete(() {
+        _activeOperations.remove(token);
+      });
+    } on Object {
+      _activeOperations.remove(token);
+      rethrow;
     }
   }
 

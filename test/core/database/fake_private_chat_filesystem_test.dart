@@ -124,6 +124,173 @@ void main() {
     filesystem.verifyNoPending();
   });
 
+  test(
+    'released pending delete stays active until its side effect completes',
+    () async {
+      final filesystem = FakePrivateChatFilesystem();
+      filesystem.seedFile(namespaceA, fileA);
+      filesystem.scriptNext(
+        FakePrivateFileOperation.delete,
+        FakePrivateFileOutcome.remainPending,
+      );
+      final deletion = filesystem.delete(namespaceA, fileA);
+      await _flushAsync();
+      final pendingId = filesystem.pendingOperations.single.id;
+
+      filesystem.releasePending(
+        pendingId,
+        outcome: FakePrivateFileOutcome.succeed,
+      );
+      expect(filesystem.verifyNoPending, throwsStateError);
+      await Future<void>.value();
+      expect(filesystem.pendingOperations, isEmpty);
+      expect(filesystem.exists(namespaceA, fileA), isTrue);
+      expect(filesystem.verifyNoPending, throwsStateError);
+
+      await deletion;
+      expect(filesystem.exists(namespaceA, fileA), isFalse);
+      filesystem.verifyNoPending();
+    },
+  );
+
+  test('released failure remains active until its Future settles', () async {
+    final filesystem = FakePrivateChatFilesystem();
+    filesystem.seedFile(namespaceA, fileA);
+    filesystem.scriptNext(
+      FakePrivateFileOperation.renameToQuarantine,
+      FakePrivateFileOutcome.remainPending,
+    );
+    final rename = filesystem.renameToQuarantine(namespaceA, fileA);
+    await _flushAsync();
+    final pendingId = filesystem.pendingOperations.single.id;
+
+    filesystem.releasePending(pendingId, outcome: FakePrivateFileOutcome.fail);
+    expect(filesystem.verifyNoPending, throwsStateError);
+    await expectLater(rename, throwsA(isA<FakePrivateFileException>()));
+    expect(filesystem.exists(namespaceA, fileA), isTrue);
+    filesystem.verifyNoPending();
+  });
+
+  test('released unlink stays active until quarantine is removed', () async {
+    final filesystem = FakePrivateChatFilesystem();
+    filesystem.seedFile(namespaceA, fileA);
+    await filesystem.renameToQuarantine(namespaceA, fileA);
+    filesystem.scriptNext(
+      FakePrivateFileOperation.unlinkQuarantined,
+      FakePrivateFileOutcome.remainPending,
+    );
+    final unlink = filesystem.unlinkQuarantined(namespaceA, fileA);
+    await _flushAsync();
+    final pendingId = filesystem.pendingOperations.single.id;
+
+    filesystem.releasePending(
+      pendingId,
+      outcome: FakePrivateFileOutcome.succeed,
+    );
+    expect(filesystem.verifyNoPending, throwsStateError);
+    await unlink;
+    expect(filesystem.listNamespace(namespaceA), isEmpty);
+    filesystem.verifyNoPending();
+  });
+
+  test('released root purge stays active through child work', () async {
+    final filesystem = FakePrivateChatFilesystem();
+    filesystem.seedFile(namespaceA, fileA);
+    filesystem.scriptNext(
+      FakePrivateFileOperation.purgeNamespace,
+      FakePrivateFileOutcome.remainPending,
+    );
+    final purge = filesystem.purgeNamespace(namespaceA);
+    await _flushAsync();
+    final pendingId = filesystem.pendingOperations.single.id;
+
+    filesystem.releasePending(
+      pendingId,
+      outcome: FakePrivateFileOutcome.succeed,
+    );
+    expect(filesystem.verifyNoPending, throwsStateError);
+    await purge;
+    expect(filesystem.listNamespace(namespaceA), isEmpty);
+    filesystem.verifyNoPending();
+  });
+
+  test(
+    'concurrent namespaces keep verification global and fail-closed',
+    () async {
+      final filesystem = FakePrivateChatFilesystem();
+      filesystem.seedFile(namespaceA, fileA);
+      filesystem.seedFile(namespaceB, fileB);
+      filesystem.scriptNext(
+        FakePrivateFileOperation.delete,
+        FakePrivateFileOutcome.remainPending,
+      );
+      filesystem.scriptNext(
+        FakePrivateFileOperation.delete,
+        FakePrivateFileOutcome.remainPending,
+      );
+      final deletionA = filesystem.delete(namespaceA, fileA);
+      final deletionB = filesystem.delete(namespaceB, fileB);
+      await _flushAsync();
+      final pendingA = filesystem.pendingOperations[0].id;
+      final pendingB = filesystem.pendingOperations[1].id;
+
+      filesystem.releasePending(
+        pendingA,
+        outcome: FakePrivateFileOutcome.succeed,
+      );
+      await deletionA;
+      expect(filesystem.exists(namespaceA, fileA), isFalse);
+      expect(filesystem.exists(namespaceB, fileB), isTrue);
+      expect(filesystem.verifyNoPending, throwsStateError);
+
+      filesystem.releasePending(
+        pendingB,
+        outcome: FakePrivateFileOutcome.succeed,
+      );
+      expect(filesystem.verifyNoPending, throwsStateError);
+      await deletionB;
+      filesystem.verifyNoPending();
+    },
+  );
+
+  test('nested purge remains active across child delete completion', () async {
+    final filesystem = FakePrivateChatFilesystem();
+    filesystem.seedFile(namespaceA, fileA);
+    filesystem.scriptNext(
+      FakePrivateFileOperation.delete,
+      FakePrivateFileOutcome.remainPending,
+    );
+    final purge = filesystem.purgeNamespace(namespaceA);
+    await _flushAsync();
+    final pendingId = filesystem.pendingOperations.single.id;
+
+    filesystem.releasePending(
+      pendingId,
+      outcome: FakePrivateFileOutcome.succeed,
+    );
+    expect(filesystem.verifyNoPending, throwsStateError);
+    await purge;
+    expect(filesystem.listNamespace(namespaceA), isEmpty);
+    filesystem.verifyNoPending();
+  });
+
+  test('nested purge failure drains active operation bookkeeping', () async {
+    final filesystem = FakePrivateChatFilesystem();
+    filesystem.seedFile(namespaceA, fileA);
+    filesystem.scriptNext(
+      FakePrivateFileOperation.delete,
+      FakePrivateFileOutcome.fail,
+    );
+
+    await expectLater(
+      filesystem.purgeNamespace(namespaceA),
+      throwsA(isA<FakePrivateFileException>()),
+    );
+
+    expect(filesystem.exists(namespaceA, fileA), isTrue);
+    filesystem.verifyNoPending();
+  });
+
   test('open handle keeps delete pending until it is closed', () async {
     final filesystem = FakePrivateChatFilesystem();
     filesystem.seedFile(namespaceA, fileA);
