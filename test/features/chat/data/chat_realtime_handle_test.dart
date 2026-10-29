@@ -112,4 +112,139 @@ void main() {
     ]);
     expect(port.unsubscribeCalls[original], 1);
   });
+
+  test(
+    'an unregistered handle never reaches quarantine or unsubscribe',
+    () async {
+      const foreign = RealtimeSubscriptionHandle(
+        attemptId: RealtimeAttemptId(300),
+        generation: RealtimeConversationGeneration(1),
+        conversationId: 'conversation-a',
+      );
+
+      expect(
+        await source.unsubscribe(foreign),
+        RealtimeUnsubscribeObservation.uncertain,
+      );
+      expect(port.quarantineCalls, isEmpty);
+      expect(port.unsubscribeCalls, isEmpty);
+      expect(source.diagnostics.knownHandleCount, 0);
+    },
+  );
+
+  test(
+    'a structurally equal handle owned by another source is foreign',
+    () async {
+      final otherPort = FakeRealtimeReadPort();
+      final otherSource = ChatRealtimeSource(port: otherPort);
+      addTearDown(() async {
+        otherSource.dispose();
+        await otherPort.close();
+      });
+      await source.subscribe('conversation-a');
+      await otherSource.subscribe('conversation-a');
+      final otherHandle = otherSource.trustedHandle!;
+
+      expect(otherHandle.attemptId, source.trustedHandle!.attemptId);
+      expect(otherHandle.generation, source.trustedHandle!.generation);
+      expect(otherHandle.conversationId, source.trustedHandle!.conversationId);
+      expect(
+        await source.unsubscribe(otherHandle),
+        RealtimeUnsubscribeObservation.uncertain,
+      );
+      expect(port.unsubscribeCalls, isEmpty);
+      expect(port.quarantineCalls, isEmpty);
+      expect(source.trustedHandle, isNotNull);
+    },
+  );
+
+  test('attempt ID is consumed across conversation generations', () async {
+    await source.subscribe('conversation-a');
+    final original = source.trustedHandle!;
+    port.nextHandleOverride = RealtimeSubscriptionHandle(
+      attemptId: original.attemptId,
+      generation: const RealtimeConversationGeneration(2),
+      conversationId: 'conversation-b',
+    );
+
+    expect(
+      await source.subscribe('conversation-b'),
+      ChatRealtimeSubscribeResult.invalidHandle,
+    );
+    expect(source.trustedHandle, isNull);
+    expect(port.unsubscribeCalls.values.fold<int>(0, (a, b) => a + b), 2);
+  });
+
+  test('attempt ID is also consumed across same-generation retries', () async {
+    await source.subscribe('conversation-a');
+    final original = source.trustedHandle!;
+    port.nextHandleOverride = RealtimeSubscriptionHandle(
+      attemptId: original.attemptId,
+      generation: original.generation,
+      conversationId: original.conversationId,
+    );
+
+    expect(
+      await source.subscribe('conversation-a'),
+      ChatRealtimeSubscribeResult.invalidHandle,
+    );
+    expect(source.trustedHandle, isNull);
+    expect(port.unsubscribeCalls.values.fold<int>(0, (a, b) => a + b), 2);
+  });
+
+  test('stream cancel failure is redacted and stays uncertain', () async {
+    port.nextCancelError = StateError('raw-cancel-private-canary');
+    await source.subscribe('conversation-a');
+    final handle = source.trustedHandle!;
+
+    final first = source.unsubscribe(handle);
+    final second = source.unsubscribe(handle);
+
+    expect(identical(first, second), isTrue);
+    expect(await first, RealtimeUnsubscribeObservation.uncertain);
+    expect(await second, RealtimeUnsubscribeObservation.uncertain);
+    expect(source.trustedHandle, isNull);
+    expect(source.diagnostics.quarantinedHandleCount, 1);
+    expect(port.unsubscribeCalls[handle], 1);
+    expect(
+      source.diagnostics.toString(),
+      isNot(contains('raw-cancel-private-canary')),
+    );
+  });
+
+  test('completed is not returned before stream cancel succeeds', () async {
+    final cancelGate = Completer<void>();
+    port.nextCancelGate = cancelGate;
+    await source.subscribe('conversation-a');
+    final handle = source.trustedHandle!;
+    var completed = false;
+
+    final cleanup = source.unsubscribe(handle)..then((_) => completed = true);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(completed, isFalse);
+    expect(source.diagnostics.quarantinedHandleCount, 1);
+    cancelGate.complete();
+    expect(await cleanup, RealtimeUnsubscribeObservation.completed);
+    expect(completed, isTrue);
+  });
+
+  test('synchronous terminal callback still fences cancel failure', () async {
+    port.nextOnListenStatus = RealtimeChannelStatus.channelError;
+    port.nextCancelError = StateError('raw-sync-cancel-private-canary');
+
+    expect(
+      await source.subscribe('conversation-a'),
+      ChatRealtimeSubscribeResult.stale,
+    );
+    final handle = port.subscribeCalls.single;
+
+    expect(source.trustedHandle, isNull);
+    expect(
+      await source.unsubscribe(handle),
+      RealtimeUnsubscribeObservation.uncertain,
+    );
+    expect(source.diagnostics.quarantinedHandleCount, 1);
+    expect(port.unsubscribeCalls[handle], 1);
+  });
 }

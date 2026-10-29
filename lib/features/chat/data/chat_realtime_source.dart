@@ -51,11 +51,25 @@ final class ChatRealtimeSource {
   final Map<RealtimeSubscriptionHandle, StreamSubscription<RealtimePortEvent>>
   _eventSubscriptions =
       <RealtimeSubscriptionHandle, StreamSubscription<RealtimePortEvent>>{};
+  final Map<
+    RealtimeSubscriptionHandle,
+    Completer<StreamSubscription<RealtimePortEvent>?>
+  >
+  _subscriptionReady =
+      <
+        RealtimeSubscriptionHandle,
+        Completer<StreamSubscription<RealtimePortEvent>?>
+      >{};
   final Map<RealtimeSubscriptionHandle, Future<RealtimeUnsubscribeObservation>>
   _unsubscribeFutures =
       <RealtimeSubscriptionHandle, Future<RealtimeUnsubscribeObservation>>{};
   final Set<RealtimeSubscriptionHandle> _portQuarantined =
       <RealtimeSubscriptionHandle>{};
+  // Attempt IDs are consumed for the full lifetime of this source instance,
+  // across conversation and session generations. They are never reset or
+  // reused. A production-wide namespace remains an adapter-contract concern.
+  final Map<RealtimeAttemptId, RealtimeSubscriptionHandle> _consumedAttempts =
+      <RealtimeAttemptId, RealtimeSubscriptionHandle>{};
 
   String? _conversationId;
   RealtimeSubscriptionHandle? _trustedHandle;
@@ -124,15 +138,25 @@ final class ChatRealtimeSource {
       return ChatRealtimeSubscribeResult.stale;
     }
 
-    // A handle identity belongs to exactly one subscribe attempt. If an
-    // adapter reuses it, callbacks and cleanup can no longer be attributed to
-    // one generation safely, so every matching observation is quarantined.
+    // Both the opaque handle object and its attempt ID are single-use for the
+    // full lifetime of this source. Conversation/session generations do not
+    // reset this registry.
     if (_dispositions.containsKey(handle)) {
       _quarantine(handle, RealtimeQuarantineReason.invalidHandle);
-      _emitStatus(RealtimeChannelStatus.channelError);
+      if (_isCurrentRequest(requestSerial, generation, conversationId)) {
+        _emitStatus(RealtimeChannelStatus.channelError);
+      }
       return ChatRealtimeSubscribeResult.invalidHandle;
     }
     _dispositions[handle] = RealtimeHandleDisposition.pending;
+    if (_consumedAttempts.containsKey(handle.attemptId)) {
+      _quarantine(handle, RealtimeQuarantineReason.invalidHandle);
+      if (_isCurrentRequest(requestSerial, generation, conversationId)) {
+        _emitStatus(RealtimeChannelStatus.channelError);
+      }
+      return ChatRealtimeSubscribeResult.invalidHandle;
+    }
+    _consumedAttempts[handle.attemptId] = handle;
     if (!_isCurrentRequest(requestSerial, generation, conversationId)) {
       _quarantine(handle, RealtimeQuarantineReason.staleSubscribeCompletion);
       return ChatRealtimeSubscribeResult.stale;
@@ -146,6 +170,9 @@ final class ChatRealtimeSource {
 
     _trustedHandle = handle;
     _dispositions[handle] = RealtimeHandleDisposition.trusted;
+    final subscriptionReady =
+        Completer<StreamSubscription<RealtimePortEvent>?>();
+    _subscriptionReady[handle] = subscriptionReady;
     try {
       final subscription = _port
           .events(handle)
@@ -165,15 +192,15 @@ final class ChatRealtimeSource {
             },
           );
       _eventSubscriptions[handle] = subscription;
+      subscriptionReady.complete(subscription);
       if (_trustedHandle != handle ||
           _dispositions[handle] != RealtimeHandleDisposition.trusted) {
-        unawaited(subscription.cancel());
-        _eventSubscriptions.remove(handle);
         return _disposed
             ? ChatRealtimeSubscribeResult.disposed
             : ChatRealtimeSubscribeResult.stale;
       }
     } on Object {
+      if (!subscriptionReady.isCompleted) subscriptionReady.complete(null);
       _quarantine(handle, RealtimeQuarantineReason.invalidHandle);
       _emitStatus(RealtimeChannelStatus.channelError);
       return ChatRealtimeSubscribeResult.invalidHandle;
@@ -208,6 +235,12 @@ final class ChatRealtimeSource {
   Future<RealtimeUnsubscribeObservation> unsubscribe(
     RealtimeSubscriptionHandle handle,
   ) {
+    // Never forward an arbitrary or another source's handle to the port.
+    if (!_dispositions.containsKey(handle)) {
+      return Future<RealtimeUnsubscribeObservation>.value(
+        RealtimeUnsubscribeObservation.uncertain,
+      );
+    }
     _quarantine(handle, RealtimeQuarantineReason.superseded);
     return _unsubscribeFutures[handle]!;
   }
@@ -321,9 +354,23 @@ final class ChatRealtimeSource {
       observation = RealtimeUnsubscribeObservation.uncertain;
     }
     if (observation == RealtimeUnsubscribeObservation.completed) {
-      _dispositions[handle] = RealtimeHandleDisposition.closed;
-      await _eventSubscriptions.remove(handle)?.cancel();
-    } else {
+      final subscription =
+          await (_subscriptionReady[handle]?.future ??
+              Future<StreamSubscription<RealtimePortEvent>?>.value(
+                _eventSubscriptions[handle],
+              ));
+      try {
+        await subscription?.cancel();
+      } on Object {
+        observation = RealtimeUnsubscribeObservation.uncertain;
+      }
+      if (observation == RealtimeUnsubscribeObservation.completed) {
+        _eventSubscriptions.remove(handle);
+        _subscriptionReady.remove(handle);
+        _dispositions[handle] = RealtimeHandleDisposition.closed;
+      }
+    }
+    if (observation != RealtimeUnsubscribeObservation.completed) {
       _dispositions[handle] = RealtimeHandleDisposition.quarantined;
       if (_portQuarantined.add(handle)) {
         try {

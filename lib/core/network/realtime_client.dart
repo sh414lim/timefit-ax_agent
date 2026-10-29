@@ -37,6 +37,9 @@ final class RealtimeConversationGeneration {
 
 /// Immutable local handle returned by a future Realtime adapter.
 ///
+/// Handle equality is deliberately object identity. A structurally identical
+/// handle created by another source/port is not owned by this source.
+///
 /// [conversationId] remains an internal routing value. [toString] deliberately
 /// omits it so diagnostics cannot accidentally expose a raw conversation ID.
 final class RealtimeSubscriptionHandle {
@@ -49,16 +52,6 @@ final class RealtimeSubscriptionHandle {
   final RealtimeAttemptId attemptId;
   final RealtimeConversationGeneration generation;
   final String conversationId;
-
-  @override
-  bool operator ==(Object other) =>
-      other is RealtimeSubscriptionHandle &&
-      other.attemptId == attemptId &&
-      other.generation == generation &&
-      other.conversationId == conversationId;
-
-  @override
-  int get hashCode => Object.hash(attemptId, generation, conversationId);
 
   @override
   String toString() => 'RealtimeSubscriptionHandle($attemptId, $generation)';

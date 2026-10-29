@@ -10,11 +10,80 @@ final class PendingRealtimeSubscribe {
       Completer<RealtimeSubscriptionHandle>();
 }
 
+final class _ControlledCancelStream<T> extends Stream<T> {
+  _ControlledCancelStream(this._delegate, {this.cancelGate, this.cancelError});
+
+  final Stream<T> _delegate;
+  final Completer<void>? cancelGate;
+  final Object? cancelError;
+
+  @override
+  StreamSubscription<T> listen(
+    void Function(T event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) => _ControlledCancelSubscription<T>(
+    _delegate.listen(
+      onData,
+      onError: onError,
+      onDone: onDone,
+      cancelOnError: cancelOnError,
+    ),
+    cancelGate: cancelGate,
+    cancelError: cancelError,
+  );
+}
+
+final class _ControlledCancelSubscription<T> implements StreamSubscription<T> {
+  _ControlledCancelSubscription(
+    this._delegate, {
+    this.cancelGate,
+    this.cancelError,
+  });
+
+  final StreamSubscription<T> _delegate;
+  final Completer<void>? cancelGate;
+  final Object? cancelError;
+
+  @override
+  Future<void> cancel() async {
+    await cancelGate?.future;
+    await _delegate.cancel();
+    if (cancelError case final error?) throw error;
+  }
+
+  @override
+  void onData(void Function(T data)? handleData) =>
+      _delegate.onData(handleData);
+
+  @override
+  void onError(Function? handleError) => _delegate.onError(handleError);
+
+  @override
+  void onDone(void Function()? handleDone) => _delegate.onDone(handleDone);
+
+  @override
+  void pause([Future<void>? resumeSignal]) => _delegate.pause(resumeSignal);
+
+  @override
+  void resume() => _delegate.resume();
+
+  @override
+  bool get isPaused => _delegate.isPaused;
+
+  @override
+  Future<E> asFuture<E>([E? futureValue]) => _delegate.asFuture<E>(futureValue);
+}
+
 final class FakeRealtimeReadPort implements RealtimeReadPort {
   bool autoCompleteSubscribe = true;
   Object? subscribeError;
   Object? eventsError;
   Object? unsubscribeError;
+  Object? nextCancelError;
+  Completer<void>? nextCancelGate;
+  RealtimeChannelStatus? nextOnListenStatus;
   RealtimeSubscriptionHandle? nextHandleOverride;
   final List<PendingRealtimeSubscribe> pendingSubscribes =
       <PendingRealtimeSubscribe>[];
@@ -57,10 +126,20 @@ final class FakeRealtimeReadPort implements RealtimeReadPort {
     final handle = nextHandleOverride ?? generated;
     nextHandleOverride = null;
     subscribeCalls.add(handle);
-    _controllers.putIfAbsent(
-      handle,
-      () => StreamController<RealtimePortEvent>.broadcast(sync: true),
-    );
+    final onListenStatus = nextOnListenStatus;
+    nextOnListenStatus = null;
+    _controllers.putIfAbsent(handle, () {
+      late final StreamController<RealtimePortEvent> controller;
+      controller = StreamController<RealtimePortEvent>.broadcast(
+        sync: true,
+        onListen: () {
+          if (onListenStatus != null) {
+            controller.add(RealtimeStatusEvent(handle, onListenStatus));
+          }
+        },
+      );
+      return controller;
+    });
     if (autoCompleteSubscribe) {
       return Future<RealtimeSubscriptionHandle>.value(handle);
     }
@@ -74,6 +153,17 @@ final class FakeRealtimeReadPort implements RealtimeReadPort {
     if (eventsError case final error?) {
       eventsError = null;
       throw error;
+    }
+    final cancelError = nextCancelError;
+    final cancelGate = nextCancelGate;
+    nextCancelError = null;
+    nextCancelGate = null;
+    if (cancelError != null || cancelGate != null) {
+      return _ControlledCancelStream<RealtimePortEvent>(
+        _controllers[handle]!.stream,
+        cancelError: cancelError,
+        cancelGate: cancelGate,
+      );
     }
     return _controllers[handle]!.stream;
   }
