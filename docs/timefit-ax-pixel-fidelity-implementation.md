@@ -1,6 +1,6 @@
 # TimeFit AX pixel-fidelity implementation
 
-Status: local implementation slice, not visual acceptance  
+Status: local implementation slice, not visual acceptance
 Source baseline: `timefit-ax-pixel-fidelity-spec-v0.3.md` and
 `timefit-ax-source-measurements-v0.3.csv` (356 rows: 196 measured,
 158 estimated, 2 proposed)
@@ -114,4 +114,3 @@ pass functional/layout tests but cannot pass pixel fidelity.
   then source-aligned overlay and diff;
 - acceptance: functional PASS and visual PASS are reported separately. Missing
   assets, font uncertainty and simulator mismatch remain open.
-
