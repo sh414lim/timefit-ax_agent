@@ -241,8 +241,11 @@ class _DevChatShellState extends State<DevChatShell>
 
   Future<void> _chooseAttachments() async {
     if (_selectingAttachments || _composer == null) return;
-    final AttachmentPickerKind? kind =
-        await _showChatOwnedBottomSheet<AttachmentPickerKind>(
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
+    final AttachmentPickerKind? kind = await admission
+        .openBottomSheet<AttachmentPickerKind>(
           context: context,
           builder: (BuildContext context) => SafeArea(
             child: Column(
@@ -266,7 +269,9 @@ class _DevChatShellState extends State<DevChatShell>
             ),
           ),
         );
-    if (kind == null || !mounted || _composer == null) return;
+    if (kind == null || !mounted || _composer == null || !admission.isAllowed) {
+      return;
+    }
 
     final int generation = _conversationGeneration;
     final String conversationId = _selectedConversationId!;
@@ -274,13 +279,17 @@ class _DevChatShellState extends State<DevChatShell>
     final AttachmentCancellation cancellation = AttachmentCancellation();
     _attachmentCancellation?.cancel();
     _attachmentCancellation = cancellation;
+    final VoidCallback removeAdmissionInvalidation = admission.onInvalidated(
+      cancellation.cancel,
+    );
     setState(() => _selectingAttachments = true);
     try {
       final inputs = await _attachmentPicker.pick(kind);
       if (!mounted ||
           generation != _conversationGeneration ||
           _selectedConversationId != conversationId ||
-          cancellation != _attachmentCancellation) {
+          cancellation != _attachmentCancellation ||
+          !admission.isAllowed) {
         return;
       }
       await _attachmentDrafts!.add(
@@ -290,14 +299,20 @@ class _DevChatShellState extends State<DevChatShell>
         cancellation: cancellation,
       );
     } on AttachmentException catch (error) {
-      if (mounted && generation == _conversationGeneration) {
+      if (mounted &&
+          generation == _conversationGeneration &&
+          admission.isAllowed &&
+          error.failure != AttachmentFailure.cancelled) {
         _showLocalNotice(_attachmentFailureMessage(error.failure));
       }
     } on Object {
-      if (mounted && generation == _conversationGeneration) {
+      if (mounted &&
+          generation == _conversationGeneration &&
+          admission.isAllowed) {
         _showLocalNotice('첨부를 로컬에 준비하지 못했습니다.');
       }
     } finally {
+      removeAdmissionInvalidation();
       if (mounted &&
           generation == _conversationGeneration &&
           identical(_attachmentCancellation, cancellation)) {
@@ -326,6 +341,9 @@ class _DevChatShellState extends State<DevChatShell>
   }
 
   void _openLocalAttachmentPreview(String localId) {
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
     final String? conversationId = _selectedConversationId;
     final AppDatabase? database = _database;
     final LocalRepositorySession? session = _session;
@@ -345,7 +363,7 @@ class _DevChatShellState extends State<DevChatShell>
       observability: widget.attachmentObservability,
     );
     unawaited(
-      _pushChatOwnedRoute<void>(
+      admission.pushRoute<void>(
         context: context,
         route: MaterialPageRoute<void>(
           builder: (_) => DevLocalAttachmentPreviewScreen(
@@ -375,8 +393,11 @@ class _DevChatShellState extends State<DevChatShell>
   }
 
   Future<void> _renameConversation(ConversationSummary conversation) async {
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
     String editedTitle = conversation.title;
-    final String? title = await _showChatOwnedDialog<String>(
+    final String? title = await admission.openDialog<String>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
         title: const Text('대화 이름 변경'),
@@ -400,7 +421,7 @@ class _DevChatShellState extends State<DevChatShell>
         ],
       ),
     );
-    if (title == null || !mounted) return;
+    if (title == null || !mounted || !admission.isAllowed) return;
     final bool succeeded = await _conversationActions!.rename(
       conversation.id,
       title,
@@ -413,8 +434,11 @@ class _DevChatShellState extends State<DevChatShell>
   }
 
   Future<void> _archiveConversation(ConversationSummary conversation) async {
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
     final bool confirmed =
-        await _showChatOwnedDialog<bool>(
+        await admission.openDialog<bool>(
           context: context,
           builder: (BuildContext context) => AlertDialog(
             title: const Text('대화를 보관할까요?'),
@@ -432,7 +456,7 @@ class _DevChatShellState extends State<DevChatShell>
           ),
         ) ??
         false;
-    if (!confirmed || !mounted) return;
+    if (!confirmed || !mounted || !admission.isAllowed) return;
     final bool succeeded = await _conversationActions!.archive(conversation.id);
     if (!succeeded &&
         mounted &&
@@ -565,33 +589,6 @@ class _DevChatShellState extends State<DevChatShell>
           _conversationActions?.state.isBusy(id) ?? false,
     );
   }
-}
-
-Future<T?> _showChatOwnedDialog<T>({
-  required BuildContext context,
-  required WidgetBuilder builder,
-}) {
-  final owned = ChatSessionOwnedSurfaces.capture(context);
-  if (owned != null) return owned.openDialog<T>(builder: builder);
-  return showDialog<T>(context: context, builder: builder);
-}
-
-Future<T?> _showChatOwnedBottomSheet<T>({
-  required BuildContext context,
-  required WidgetBuilder builder,
-}) {
-  final owned = ChatSessionOwnedSurfaces.capture(context);
-  if (owned != null) return owned.openBottomSheet<T>(builder: builder);
-  return showModalBottomSheet<T>(context: context, builder: builder);
-}
-
-Future<T?> _pushChatOwnedRoute<T>({
-  required BuildContext context,
-  required Route<T> route,
-}) {
-  final owned = ChatSessionOwnedSurfaces.capture(context);
-  if (owned != null) return owned.pushRoute<T>(route);
-  return Navigator.of(context).push<T>(route);
 }
 
 String _attachmentFailureMessage(AttachmentFailure failure) =>

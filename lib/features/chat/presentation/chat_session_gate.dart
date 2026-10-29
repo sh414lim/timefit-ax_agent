@@ -26,12 +26,26 @@ abstract interface class ChatSessionGateCoordinator implements Listenable {
 /// Using Flutter's root navigator directly bypasses this ownership contract
 /// and is therefore not covered by the gate.
 abstract final class ChatSessionOwnedSurfaces {
+  /// Captures whether [context] is outside a gate, inside its current active
+  /// generation, or inside a generation that has already been blocked.
+  ///
+  /// A blocked scope must never be treated like an unscoped application
+  /// surface. The distinction is synchronous, so a coordinator notification
+  /// fences actions even before Flutter rebuilds the gate.
+  static ChatSessionOwnedSurfaceAdmission admit(BuildContext context) {
+    if (!context.mounted) {
+      return const ChatSessionOwnedSurfaceAdmission._scoped(null);
+    }
+    final scope = context
+        .getInheritedWidgetOfExactType<_ChatSessionOwnedSurfaceScope>();
+    if (scope == null) {
+      return const ChatSessionOwnedSurfaceAdmission._unscoped();
+    }
+    return ChatSessionOwnedSurfaceAdmission._scoped(scope.owner.capture());
+  }
+
   static ChatSessionOwnedSurfaceHandle? capture(BuildContext context) {
-    if (!context.mounted) return null;
-    return context
-        .getInheritedWidgetOfExactType<_ChatSessionOwnedSurfaceScope>()
-        ?.owner
-        .capture();
+    return admit(context).handle;
   }
 
   static Future<T?> showOwnedDialog<T>({
@@ -66,6 +80,85 @@ abstract final class ChatSessionOwnedSurfaces {
   }
 }
 
+/// One operation's generation-fenced admission to chat-owned UI and writes.
+///
+/// Outside a gate this preserves the existing application Navigator behavior.
+/// Inside a gate, a blocked or superseded generation always fails closed and
+/// never falls back to the application root.
+final class ChatSessionOwnedSurfaceAdmission {
+  const ChatSessionOwnedSurfaceAdmission._unscoped()
+    : _isScoped = false,
+      handle = null;
+
+  const ChatSessionOwnedSurfaceAdmission._scoped(this.handle)
+    : _isScoped = true;
+
+  final bool _isScoped;
+  final ChatSessionOwnedSurfaceHandle? handle;
+
+  bool get isAllowed => !_isScoped || (handle?.isCurrent ?? false);
+
+  VoidCallback onInvalidated(VoidCallback callback) {
+    if (!_isScoped) return () {};
+    final current = handle;
+    if (current == null) {
+      callback();
+      return () {};
+    }
+    return current.onInvalidated(callback);
+  }
+
+  Future<T?> openDialog<T>({
+    required BuildContext context,
+    required WidgetBuilder builder,
+    bool barrierDismissible = true,
+  }) {
+    if (!isAllowed || !context.mounted) return Future<T?>.value();
+    final current = handle;
+    if (current != null) {
+      return current.openDialog<T>(
+        builder: builder,
+        barrierDismissible: barrierDismissible,
+      );
+    }
+    return showDialog<T>(
+      context: context,
+      builder: builder,
+      barrierDismissible: barrierDismissible,
+    );
+  }
+
+  Future<T?> openBottomSheet<T>({
+    required BuildContext context,
+    required WidgetBuilder builder,
+    bool isScrollControlled = false,
+  }) {
+    if (!isAllowed || !context.mounted) return Future<T?>.value();
+    final current = handle;
+    if (current != null) {
+      return current.openBottomSheet<T>(
+        builder: builder,
+        isScrollControlled: isScrollControlled,
+      );
+    }
+    return showModalBottomSheet<T>(
+      context: context,
+      builder: builder,
+      isScrollControlled: isScrollControlled,
+    );
+  }
+
+  Future<T?> pushRoute<T>({
+    required BuildContext context,
+    required Route<T> route,
+  }) {
+    if (!isAllowed || !context.mounted) return Future<T?>.value();
+    final current = handle;
+    if (current != null) return current.pushRoute<T>(route);
+    return Navigator.of(context).push<T>(route);
+  }
+}
+
 /// A generation-fenced capability for asynchronous chat-owned UI work.
 ///
 /// Capture this while the active chat subtree is mounted. Once the gate leaves
@@ -76,6 +169,11 @@ final class ChatSessionOwnedSurfaceHandle {
 
   final _ChatSessionSurfaceOwner _owner;
   final int _generation;
+
+  bool get isCurrent => _owner.isCurrent(_generation);
+
+  VoidCallback onInvalidated(VoidCallback callback) =>
+      _owner.onInvalidated(_generation, callback);
 
   Future<T?> openDialog<T>({
     required WidgetBuilder builder,
@@ -113,20 +211,35 @@ final class ChatSessionOwnedSurfaceHandle {
 }
 
 final class _ChatSessionSurfaceOwner {
-  final navigatorKey = GlobalKey<NavigatorState>();
+  GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  final Set<VoidCallback> _invalidationListeners = <VoidCallback>{};
   var _generation = 0;
   var _active = false;
 
   void activate() {
     if (_active) return;
     _generation += 1;
+    // A blocked generation may still have dialog routes in its Navigator when
+    // logout and re-entry notifications arrive before the next frame. A fresh
+    // key prevents those routes and their focus tree from crossing sessions.
+    navigatorKey = GlobalKey<NavigatorState>();
     _active = true;
   }
 
   void block() {
     if (!_active) return;
-    _generation += 1;
     _active = false;
+    _generation += 1;
+    final listeners = _invalidationListeners.toList();
+    _invalidationListeners.clear();
+    for (final listener in listeners) {
+      try {
+        listener();
+      } on Object {
+        // One consumer must not prevent the remaining session work from being
+        // synchronously invalidated.
+      }
+    }
   }
 
   ChatSessionOwnedSurfaceHandle? capture() =>
@@ -141,6 +254,17 @@ final class _ChatSessionSurfaceOwner {
     if (!_isCurrent(generation)) return null;
     return navigatorKey.currentState;
   }
+
+  VoidCallback onInvalidated(int generation, VoidCallback callback) {
+    if (!_isCurrent(generation)) {
+      callback();
+      return () {};
+    }
+    _invalidationListeners.add(callback);
+    return () => _invalidationListeners.remove(callback);
+  }
+
+  bool isCurrent(int generation) => _isCurrent(generation);
 
   bool _isCurrent(int generation) =>
       _active && generation == _generation && navigatorKey.currentState != null;

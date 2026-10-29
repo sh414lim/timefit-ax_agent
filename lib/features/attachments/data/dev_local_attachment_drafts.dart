@@ -102,9 +102,11 @@ final class DevLocalAttachmentDrafts {
       return copied;
     }
     try {
+      cancellation?.check();
       await _session.write(
         _database,
         () => _database.transaction(() async {
+          cancellation?.check();
           await _ensureUnsubmitted(clientMessageId);
           final int latestCount = await _count(
             conversationId: conversationId,
@@ -112,6 +114,7 @@ final class DevLocalAttachmentDrafts {
           );
           AttachmentPolicy.count(latestCount + copied.length);
           for (final PrivateAttachment attachment in copied) {
+            cancellation?.check();
             final String localId = attachment.uri.pathSegments.last;
             await _database
                 .into(_database.localAttachments)
@@ -129,6 +132,10 @@ final class DevLocalAttachmentDrafts {
                   ),
                 );
           }
+          // If the owning session was blocked during an insert, throw inside
+          // the transaction so every row rolls back before private copies are
+          // cleaned below.
+          cancellation?.check();
         }),
       );
       for (final PrivateAttachment attachment in copied) {

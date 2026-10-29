@@ -87,8 +87,9 @@ void main() {
   testWidgets(
     'actual picker sheet and preview route stay chat-owned',
     (WidgetTester tester) async {
+      final picker = _FixtureAttachmentPicker();
       final harness = await tester.runAsync(
-        () => _DevGateHarness.create(picker: _FixtureAttachmentPicker()),
+        () => _DevGateHarness.create(picker: picker),
       );
       if (harness == null) throw StateError('surface_harness_unavailable');
       addTearDown(harness.dispose);
@@ -99,8 +100,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('파일 선택'), findsOneWidget);
       harness.coordinator.state = LocalChatSessionState.loggingOut;
+      await tester.tap(find.text('파일 선택'));
       await tester.pump();
       expect(find.text('파일 선택'), findsNothing);
+      expect(picker.calls, 0);
       await harness.waitForDisposal(tester);
 
       harness.coordinator.state = LocalChatSessionState.active;
@@ -115,6 +118,19 @@ void main() {
       await _settleFileIo(tester);
       await _pumpUntilFinder(tester, find.text('application/pdf · 대기 중'));
 
+      harness.coordinator.state = LocalChatSessionState.cleanupPending;
+      await tester.tap(find.text('application/pdf · 대기 중'));
+      await tester.pump();
+      expect(find.text('fixture-private-preview'), findsNothing);
+      expect(find.text('이 기기의 채팅 데이터를 정리하지 못했습니다'), findsOneWidget);
+      await harness.waitForDisposal(tester);
+
+      harness.coordinator.state = LocalChatSessionState.active;
+      await tester.pump();
+      await _pumpUntilFinder(tester, find.byType(ConversationListRow));
+      await tester.tap(find.byType(ConversationListRow).first);
+      await _settleFileIo(tester);
+      await _pumpUntilFinder(tester, find.text('application/pdf · 대기 중'));
       await tester.tap(find.text('application/pdf · 대기 중'));
       await _pumpUntilFinder(tester, find.text('synthetic.pdf'));
       expect(find.text('fixture-private-preview'), findsOneWidget);
@@ -129,6 +145,147 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );
+
+  testWidgets(
+    'blocked-before-frame menu action cannot fall back to root dialog',
+    (WidgetTester tester) async {
+      final harness = await tester.runAsync(_DevGateHarness.create);
+      if (harness == null) throw StateError('surface_harness_unavailable');
+      addTearDown(harness.dispose);
+      await harness.mount(tester);
+      await _createConversationAndReturn(tester);
+
+      await tester.tap(find.byTooltip('대화 메뉴'));
+      await tester.pumpAndSettle();
+      expect(find.text('이름 변경'), findsOneWidget);
+
+      harness.coordinator.state = LocalChatSessionState.cleanupPending;
+      await tester.tap(find.text('이름 변경'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('대화 이름 변경'), findsNothing);
+      expect(find.text('이 기기의 채팅 데이터를 정리하지 못했습니다'), findsOneWidget);
+      await harness.waitForDisposal(tester);
+      final row = await harness.readConversation(tester);
+      expect(row.title, isNull);
+      expect(row.status, 'active');
+    },
+  );
+
+  testWidgets('blocked-before-frame save tap cannot rename local data', (
+    WidgetTester tester,
+  ) async {
+    final harness = await tester.runAsync(_DevGateHarness.create);
+    if (harness == null) throw StateError('surface_harness_unavailable');
+    addTearDown(harness.dispose);
+    await harness.mount(tester);
+    await _createConversationAndReturn(tester);
+    await tester.tap(find.byTooltip('대화 메뉴'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('이름 변경'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'late-sensitive-title');
+
+    harness.coordinator.state = LocalChatSessionState.loggingOut;
+    await tester.tap(find.widgetWithText(FilledButton, '저장'));
+    await tester.pump();
+    await harness.waitForDisposal(tester);
+
+    final row = await harness.readConversation(tester);
+    expect(
+      row.title,
+      isNull,
+      reason: 'a blocked session must reject the same-frame dialog result',
+    );
+    expect(row.status, 'active');
+    expect(find.text('late-sensitive-title'), findsNothing);
+  });
+
+  testWidgets('blocked-before-frame archive confirmation cannot mutate data', (
+    WidgetTester tester,
+  ) async {
+    final harness = await tester.runAsync(_DevGateHarness.create);
+    if (harness == null) throw StateError('surface_harness_unavailable');
+    addTearDown(harness.dispose);
+    await harness.mount(tester);
+    await _createConversationAndReturn(tester);
+    await _openConversationMenuAction(tester, '보관');
+    await tester.pumpAndSettle();
+    expect(find.text('대화를 보관할까요?'), findsOneWidget);
+
+    harness.coordinator.state = LocalChatSessionState.loggingOut;
+    await tester.tap(find.widgetWithText(FilledButton, '보관'));
+    await tester.pump();
+    await harness.waitForDisposal(tester);
+
+    final row = await harness.readConversation(tester);
+    expect(row.title, isNull);
+    expect(row.status, 'active');
+  });
+
+  testWidgets('old dialog generation cannot mutate after active re-entry', (
+    WidgetTester tester,
+  ) async {
+    final harness = await tester.runAsync(_DevGateHarness.create);
+    if (harness == null) throw StateError('surface_harness_unavailable');
+    addTearDown(harness.dispose);
+    await harness.mount(tester);
+    await _createConversationAndReturn(tester);
+    await _openConversationMenuAction(tester, '이름 변경');
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'stale-account-title');
+
+    harness.coordinator.state = LocalChatSessionState.cleanupPending;
+    harness.coordinator.state = LocalChatSessionState.active;
+    await tester.tap(find.widgetWithText(FilledButton, '저장'));
+    await tester.pump();
+
+    expect(find.text('stale-account-title'), findsNothing);
+    await harness.waitForDisposal(tester);
+    harness.coordinator.state = LocalChatSessionState.cleanupPending;
+    await tester.pump();
+    await harness.waitForDisposal(tester);
+
+    final row = await harness.readConversation(tester);
+    expect(row.title, isNull);
+    expect(row.status, 'active');
+  });
+
+  testWidgets('late picker completion cannot write an attachment or file', (
+    WidgetTester tester,
+  ) async {
+    final picker = _BlockingAttachmentPicker();
+    final harness = await tester.runAsync(
+      () => _DevGateHarness.create(picker: picker),
+    );
+    if (harness == null) throw StateError('surface_harness_unavailable');
+    addTearDown(harness.dispose);
+    await harness.mount(tester);
+    await _createConversation(tester);
+    await tester.tap(find.byTooltip('첨부 추가'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('파일 선택'));
+    await tester.pump();
+    expect(picker.calls, 1);
+
+    harness.coordinator.state = LocalChatSessionState.cleanupPending;
+    await tester.pump();
+    await harness.waitForDisposal(tester);
+    picker.complete();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+
+    expect(await harness.readAttachmentCount(tester), 0);
+    final files = harness.attachmentRoot.existsSync()
+        ? harness.attachmentRoot
+              .listSync(recursive: true)
+              .whereType<File>()
+              .toList()
+        : <File>[];
+    expect(files, isEmpty);
+    expect(find.textContaining('late-secret.pdf'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 const _sensitiveCanary = 'private-payroll-dialog-canary';
@@ -214,6 +371,18 @@ final class _DevGateHarness {
     return conversation!;
   }
 
+  Future<int> readAttachmentCount(WidgetTester tester) async {
+    final count = await tester.runAsync(() async {
+      final database = AppDatabase(NativeDatabase(databaseFile));
+      try {
+        return (await database.select(database.localAttachments).get()).length;
+      } finally {
+        await database.close();
+      }
+    });
+    return count!;
+  }
+
   Future<void> dispose() async {
     coordinator.dispose();
     if (_mounted && _disposals.length > _consumedDisposals) {
@@ -245,15 +414,40 @@ final class _FakeGateCoordinator extends ChangeNotifier
 }
 
 final class _FixtureAttachmentPicker implements AttachmentPicker {
+  var calls = 0;
+
   @override
-  Future<List<AttachmentInput>?> pick(AttachmentPickerKind kind) async =>
-      <AttachmentInput>[
-        AttachmentInput(
-          name: 'synthetic.pdf',
-          declaredMime: 'application/pdf',
-          openRead: () => Stream<List<int>>.value(_pdfFixture),
-        ),
-      ];
+  Future<List<AttachmentInput>?> pick(AttachmentPickerKind kind) async {
+    calls += 1;
+    return <AttachmentInput>[
+      AttachmentInput(
+        name: 'synthetic.pdf',
+        declaredMime: 'application/pdf',
+        openRead: () => Stream<List<int>>.value(_pdfFixture),
+      ),
+    ];
+  }
+}
+
+final class _BlockingAttachmentPicker implements AttachmentPicker {
+  final completer = Completer<List<AttachmentInput>?>();
+  var calls = 0;
+
+  @override
+  Future<List<AttachmentInput>?> pick(AttachmentPickerKind kind) {
+    calls += 1;
+    return completer.future;
+  }
+
+  void complete() {
+    completer.complete(<AttachmentInput>[
+      AttachmentInput(
+        name: 'late-secret.pdf',
+        declaredMime: 'application/pdf',
+        openRead: () => Stream<List<int>>.value(_pdfFixture),
+      ),
+    ]);
+  }
 }
 
 Future<void> _createConversationAndReturn(WidgetTester tester) async {
