@@ -34,8 +34,14 @@ No remote result participates in that predicate.
 
 ## Attempts and late results
 
-Repeated logout calls share the same attempt Future, including after it has
-settled. Explicit local retry creates a new attempt and retries only the stage
+Repeated logout calls share the same attempt Future until a disposal transition
+or an explicit local retry changes the observation. Disposal during an ongoing
+run joins that same Future. Disposal after an undisposed logout has settled
+returns a new immutable disposed snapshot; repeated dispose/logout calls then
+share that disposal Future. Previously returned results remain historical and
+unchanged. Each explicit local retry owns its own Future and disposal cache, so
+an old completed result cannot replace a newer pending or completed retry.
+Explicit local retry creates a new attempt and retries only the stage
 retained by the existing local coordinator. It does not reissue remote calls:
 no remote retry capability or credential availability is assumed. Any old
 pending observation becomes uncertain, its waiters settle, and its late results

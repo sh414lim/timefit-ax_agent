@@ -445,6 +445,169 @@ void main() {
   );
 
   test(
+    'dispose after completed logout returns a fresh disposed result',
+    () async {
+      final remote = _RemoteFake.acknowledged();
+      final f = await _Fixture.create(remote: remote);
+      final logout = f.candidate.logout();
+      final loggedOut = await logout;
+      expect(loggedOut.disposed, isFalse);
+      expect(identical(logout, f.candidate.logout()), isTrue);
+
+      final disposal = f.candidate.dispose();
+      expect(identical(disposal, logout), isFalse);
+      expect(identical(disposal, f.candidate.dispose()), isTrue);
+      expect(identical(disposal, f.candidate.logout()), isTrue);
+      final result = await disposal;
+      expect(result.disposed, isTrue);
+      expect(result.toDiagnosticMap(), f.candidate.snapshot!.toDiagnosticMap());
+      expect(f.candidate.coordinator.state, LocalChatSessionState.disposed);
+      expect(loggedOut.disposed, isFalse); // Historical immutable result.
+      expect(f.purgeCalls, 1);
+      expect(remote.calls, hasLength(3));
+    },
+  );
+
+  for (final failStop in [false, true]) {
+    test(
+      'completed local failure then dispose/retry shares current result (stop: $failStop)',
+      () async {
+        final remote = _RemoteFake.acknowledged();
+        final f = await _Fixture.create(remote: remote);
+        if (failStop) {
+          f.stopError = const _PrivateError();
+        } else {
+          f.files.scriptNext(
+            FakePrivateFileOperation.delete,
+            FakePrivateFileOutcome.fail,
+          );
+        }
+        final logout = f.candidate.logout();
+        final failed = await logout;
+        expect(failed.local.recoveryRequired, isTrue);
+        final disposal = f.candidate.dispose();
+        final disposed = await disposal;
+        expect(disposed.disposed, isTrue);
+        expect(disposed.localProtectionComplete, isFalse);
+        expect(disposed.local.recoveryRequired, isTrue);
+        expect(
+          disposed.toDiagnosticMap(),
+          f.candidate.snapshot!.toDiagnosticMap(),
+        );
+        expect(identical(disposal, f.candidate.dispose()), isTrue);
+        expect(identical(disposal, f.candidate.logout()), isTrue);
+        expect(
+          f.candidate.coordinator.state,
+          LocalChatSessionState.cleanupPending,
+        );
+
+        f.stopError = null;
+        final retry = f.candidate.retryLocalCleanup();
+        expect(identical(retry, disposal), isFalse);
+        final recovered = await retry;
+        expect(recovered.attempt, 2);
+        expect(recovered.disposed, isTrue);
+        expect(recovered.localProtectionComplete, isTrue);
+        expect(
+          recovered.toDiagnosticMap(),
+          f.candidate.snapshot!.toDiagnosticMap(),
+        );
+        expect(identical(retry, f.candidate.dispose()), isTrue);
+        expect(identical(retry, f.candidate.logout()), isTrue);
+        expect(failed.disposed, isFalse);
+        expect(disposed.local.recoveryRequired, isTrue);
+        expect(remote.calls, hasLength(3));
+      },
+    );
+  }
+
+  test(
+    'dispose during local retry joins that attempt rather than old failure',
+    () async {
+      final f = await _Fixture.create();
+      f.files.scriptNext(
+        FakePrivateFileOperation.delete,
+        FakePrivateFileOutcome.fail,
+      );
+      final failed = await f.candidate.logout();
+      f.verifyGate = Completer<void>();
+      final retry = f.candidate.retryLocalCleanup();
+      await f.verificationStarted.future;
+      final disposal = f.candidate.dispose();
+      expect(identical(disposal, retry), isTrue);
+      expect(identical(disposal, f.candidate.dispose()), isTrue);
+      expect(identical(disposal, f.candidate.retryLocalCleanup()), isTrue);
+      expect(identical(disposal, f.candidate.logout()), isTrue);
+      expect(f.candidate.snapshot!.localProtectionComplete, isFalse);
+      f.verifyGate!.complete();
+      final result = await disposal;
+      expect(result.attempt, 2);
+      expect(result.disposed, isTrue);
+      expect(result.localProtectionComplete, isTrue);
+      expect(result.toDiagnosticMap(), f.candidate.snapshot!.toDiagnosticMap());
+      expect(failed.local.recoveryRequired, isTrue);
+      expect(f.candidate.coordinator.state, LocalChatSessionState.disposed);
+    },
+  );
+
+  test(
+    'dispose joins a pending remote observation after local completion',
+    () async {
+      final f = await _Fixture.create(remote: _RemoteFake.pending());
+      final logout = f.candidate.logout();
+      await f.candidate.coordinator.logout();
+      expect(f.candidate.snapshot!.localProtectionComplete, isTrue);
+      final disposal = f.candidate.dispose();
+      expect(identical(disposal, logout), isTrue);
+      final result = await disposal;
+      expect(result.disposed, isTrue);
+      expect(
+        result.remote.values,
+        everyElement(CandidateRemoteState.uncertain),
+      );
+      expect(result.toDiagnosticMap(), f.candidate.snapshot!.toDiagnosticMap());
+      expect(identical(disposal, f.candidate.dispose()), isTrue);
+    },
+  );
+
+  test(
+    'post-logout dispose preserves latest remote evidence and fences late errors',
+    () async {
+      final remote = _RemoteFake.pending();
+      final f = await _Fixture.create(remote: remote);
+      final logout = f.candidate.logout();
+      f.boundary.observeBoundaryReached();
+      final original = await logout;
+      remote.gates[CandidateRemoteOperation.realtime]!.complete(
+        CandidateRemoteObservation.acknowledged,
+      );
+      await _flush();
+      final disposal = f.candidate.dispose();
+      final result = await disposal;
+      expect(result.disposed, isTrue);
+      expect(
+        result.remote[CandidateRemoteOperation.realtime],
+        CandidateRemoteState.confirmed,
+      );
+      expect(result.toDiagnosticMap(), f.candidate.snapshot!.toDiagnosticMap());
+      remote.gates[CandidateRemoteOperation.deviceRevoke]!.completeError(
+        const _PrivateError(),
+      );
+      remote.gates[CandidateRemoteOperation.remoteAuth]!.completeError(
+        const _PrivateError(),
+      );
+      await _flush();
+      expect(result.toDiagnosticMap(), f.candidate.snapshot!.toDiagnosticMap());
+      expect(identical(disposal, f.candidate.logout()), isTrue);
+      expect(original.disposed, isFalse);
+      expect(
+        original.remote.values,
+        everyElement(CandidateRemoteState.uncertain),
+      );
+    },
+  );
+
+  test(
     'dispose during a failed purge still requires explicit local retry',
     () async {
       final f = await _Fixture.create(remote: _RemoteFake.pending());

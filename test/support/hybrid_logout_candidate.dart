@@ -122,6 +122,7 @@ final class _Attempt {
   final int id;
   final Map<CandidateRemoteOperation, CandidateRemoteState> remote;
   final done = Completer<CandidateLogoutSnapshot>();
+  Future<CandidateLogoutSnapshot>? disposalResult;
   bool admissionClosed = false;
   bool generationFenced = false;
   bool mutationsResolved = false;
@@ -210,13 +211,16 @@ final class HybridLogoutCandidate {
 
   Future<CandidateLogoutSnapshot> logout() {
     final existing = _current;
-    if (existing != null) return existing.done.future;
+    if (existing != null)
+      return existing.disposalResult ?? existing.done.future;
     return _begin(retry: false);
   }
 
   Future<CandidateLogoutSnapshot> retryLocalCleanup() {
     final attempt = _current;
-    if (attempt != null && !attempt.localSettled) return attempt.done.future;
+    if (attempt != null && !attempt.localSettled) {
+      return attempt.disposalResult ?? attempt.done.future;
+    }
     if (coordinator.state != LocalChatSessionState.cleanupPending) {
       throw StateError('candidate_no_local_cleanup_pending');
     }
@@ -228,8 +232,20 @@ final class HybridLogoutCandidate {
 
   Future<CandidateLogoutSnapshot> dispose() {
     final run = logout();
+    final attempt = _current!;
+    // logout() may have reentered dispose through a synchronous fake callback.
+    final existing = attempt.disposalResult;
+    if (existing != null) return existing;
+    // A completed logout is an immutable historical observation. Disposal
+    // after it needs a new result; an ongoing run must keep its shared Future.
+    // A retry begun after disposal already produces disposed snapshots itself.
+    final refreshed = attempt.done.isCompleted && !_disposed
+        ? Completer<CandidateLogoutSnapshot>()
+        : null;
+    final result = refreshed?.future ?? run;
+    attempt.disposalResult = result;
     _disposed = true;
-    _boundRemote(_current!);
+    _boundRemote(attempt);
     // Request disposal of the same local cleanup. The handled local run below
     // retains any failure; disposal must not rethrow raw cleanup exceptions.
     unawaited(
@@ -238,8 +254,9 @@ final class HybridLogoutCandidate {
         onError: (Object _, StackTrace __) {},
       ),
     );
-    _publish(_current!);
-    return run;
+    _publish(attempt);
+    refreshed?.complete(_ledger[attempt.id]!);
+    return result;
   }
 
   Future<CandidateLogoutSnapshot> _begin({required bool retry}) {
