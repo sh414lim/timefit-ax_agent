@@ -168,14 +168,18 @@ class _DevChatShellState extends State<DevChatShell>
 
   Future<void> _createConversation() async {
     if (_creatingConversation) return;
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
     final repository = _conversationRepository;
     if (repository == null) return;
     setState(() => _creatingConversation = true);
     try {
+      if (!admission.isAllowed) return;
       final id = await repository.createConversation();
-      if (mounted) _openConversation(id);
+      if (mounted && admission.isAllowed) _openConversation(id);
     } on Object {
-      if (mounted) {
+      if (mounted && admission.isAllowed) {
         setState(() => _creatingConversation = false);
         _showLocalNotice('새 대화를 저장하지 못했습니다.');
       }
@@ -207,6 +211,9 @@ class _DevChatShellState extends State<DevChatShell>
         _selectedConversationId != conversationId) {
       return;
     }
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
     _draftClientMessageIds[conversationId] = clientMessageId;
     setState(() {
       _composer = ComposerController(
@@ -222,6 +229,7 @@ class _DevChatShellState extends State<DevChatShell>
           clock: DateTime.now,
           session: session,
         ),
+        mutationAdmission: () => admission.isAllowed,
       );
     });
   }
@@ -323,18 +331,24 @@ class _DevChatShellState extends State<DevChatShell>
   }
 
   Future<void> _removeQueuedAttachment(String localId) async {
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
     final int generation = _conversationGeneration;
     final String? conversationId = _selectedConversationId;
     final String? clientMessageId = _composer?.attachmentClientMessageId;
     if (conversationId == null || clientMessageId == null) return;
     try {
+      if (!admission.isAllowed) return;
       await _attachmentDrafts!.remove(
         conversationId: conversationId,
         clientMessageId: clientMessageId,
         localId: localId,
       );
     } on Object {
-      if (mounted && generation == _conversationGeneration) {
+      if (mounted &&
+          generation == _conversationGeneration &&
+          admission.isAllowed) {
         _showLocalNotice('로컬 첨부를 제거하지 못했습니다.');
       }
     }

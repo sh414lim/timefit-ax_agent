@@ -286,6 +286,86 @@ void main() {
     expect(find.textContaining('late-secret.pdf'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'blocked-before-frame remove tap cannot delete attachment data',
+    (WidgetTester tester) async {
+      final harness = await tester.runAsync(
+        () => _DevGateHarness.create(picker: _FixtureAttachmentPicker()),
+      );
+      if (harness == null) throw StateError('surface_harness_unavailable');
+      addTearDown(harness.dispose);
+      await harness.mount(tester);
+      await _createConversation(tester);
+      await tester.tap(find.byTooltip('첨부 추가'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('파일 선택'));
+      await _settleFileIo(tester);
+      await _pumpUntilFinder(tester, find.byTooltip('로컬 첨부 제거'));
+
+      expect(await harness.readAttachmentCount(tester), 1);
+      expect(harness.privateAttachmentFiles, hasLength(1));
+      final Offset oldRemoveCenter = tester.getCenter(
+        find.byTooltip('로컬 첨부 제거'),
+      );
+
+      harness.coordinator.state = LocalChatSessionState.cleanupPending;
+      await tester.tapAt(oldRemoveCenter);
+      await tester.pump();
+      await harness.waitForDisposal(tester);
+
+      expect(
+        await harness.readAttachmentCount(tester),
+        1,
+        reason: 'a blocked old coordinate must not delete the local row',
+      );
+      expect(
+        harness.privateAttachmentFiles,
+        hasLength(1),
+        reason: 'a blocked old coordinate must not delete the private copy',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  testWidgets(
+    'blocked-before-frame send cannot create message or outbox rows',
+    (WidgetTester tester) async {
+      final harness = await tester.runAsync(_DevGateHarness.create);
+      if (harness == null) throw StateError('surface_harness_unavailable');
+      addTearDown(harness.dispose);
+      await harness.mount(tester);
+      await _createConversation(tester);
+      await tester.enterText(find.byType(TextField), 'same-frame blocked body');
+      await tester.pump();
+      final Offset oldSendCenter = tester.getCenter(find.byTooltip('메시지 저장'));
+
+      harness.coordinator.state = LocalChatSessionState.loggingOut;
+      await tester.tapAt(oldSendCenter);
+      await tester.pump();
+      await harness.waitForDisposal(tester);
+
+      expect(await harness.readMessageCount(tester), 0);
+      expect(await harness.readOutboxCount(tester), 0);
+    },
+  );
+
+  testWidgets('blocked-before-frame new conversation cannot create a row', (
+    WidgetTester tester,
+  ) async {
+    final harness = await tester.runAsync(_DevGateHarness.create);
+    if (harness == null) throw StateError('surface_harness_unavailable');
+    addTearDown(harness.dispose);
+    await harness.mount(tester);
+    final Offset oldCreateCenter = tester.getCenter(find.text('새 대화 시작'));
+
+    harness.coordinator.state = LocalChatSessionState.cleanupPending;
+    await tester.tapAt(oldCreateCenter);
+    await tester.pump();
+    await harness.waitForDisposal(tester);
+
+    expect(await harness.readConversationCount(tester), 0);
+  });
 }
 
 const _sensitiveCanary = 'private-payroll-dialog-canary';
@@ -303,6 +383,9 @@ final class _DevGateHarness {
 
   File get databaseFile => File('${sandbox.path}/chat.sqlite');
   Directory get attachmentRoot => Directory('${sandbox.path}/attachments');
+  List<File> get privateAttachmentFiles => attachmentRoot.existsSync()
+      ? attachmentRoot.listSync(recursive: true).whereType<File>().toList()
+      : <File>[];
 
   static Future<_DevGateHarness> create({AttachmentPicker? picker}) async {
     final sandbox = await Directory.systemTemp.createTemp(
@@ -371,11 +454,47 @@ final class _DevGateHarness {
     return conversation!;
   }
 
+  Future<int> readConversationCount(WidgetTester tester) async {
+    final count = await tester.runAsync(() async {
+      final database = AppDatabase(NativeDatabase(databaseFile));
+      try {
+        return (await database.conversationDao.getAll()).length;
+      } finally {
+        await database.close();
+      }
+    });
+    return count!;
+  }
+
   Future<int> readAttachmentCount(WidgetTester tester) async {
     final count = await tester.runAsync(() async {
       final database = AppDatabase(NativeDatabase(databaseFile));
       try {
         return (await database.select(database.localAttachments).get()).length;
+      } finally {
+        await database.close();
+      }
+    });
+    return count!;
+  }
+
+  Future<int> readMessageCount(WidgetTester tester) async {
+    final count = await tester.runAsync(() async {
+      final database = AppDatabase(NativeDatabase(databaseFile));
+      try {
+        return (await database.messageDao.getAll()).length;
+      } finally {
+        await database.close();
+      }
+    });
+    return count!;
+  }
+
+  Future<int> readOutboxCount(WidgetTester tester) async {
+    final count = await tester.runAsync(() async {
+      final database = AppDatabase(NativeDatabase(databaseFile));
+      try {
+        return (await database.outboxDao.getAll()).length;
       } finally {
         await database.close();
       }

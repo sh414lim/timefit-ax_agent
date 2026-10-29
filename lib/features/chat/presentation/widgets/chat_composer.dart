@@ -196,7 +196,8 @@ class _ChatComposerState extends State<ChatComposer> {
                               _removeFailedAttachment(attachment.localId),
                             ),
                             onRemoveQueued:
-                                widget.onRemoveQueuedAttachment == null
+                                widget.onRemoveQueuedAttachment == null ||
+                                    controller.isAttachmentDraftMutating
                                 ? null
                                 : () => unawaited(
                                     _removeQueuedAttachment(attachment.localId),
