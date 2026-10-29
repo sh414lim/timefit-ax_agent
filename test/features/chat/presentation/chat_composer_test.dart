@@ -113,6 +113,7 @@ void main() {
     await tester.tap(find.byTooltip('로컬 첨부 제거'));
     await tester.pump();
     expect(_sendButton(tester).onPressed, isNull);
+    expect(find.byTooltip('로컬 첨부 제거'), findsNothing);
 
     release.complete();
     await removal;
@@ -461,6 +462,124 @@ void main() {
     expect(await controller.retry('stable-client-id'), isTrue);
     expect(submitter.retriedIds, <String>['stable-client-id']);
   });
+
+  test(
+    'blocked session admission rejects new submit and retry mutations',
+    () async {
+      var mutationAllowed = false;
+      final _FakeSubmitter submitter = _FakeSubmitter();
+      final ComposerController controller = ComposerController(
+        conversationId: 'conversation',
+        submitter: submitter,
+        mutationAdmission: () => mutationAllowed,
+      );
+      addTearDown(controller.dispose);
+      controller.updateDraft('must stay local');
+
+      expect(controller.canSubmit, isFalse);
+      await controller.submit();
+      expect(await controller.retry('blocked-client-id'), isFalse);
+
+      expect(submitter.submitCalls, 0);
+      expect(submitter.retriedIds, isEmpty);
+      expect(controller.draft, 'must stay local');
+
+      mutationAllowed = true;
+      expect(controller.canSubmit, isTrue);
+    },
+  );
+
+  test('mutation admitted before invalidation is allowed to drain', () async {
+    var mutationAllowed = true;
+    final Completer<LocalTextCommand> pending = Completer<LocalTextCommand>();
+    final _FakeSubmitter submitter = _FakeSubmitter(pending: pending);
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      submitter: submitter,
+      mutationAdmission: () => mutationAllowed,
+    );
+    addTearDown(controller.dispose);
+    controller.updateDraft('already admitted');
+
+    final Future<void> submission = controller.submit();
+    expect(submitter.submitCalls, 1);
+    mutationAllowed = false;
+    pending.complete(_command(body: 'already admitted'));
+    await submission;
+
+    expect(submitter.submitCalls, 1);
+    expect(controller.draft, isEmpty);
+  });
+
+  test('blocked session admission rejects failed attachment removal', () async {
+    var mutationAllowed = true;
+    final _GateAttachmentSource source = _GateAttachmentSource();
+    addTearDown(source.close);
+    final ComposerController controller = ComposerController(
+      conversationId: 'conversation',
+      attachmentClientMessageId: 'attachment-draft',
+      attachmentSource: source,
+      submitter: _FakeSubmitter(),
+      mutationAdmission: () => mutationAllowed,
+    );
+    addTearDown(controller.dispose);
+    source.events.add(const <ComposerAttachment>[
+      ComposerAttachment(
+        localId: 'failed-local-id',
+        contentType: 'application/pdf',
+        state: ComposerAttachmentState.failed,
+        bytesSent: 0,
+        bytesTotal: 8,
+      ),
+    ]);
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.hasFailedAttachment, isTrue);
+
+    mutationAllowed = false;
+    await controller.removeFailedAttachment('failed-local-id');
+
+    expect(source.removedIds, isEmpty);
+  });
+
+  test(
+    'failed attachment removal admitted before invalidation drains',
+    () async {
+      var mutationAllowed = true;
+      final Completer<void> pending = Completer<void>();
+      final _GateAttachmentSource source = _GateAttachmentSource(
+        removePending: pending,
+      );
+      addTearDown(source.close);
+      final ComposerController controller = ComposerController(
+        conversationId: 'conversation',
+        attachmentClientMessageId: 'attachment-draft',
+        attachmentSource: source,
+        submitter: _FakeSubmitter(),
+        mutationAdmission: () => mutationAllowed,
+      );
+      addTearDown(controller.dispose);
+      source.events.add(const <ComposerAttachment>[
+        ComposerAttachment(
+          localId: 'failed-local-id',
+          contentType: 'application/pdf',
+          state: ComposerAttachmentState.failed,
+          bytesSent: 0,
+          bytesTotal: 8,
+        ),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      final Future<void> removal = controller.removeFailedAttachment(
+        'failed-local-id',
+      );
+      expect(source.removedIds, <String>['failed-local-id']);
+      mutationAllowed = false;
+      pending.complete();
+      await removal;
+
+      expect(source.removedIds, <String>['failed-local-id']);
+    },
+  );
 
   test('rapid retry shares one future per command identity', () async {
     final Completer<bool> pending = Completer<bool>();
@@ -824,6 +943,33 @@ final class _MutationAttachmentSource
     required String clientMessageId,
     required String localId,
   }) async {}
+
+  @override
+  Stream<List<ComposerAttachment>> watch({
+    required String conversationId,
+    required String clientMessageId,
+  }) => events.stream;
+}
+
+final class _GateAttachmentSource implements AttachmentComposerSource {
+  _GateAttachmentSource({this.removePending});
+
+  final Completer<void>? removePending;
+  final StreamController<List<ComposerAttachment>> events =
+      StreamController<List<ComposerAttachment>>();
+  final List<String> removedIds = <String>[];
+
+  Future<void> close() => events.close();
+
+  @override
+  Future<void> removeFailed({
+    required String conversationId,
+    required String clientMessageId,
+    required String localId,
+  }) async {
+    removedIds.add(localId);
+    await removePending?.future;
+  }
 
   @override
   Stream<List<ComposerAttachment>> watch({

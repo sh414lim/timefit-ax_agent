@@ -20,6 +20,7 @@ import '../features/chat/application/drift_attachment_composer_source.dart';
 import '../features/chat/application/send_message.dart';
 import '../features/chat/data/message_repository_impl.dart';
 import '../features/chat/presentation/chat_screen.dart';
+import '../features/chat/presentation/chat_session_gate.dart';
 import '../features/conversations/application/conversation_actions.dart';
 import '../features/conversations/application/conversation_list_controller.dart';
 import '../features/conversations/data/dev_local_conversation_repository.dart';
@@ -167,14 +168,18 @@ class _DevChatShellState extends State<DevChatShell>
 
   Future<void> _createConversation() async {
     if (_creatingConversation) return;
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
     final repository = _conversationRepository;
     if (repository == null) return;
     setState(() => _creatingConversation = true);
     try {
+      if (!admission.isAllowed) return;
       final id = await repository.createConversation();
-      if (mounted) _openConversation(id);
+      if (mounted && admission.isAllowed) _openConversation(id);
     } on Object {
-      if (mounted) {
+      if (mounted && admission.isAllowed) {
         setState(() => _creatingConversation = false);
         _showLocalNotice('새 대화를 저장하지 못했습니다.');
       }
@@ -206,6 +211,9 @@ class _DevChatShellState extends State<DevChatShell>
         _selectedConversationId != conversationId) {
       return;
     }
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
     _draftClientMessageIds[conversationId] = clientMessageId;
     setState(() {
       _composer = ComposerController(
@@ -221,6 +229,7 @@ class _DevChatShellState extends State<DevChatShell>
           clock: DateTime.now,
           session: session,
         ),
+        mutationAdmission: () => admission.isAllowed,
       );
     });
   }
@@ -240,8 +249,11 @@ class _DevChatShellState extends State<DevChatShell>
 
   Future<void> _chooseAttachments() async {
     if (_selectingAttachments || _composer == null) return;
-    final AttachmentPickerKind? kind =
-        await showModalBottomSheet<AttachmentPickerKind>(
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
+    final AttachmentPickerKind? kind = await admission
+        .openBottomSheet<AttachmentPickerKind>(
           context: context,
           builder: (BuildContext context) => SafeArea(
             child: Column(
@@ -265,7 +277,9 @@ class _DevChatShellState extends State<DevChatShell>
             ),
           ),
         );
-    if (kind == null || !mounted || _composer == null) return;
+    if (kind == null || !mounted || _composer == null || !admission.isAllowed) {
+      return;
+    }
 
     final int generation = _conversationGeneration;
     final String conversationId = _selectedConversationId!;
@@ -273,13 +287,17 @@ class _DevChatShellState extends State<DevChatShell>
     final AttachmentCancellation cancellation = AttachmentCancellation();
     _attachmentCancellation?.cancel();
     _attachmentCancellation = cancellation;
+    final VoidCallback removeAdmissionInvalidation = admission.onInvalidated(
+      cancellation.cancel,
+    );
     setState(() => _selectingAttachments = true);
     try {
       final inputs = await _attachmentPicker.pick(kind);
       if (!mounted ||
           generation != _conversationGeneration ||
           _selectedConversationId != conversationId ||
-          cancellation != _attachmentCancellation) {
+          cancellation != _attachmentCancellation ||
+          !admission.isAllowed) {
         return;
       }
       await _attachmentDrafts!.add(
@@ -289,14 +307,20 @@ class _DevChatShellState extends State<DevChatShell>
         cancellation: cancellation,
       );
     } on AttachmentException catch (error) {
-      if (mounted && generation == _conversationGeneration) {
+      if (mounted &&
+          generation == _conversationGeneration &&
+          admission.isAllowed &&
+          error.failure != AttachmentFailure.cancelled) {
         _showLocalNotice(_attachmentFailureMessage(error.failure));
       }
     } on Object {
-      if (mounted && generation == _conversationGeneration) {
+      if (mounted &&
+          generation == _conversationGeneration &&
+          admission.isAllowed) {
         _showLocalNotice('첨부를 로컬에 준비하지 못했습니다.');
       }
     } finally {
+      removeAdmissionInvalidation();
       if (mounted &&
           generation == _conversationGeneration &&
           identical(_attachmentCancellation, cancellation)) {
@@ -307,24 +331,33 @@ class _DevChatShellState extends State<DevChatShell>
   }
 
   Future<void> _removeQueuedAttachment(String localId) async {
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
     final int generation = _conversationGeneration;
     final String? conversationId = _selectedConversationId;
     final String? clientMessageId = _composer?.attachmentClientMessageId;
     if (conversationId == null || clientMessageId == null) return;
     try {
+      if (!admission.isAllowed) return;
       await _attachmentDrafts!.remove(
         conversationId: conversationId,
         clientMessageId: clientMessageId,
         localId: localId,
       );
     } on Object {
-      if (mounted && generation == _conversationGeneration) {
+      if (mounted &&
+          generation == _conversationGeneration &&
+          admission.isAllowed) {
         _showLocalNotice('로컬 첨부를 제거하지 못했습니다.');
       }
     }
   }
 
   void _openLocalAttachmentPreview(String localId) {
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
     final String? conversationId = _selectedConversationId;
     final AppDatabase? database = _database;
     final LocalRepositorySession? session = _session;
@@ -343,12 +376,15 @@ class _DevChatShellState extends State<DevChatShell>
       localId: localId,
       observability: widget.attachmentObservability,
     );
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => DevLocalAttachmentPreviewScreen(
-          controller: controller,
-          imageRenderer: widget.previewImageRenderer,
-          pdfRenderer: widget.previewPdfRenderer,
+    unawaited(
+      admission.pushRoute<void>(
+        context: context,
+        route: MaterialPageRoute<void>(
+          builder: (_) => DevLocalAttachmentPreviewScreen(
+            controller: controller,
+            imageRenderer: widget.previewImageRenderer,
+            pdfRenderer: widget.previewPdfRenderer,
+          ),
         ),
       ),
     );
@@ -371,8 +407,11 @@ class _DevChatShellState extends State<DevChatShell>
   }
 
   Future<void> _renameConversation(ConversationSummary conversation) async {
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
     String editedTitle = conversation.title;
-    final String? title = await showDialog<String>(
+    final String? title = await admission.openDialog<String>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
         title: const Text('대화 이름 변경'),
@@ -396,7 +435,7 @@ class _DevChatShellState extends State<DevChatShell>
         ],
       ),
     );
-    if (title == null || !mounted) return;
+    if (title == null || !mounted || !admission.isAllowed) return;
     final bool succeeded = await _conversationActions!.rename(
       conversation.id,
       title,
@@ -409,8 +448,11 @@ class _DevChatShellState extends State<DevChatShell>
   }
 
   Future<void> _archiveConversation(ConversationSummary conversation) async {
+    final ChatSessionOwnedSurfaceAdmission admission =
+        ChatSessionOwnedSurfaces.admit(context);
+    if (!admission.isAllowed) return;
     final bool confirmed =
-        await showDialog<bool>(
+        await admission.openDialog<bool>(
           context: context,
           builder: (BuildContext context) => AlertDialog(
             title: const Text('대화를 보관할까요?'),
@@ -428,7 +470,7 @@ class _DevChatShellState extends State<DevChatShell>
           ),
         ) ??
         false;
-    if (!confirmed || !mounted) return;
+    if (!confirmed || !mounted || !admission.isAllowed) return;
     final bool succeeded = await _conversationActions!.archive(conversation.id);
     if (!succeeded &&
         mounted &&

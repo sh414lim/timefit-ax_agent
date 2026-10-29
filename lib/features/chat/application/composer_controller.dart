@@ -5,14 +5,23 @@ import 'package:flutter/scheduler.dart';
 
 import 'send_message.dart';
 
+/// Synchronous, generation-bound permission to start a new local mutation.
+///
+/// Once a submit, retry, or removal has started, its returned future is allowed
+/// to drain through the repository session. Revocation only rejects work that
+/// has not crossed this boundary yet.
+typedef ComposerMutationAdmission = bool Function();
+
 final class ComposerController extends ChangeNotifier {
   ComposerController({
     required this.conversationId,
     required TextMessageSubmitter submitter,
     this.attachmentClientMessageId,
     AttachmentComposerSource? attachmentSource,
+    ComposerMutationAdmission? mutationAdmission,
   }) : _submitter = submitter,
-       _attachmentSource = attachmentSource {
+       _attachmentSource = attachmentSource,
+       _mutationAdmission = mutationAdmission ?? _allowMutation {
     if ((attachmentClientMessageId == null) != (attachmentSource == null)) {
       throw ArgumentError(
         'attachmentClientMessageId and attachmentSource must be paired',
@@ -53,6 +62,7 @@ final class ComposerController extends ChangeNotifier {
 
   final String conversationId;
   final TextMessageSubmitter _submitter;
+  final ComposerMutationAdmission _mutationAdmission;
   final String? attachmentClientMessageId;
   final AttachmentComposerSource? _attachmentSource;
   StreamSubscription<List<ComposerAttachment>>? _attachmentSubscription;
@@ -77,21 +87,23 @@ final class ComposerController extends ChangeNotifier {
   int get characterCount => characterCountOf(_draft);
   bool get showCounter => characterCount >= counterThreshold;
   bool get isSubmitting => _activeSubmit != null;
+  bool get isAttachmentDraftMutating =>
+      _attachmentSource is AttachmentDraftMutationState &&
+      (_attachmentSource as AttachmentDraftMutationState)
+          .isAttachmentDraftMutating(attachmentClientMessageId!);
   Object? get lastError => _lastError;
   List<ComposerAttachment> get attachments => _attachments;
   bool get hasFailedAttachment => attachments.any(
     (attachment) => attachment.state == ComposerAttachmentState.failed,
   );
   bool get canSubmit {
-    final bool attachmentDraftMutating =
-        _attachmentSource is AttachmentDraftMutationState &&
-        (_attachmentSource as AttachmentDraftMutationState)
-            .isAttachmentDraftMutating(attachmentClientMessageId!);
+    final bool attachmentDraftMutating = isAttachmentDraftMutating;
     if (attachmentDraftMutating &&
         _attachmentSource is! AttachmentDraftMutationEvents) {
       _scheduleAttachmentMutationFallback();
     }
     return conversationId.isNotEmpty &&
+        _mutationAdmission() &&
         characterCount <= maximumLength &&
         !_aggregateSubmitted &&
         !attachmentDraftMutating &&
@@ -111,6 +123,7 @@ final class ComposerController extends ChangeNotifier {
 
   Future<void> submit() {
     if (_activeSubmit case final Future<void> active) return active;
+    if (!_mutationAdmission()) return Future<void>.value();
     if (!canSubmit) return Future<void>.value();
 
     final String submittedDraft = _draft;
@@ -204,7 +217,7 @@ final class ComposerController extends ChangeNotifier {
   }
 
   Future<void> removeFailedAttachment(String localId) async {
-    if (_disposed) return;
+    if (_disposed || !_mutationAdmission()) return;
     final attachment = attachments
         .where((item) => item.localId == localId)
         .firstOrNull;
@@ -220,6 +233,7 @@ final class ComposerController extends ChangeNotifier {
     if (_activeRetries[clientMessageId] case final Future<bool> active) {
       return active;
     }
+    if (!_mutationAdmission()) return Future<bool>.value(false);
     late final Future<bool> operation;
     operation = Future<bool>.sync(() => _submitter.retry(clientMessageId))
         .whenComplete(() {
@@ -243,6 +257,8 @@ final class ComposerController extends ChangeNotifier {
     super.dispose();
   }
 }
+
+bool _allowMutation() => true;
 
 enum ComposerAttachmentState { queued, uploading, failed, ready }
 
