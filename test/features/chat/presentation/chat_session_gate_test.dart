@@ -45,6 +45,145 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('owned root overlay loses rendering semantics focus and hits', (
+    WidgetTester tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final coordinator = _FakeGateCoordinator(LocalChatSessionState.active);
+    final focusNode = FocusNode();
+    var taps = 0;
+    addTearDown(coordinator.dispose);
+    addTearDown(focusNode.dispose);
+    await _pumpGate(
+      tester,
+      coordinator: coordinator,
+      child: _OwnedOverlayChild(focusNode: focusNode, onTap: () => taps += 1),
+    );
+    await tester.pump();
+
+    final overlay = find.byKey(
+      const ValueKey<String>('owned-sensitive-overlay'),
+    );
+    expect(overlay, findsOneWidget);
+    expect(find.bySemanticsLabel(_sensitiveCanary), findsWidgets);
+    focusNode.requestFocus();
+    await tester.pump();
+    expect(focusNode.hasFocus, isTrue);
+    final oldCenter = tester.getCenter(overlay);
+
+    coordinator.state = LocalChatSessionState.loggingOut;
+    await tester.pump();
+
+    expect(overlay, findsNothing);
+    expect(find.bySemanticsLabel(_sensitiveCanary), findsNothing);
+    expect(focusNode.hasFocus, isFalse);
+    await tester.tapAt(oldCenter);
+    await tester.pump();
+    expect(taps, 0);
+    semantics.dispose();
+  });
+
+  testWidgets('unrelated app root overlay is preserved outside chat scope', (
+    WidgetTester tester,
+  ) async {
+    final coordinator = _FakeGateCoordinator(LocalChatSessionState.active);
+    final rootNavigatorKey = GlobalKey<NavigatorState>();
+    addTearDown(coordinator.dispose);
+    await _pumpGate(
+      tester,
+      coordinator: coordinator,
+      rootNavigatorKey: rootNavigatorKey,
+    );
+    final unrelated = OverlayEntry(
+      builder: (_) => const Positioned(
+        top: 8,
+        left: 8,
+        child: Material(
+          child: Text(
+            'unrelated-app-overlay',
+            key: ValueKey<String>('unrelated-app-overlay'),
+          ),
+        ),
+      ),
+    );
+    rootNavigatorKey.currentState!.overlay!.insert(unrelated);
+    addTearDown(unrelated.remove);
+    await tester.pump();
+
+    coordinator.state = LocalChatSessionState.cleanupPending;
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey<String>('unrelated-app-overlay')),
+      findsOneWidget,
+    );
+    expect(find.text(_sensitiveBody), findsNothing);
+  });
+
+  testWidgets('owned dialog sheet and route are revoked with the session', (
+    WidgetTester tester,
+  ) async {
+    final coordinator = _FakeGateCoordinator(LocalChatSessionState.active);
+    addTearDown(coordinator.dispose);
+    await _pumpGate(
+      tester,
+      coordinator: coordinator,
+      child: const _OwnedSurfaceButtons(),
+    );
+
+    await tester.tap(find.text('owned-dialog-button'));
+    await tester.pumpAndSettle();
+    expect(find.text('owned-dialog-content'), findsOneWidget);
+    await tester.tap(find.text('owned-nested-sheet-button'));
+    await tester.pumpAndSettle();
+    expect(find.text('owned-nested-sheet-content'), findsOneWidget);
+    coordinator.state = LocalChatSessionState.loggingOut;
+    await tester.pump();
+    expect(find.text('owned-dialog-content'), findsNothing);
+    expect(find.text('owned-nested-sheet-content'), findsNothing);
+
+    coordinator.state = LocalChatSessionState.active;
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('owned-sheet-button'));
+    await tester.pumpAndSettle();
+    expect(find.text('owned-sheet-content'), findsOneWidget);
+    coordinator.state = LocalChatSessionState.cleanupPending;
+    await tester.pump();
+    expect(find.text('owned-sheet-content'), findsNothing);
+
+    coordinator.state = LocalChatSessionState.active;
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('owned-route-button'));
+    await tester.pumpAndSettle();
+    expect(find.text('owned-route-content'), findsOneWidget);
+    coordinator.state = LocalChatSessionState.disposed;
+    await tester.pump();
+    expect(find.text('owned-route-content'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('late owned dialog request cannot recreate a blocked surface', (
+    WidgetTester tester,
+  ) async {
+    final coordinator = _FakeGateCoordinator(LocalChatSessionState.active);
+    final release = Completer<void>();
+    addTearDown(coordinator.dispose);
+    await _pumpGate(
+      tester,
+      coordinator: coordinator,
+      child: _LateOwnedDialogChild(release: release.future),
+    );
+
+    coordinator.state = LocalChatSessionState.cleanupPending;
+    await tester.pump();
+    release.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.text('late-owned-dialog'), findsNothing);
+    expect(find.text(_sensitiveBody), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('cleanup failure is generic and repeated retry shares one run', (
     WidgetTester tester,
   ) async {
@@ -247,6 +386,8 @@ Future<void> _pumpGate(
   WidgetTester tester, {
   required ChatSessionGateCoordinator coordinator,
   ValueListenable<ChatSessionGateCoordinator>? coordinatorListenable,
+  GlobalKey<NavigatorState>? rootNavigatorKey,
+  Widget child = const _SensitiveChild(),
   Brightness brightness = Brightness.light,
   Size size = const Size(390, 760),
   double textScale = 1,
@@ -260,10 +401,11 @@ Future<void> _pumpGate(
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
   Widget buildGate(ChatSessionGateCoordinator value) =>
-      ChatSessionGate(coordinator: value, child: const _SensitiveChild());
+      ChatSessionGate(coordinator: value, child: child);
 
   await tester.pumpWidget(
     MaterialApp(
+      navigatorKey: rootNavigatorKey,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: brightness == Brightness.dark
@@ -281,6 +423,165 @@ Future<void> _pumpGate(
     ),
   );
   await tester.pump();
+}
+
+final class _OwnedOverlayChild extends StatefulWidget {
+  const _OwnedOverlayChild({required this.focusNode, required this.onTap});
+
+  final FocusNode focusNode;
+  final VoidCallback onTap;
+
+  @override
+  State<_OwnedOverlayChild> createState() => _OwnedOverlayChildState();
+}
+
+final class _OwnedOverlayChildState extends State<_OwnedOverlayChild> {
+  var _inserted = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_inserted) return;
+    _inserted = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Overlay.of(context, rootOverlay: true).insert(
+        OverlayEntry(
+          builder: (_) => Positioned.fill(
+            child: Material(
+              color: Colors.transparent,
+              child: Center(
+                child: Semantics(
+                  label: _sensitiveCanary,
+                  button: true,
+                  child: Focus(
+                    focusNode: widget.focusNode,
+                    autofocus: true,
+                    child: FilledButton(
+                      key: const ValueKey<String>('owned-sensitive-overlay'),
+                      onPressed: widget.onTap,
+                      child: const Text(_sensitiveCanary),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Text(_sensitiveBody);
+}
+
+final class _OwnedSurfaceButtons extends StatelessWidget {
+  const _OwnedSurfaceButtons();
+
+  @override
+  Widget build(BuildContext context) {
+    final surfaceHandle = ChatSessionOwnedSurfaces.capture(context);
+    return Column(
+      children: <Widget>[
+        TextButton(
+          onPressed: () {
+            unawaited(
+              ChatSessionOwnedSurfaces.showOwnedDialog<void>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Text('owned-dialog-content'),
+                      TextButton(
+                        onPressed: () {
+                          unawaited(
+                            surfaceHandle?.openBottomSheet<void>(
+                              builder: (_) => const SizedBox(
+                                height: 120,
+                                child: Center(
+                                  child: Text('owned-nested-sheet-content'),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('owned-nested-sheet-button'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+          child: const Text('owned-dialog-button'),
+        ),
+        TextButton(
+          onPressed: () {
+            unawaited(
+              ChatSessionOwnedSurfaces.showOwnedBottomSheet<void>(
+                context: context,
+                builder: (_) => const SizedBox(
+                  height: 160,
+                  child: Center(child: Text('owned-sheet-content')),
+                ),
+              ),
+            );
+          },
+          child: const Text('owned-sheet-button'),
+        ),
+        TextButton(
+          onPressed: () {
+            unawaited(
+              ChatSessionOwnedSurfaces.pushOwnedRoute<void>(
+                context: context,
+                route: MaterialPageRoute<void>(
+                  builder: (_) => const Scaffold(
+                    body: Center(child: Text('owned-route-content')),
+                  ),
+                ),
+              ),
+            );
+          },
+          child: const Text('owned-route-button'),
+        ),
+      ],
+    );
+  }
+}
+
+final class _LateOwnedDialogChild extends StatefulWidget {
+  const _LateOwnedDialogChild({required this.release});
+
+  final Future<void> release;
+
+  @override
+  State<_LateOwnedDialogChild> createState() => _LateOwnedDialogChildState();
+}
+
+final class _LateOwnedDialogChildState extends State<_LateOwnedDialogChild> {
+  ChatSessionOwnedSurfaceHandle? _surfaceHandle;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final firstCapture = _surfaceHandle == null;
+    _surfaceHandle ??= ChatSessionOwnedSurfaces.capture(context);
+    if (firstCapture && _surfaceHandle != null) {
+      unawaited(_openWhenReleased());
+    }
+  }
+
+  Future<void> _openWhenReleased() async {
+    await widget.release;
+    await _surfaceHandle?.openDialog<void>(
+      builder: (_) => const AlertDialog(content: Text('late-owned-dialog')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => const Text(_sensitiveBody);
 }
 
 final class _SensitiveChild extends StatelessWidget {
