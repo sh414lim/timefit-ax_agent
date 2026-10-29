@@ -82,6 +82,11 @@ _CandidateTextCheck _checkJsonText(
   String source,
   CandidateDecodeBudget budget,
 ) {
+  // Escapes and insignificant JSON formatting do not exist in an already
+  // parsed object. A separate bounded 8x source ceiling protects jsonDecode,
+  // while maxUtf8Bytes itself is enforced on the detached logical tree so the
+  // string and object paths make the same decision.
+  final rawJsonCeiling = budget.maxUtf8Bytes * 8;
   var utf8Bytes = 0;
   var depth = 0;
   var inString = false;
@@ -102,7 +107,7 @@ _CandidateTextCheck _checkJsonText(
     } else {
       utf8Bytes += 3;
     }
-    if (utf8Bytes > budget.maxUtf8Bytes) {
+    if (utf8Bytes > rawJsonCeiling) {
       return _CandidateTextCheck.budgetExceeded;
     }
 
@@ -143,9 +148,8 @@ final class _CandidateBudgetWalker {
   var _nodes = 0;
   var _estimatedUtf8Bytes = 0;
 
-  Object? detach(Object? value, [int depth = 0]) {
+  Object? detach(Object? value, [int containingDepth = 0]) {
     _countNode();
-    if (depth > budget.maxDepth) throw const _CandidateBudgetExceeded();
     if (value == null) {
       _countBytes(4);
       return null;
@@ -167,12 +171,15 @@ final class _CandidateBudgetWalker {
       _countString(value);
       return value;
     }
-    if (value is List) return _detachList(value, depth);
-    if (value is Map) return _detachMap(value, depth);
+    if (value is List) return _detachList(value, containingDepth + 1);
+    if (value is Map) return _detachMap(value, containingDepth + 1);
     throw const _CandidateInputInvalidException();
   }
 
-  List<Object?> _detachList(List<dynamic> value, int depth) {
+  List<Object?> _detachList(List<dynamic> value, int containerDepth) {
+    if (containerDepth > budget.maxDepth) {
+      throw const _CandidateBudgetExceeded();
+    }
     if (!_activeContainers.add(value)) {
       throw const _CandidateBudgetExceeded();
     }
@@ -184,14 +191,20 @@ final class _CandidateBudgetWalker {
       _countBytes(2 + length);
       return List<Object?>.unmodifiable(<Object?>[
         for (var index = 0; index < length; index += 1)
-          detach(value[index], depth + 1),
+          detach(value[index], containerDepth),
       ]);
     } finally {
       _activeContainers.remove(value);
     }
   }
 
-  Map<String, Object?> _detachMap(Map<dynamic, dynamic> value, int depth) {
+  Map<String, Object?> _detachMap(
+    Map<dynamic, dynamic> value,
+    int containerDepth,
+  ) {
+    if (containerDepth > budget.maxDepth) {
+      throw const _CandidateBudgetExceeded();
+    }
     if (!_activeContainers.add(value)) {
       throw const _CandidateBudgetExceeded();
     }
@@ -211,7 +224,7 @@ final class _CandidateBudgetWalker {
         }
         _countNode();
         _countString(key);
-        output[key] = detach(entry.value, depth + 1);
+        output[key] = detach(entry.value, containerDepth);
       }
       _countBytes(2 + entryCount);
       return Map<String, Object?>.unmodifiable(output);

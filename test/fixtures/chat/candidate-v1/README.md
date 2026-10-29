@@ -32,3 +32,13 @@ Both candidate decoders default to 1,000,000 UTF-8 bytes, depth 32, 256 entries
 per container, and 4,096 total nodes. Parsed objects use a conservative detached
 JSON-tree byte estimate. These values are local denial-of-service defenses only;
 they are injectable in tests and are **not** approved server payload limits.
+
+Depth is defined identically for JSON text and parsed objects: a scalar root is
+depth 0, a root list/map is depth 1, and each nested list/map adds 1. Aliased
+containers are allowed and counted on each appearance; an active cycle is
+rejected. This definition is also candidate-only and does not set a server limit.
+
+`maxUtf8Bytes` applies to the detached logical JSON tree on both paths. Before
+parsing text, an additional derived ceiling of eight times that value bounds raw
+JSON escapes and formatting; it is a local parser-allocation guard, not a wire
+payload allowance or approved server limit.
