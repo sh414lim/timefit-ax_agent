@@ -5,8 +5,10 @@ abstract final class AppSpacing {
   static const double x8 = 8;
   static const double x12 = 12;
   static const double x16 = 16;
+  static const double x20 = 20;
   static const double x24 = 24;
   static const double x32 = 32;
+  static const double x40 = 40;
   static const double x48 = 48;
 }
 
@@ -14,6 +16,8 @@ abstract final class AppRadius {
   static const double small = 8;
   static const double medium = 12;
   static const double large = 16;
+  static const double feature = 20;
+  static const double hero = 24;
   static const double pill = 999;
 }
 
@@ -26,14 +30,34 @@ abstract final class AppPalette {
   static const Color lightOnPrimary = Color(0xFFFFFFFF);
   static const Color lightSurface = Color(0xFFF9FAFC);
   static const Color lightOnSurface = Color(0xFF191C20);
+  static const Color lightCanvas = Color(0xFFF7F8FA);
+  static const Color lightBrandTint = Color(0xFFEAF1FF);
+  static const Color lightSurfaceSubtle = Color(0xFFF1F3F6);
+  static const Color lightBorder = Color(0xFFDDE2EA);
+  static const Color lightSecondaryText = Color(0xFF626A78);
 
   static const Color darkPrimary = Color(0xFFADC6FF);
   static const Color darkOnPrimary = Color(0xFF002E69);
   static const Color darkSurface = Color(0xFF111318);
   static const Color darkOnSurface = Color(0xFFE2E2E9);
+  static const Color darkCanvas = Color(0xFF101318);
+  static const Color darkBrandTint = Color(0xFF18315D);
+  static const Color darkSurfaceSubtle = Color(0xFF222730);
+  static const Color darkBorder = Color(0xFF343B47);
+  static const Color darkSecondaryText = Color(0xFFAEB6C4);
 }
 
 abstract final class AppTypography {
+  static const TextStyle hero = TextStyle(
+    fontSize: 32,
+    height: 1.25,
+    fontWeight: FontWeight.w700,
+  );
+  static const TextStyle cardTitle = TextStyle(
+    fontSize: 17,
+    height: 24 / 17,
+    fontWeight: FontWeight.w600,
+  );
   static const TextStyle headline = TextStyle(
     fontSize: 24,
     height: 1.25,

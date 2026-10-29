@@ -1,0 +1,273 @@
+import 'package:flutter/material.dart';
+
+import '../../../../app/theme/timefit_ax_visual_tokens.dart';
+import '../../../../app/theme/tokens.dart';
+
+enum DemoComposerVariant { home, analysis, approval, notice, schedule }
+
+class DemoQuickComposer extends StatelessWidget {
+  const DemoQuickComposer({
+    required this.controller,
+    required this.focusNode,
+    this.placeholder = 'TimeFit에게 물어보세요',
+    this.variant = DemoComposerVariant.home,
+    this.inputMaxHeight,
+    super.key,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String placeholder;
+  final DemoComposerVariant variant;
+
+  /// A viewport bound, not a line or text-length limit. Return, selection and
+  /// composing text keep the same TextField state when the keyboard changes.
+  final double? inputMaxHeight;
+
+  static double minimumInputViewportHeight(BuildContext context) {
+    final theme = Theme.of(context);
+    final painter = TextPainter(
+      text: TextSpan(
+        text: '가Ag',
+        style: theme.useMaterial3
+            ? theme.textTheme.bodyLarge
+            : theme.textTheme.titleMedium,
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      locale: Localizations.maybeLocaleOf(context),
+    )..layout();
+    final height = painter.height + AppSpacing.x12 * 2;
+    painter.dispose();
+    // Keep both a complete scaled input line and the existing touch targets.
+    return height.clamp(62, double.infinity);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TimeFitAxVisualTokens.of(context);
+    final bool expandedSource = MediaQuery.sizeOf(context).width >= 900;
+    final Color sourcePrimary = expandedSource
+        ? tokens.expandedHomePrimary
+        : tokens.mobileHomePrimary;
+    final bool leadingPlus = switch (variant) {
+      DemoComposerVariant.analysis || DemoComposerVariant.approval => true,
+      _ => false,
+    };
+    final bool unfilledSend = variant == DemoComposerVariant.approval;
+    final bool paleSend = switch (variant) {
+      DemoComposerVariant.notice || DemoComposerVariant.schedule => true,
+      _ => false,
+    };
+    final Color sendBackground = paleSend ? tokens.paleBlue : sourcePrimary;
+    final Color sendForeground = paleSend
+        ? sourcePrimary
+        : unfilledSend
+        ? tokens.secondaryText
+        : Colors.white;
+    final bool separated = variant == DemoComposerVariant.approval;
+    final Widget input = ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: inputMaxHeight ?? double.infinity),
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        minLines: 1,
+        maxLines: 5,
+        textInputAction: TextInputAction.newline,
+        decoration: InputDecoration(
+          hintText: placeholder,
+          hintStyle: TextStyle(color: tokens.secondaryText),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.x12,
+            vertical: AppSpacing.x12,
+          ),
+        ),
+      ),
+    );
+    final Widget send = Padding(
+      padding: const EdgeInsets.all(5),
+      child: IconButton(
+        key: const Key('demo-composer-send'),
+        tooltip: '샘플 미리보기',
+        onPressed: () {},
+        style: IconButton.styleFrom(
+          backgroundColor: unfilledSend ? Colors.transparent : sendBackground,
+          foregroundColor: sendForeground,
+        ),
+        constraints: const BoxConstraints.tightFor(width: 46, height: 46),
+        icon: CustomPaint(
+          size: const Size.square(22),
+          painter: _ReconstructedSendPainter(color: sendForeground),
+        ),
+      ),
+    );
+    return Semantics(
+      container: true,
+      label: '데모 입력, 실제 업무 시스템에 연결되지 않음',
+      child: Material(
+        color: separated ? Colors.transparent : tokens.surface,
+        elevation: separated ? 0 : 2,
+        shadowColor: const Color(0x14071A39),
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          constraints: BoxConstraints(minHeight: expandedSource ? 54 : 62),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            border: separated ? null : Border.all(color: tokens.border),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              IconButton(
+                tooltip: leadingPlus ? '샘플 추가 자리' : '샘플 첨부 자리',
+                onPressed: () {},
+                constraints: const BoxConstraints.tightFor(
+                  width: AppTouchTarget.minimum,
+                  height: AppTouchTarget.minimum,
+                ),
+                icon: CustomPaint(
+                  size: const Size.square(22),
+                  painter: leadingPlus
+                      ? _ReconstructedPlusPainter(color: tokens.secondaryText)
+                      : _ReconstructedPaperclipPainter(
+                          color: tokens.secondaryText,
+                        ),
+                ),
+              ),
+              Expanded(
+                child: DecoratedBox(
+                  key: const Key('demo-composer-input-field'),
+                  decoration: BoxDecoration(
+                    color: tokens.subtleSurface,
+                    borderRadius: BorderRadius.circular(23),
+                  ),
+                  child: separated
+                      ? Row(
+                          children: <Widget>[
+                            Expanded(child: input),
+                            send,
+                          ],
+                        )
+                      : input,
+                ),
+              ),
+              if (!separated) send,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+final class _ReconstructedPlusPainter extends CustomPainter {
+  const _ReconstructedPlusPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.shortestSide * .09
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(size.width * .2, size.height * .5),
+      Offset(size.width * .8, size.height * .5),
+      stroke,
+    );
+    canvas.drawLine(
+      Offset(size.width * .5, size.height * .2),
+      Offset(size.width * .5, size.height * .8),
+      stroke,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReconstructedPlusPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+final class _ReconstructedPaperclipPainter extends CustomPainter {
+  const _ReconstructedPaperclipPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.shortestSide * .09
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final Path path = Path()
+      ..moveTo(size.width * .7, size.height * .29)
+      ..lineTo(size.width * .38, size.height * .66)
+      ..quadraticBezierTo(
+        size.width * .23,
+        size.height * .82,
+        size.width * .1,
+        size.height * .68,
+      )
+      ..quadraticBezierTo(
+        size.width * .01,
+        size.height * .56,
+        size.width * .13,
+        size.height * .42,
+      )
+      ..lineTo(size.width * .56, size.height * .08)
+      ..quadraticBezierTo(
+        size.width * .77,
+        -size.height * .03,
+        size.width * .9,
+        size.height * .14,
+      )
+      ..quadraticBezierTo(
+        size.width,
+        size.height * .29,
+        size.width * .86,
+        size.height * .43,
+      )
+      ..lineTo(size.width * .42, size.height * .84);
+    canvas.drawPath(path, stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReconstructedPaperclipPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+final class _ReconstructedSendPainter extends CustomPainter {
+  const _ReconstructedSendPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.shortestSide * .09
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final Path plane = Path()
+      ..moveTo(size.width * .12, size.height * .48)
+      ..lineTo(size.width * .88, size.height * .14)
+      ..lineTo(size.width * .66, size.height * .86)
+      ..lineTo(size.width * .48, size.height * .57)
+      ..close();
+    canvas.drawPath(plane, stroke);
+    canvas.drawLine(
+      Offset(size.width * .48, size.height * .57),
+      Offset(size.width * .88, size.height * .14),
+      stroke,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReconstructedSendPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
