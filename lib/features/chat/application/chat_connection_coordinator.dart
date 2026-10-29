@@ -505,14 +505,9 @@ final class ChatConnectionCoordinator {
   }
 
   void _startRepairAfterLateUnsubscribe() {
-    if (_disposed ||
-        _loggedOut ||
-        !_foreground ||
-        _lifecycleState != AppLifecycleState.resumed) {
-      return;
-    }
     _subscribed = false;
     _outboxResumedGeneration = null;
+    if (_disposed || _loggedOut) return;
     _generation += 1;
     _reconnectAttempt = 0;
     _cancelReconnectTimer();

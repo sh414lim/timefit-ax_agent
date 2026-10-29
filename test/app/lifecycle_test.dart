@@ -444,6 +444,113 @@ void main() {
     );
 
     test(
+      'stale unsubscribe during inactive grace reconnects on resume',
+      () async {
+        final oldSubscribe = Completer<bool>();
+        port.subscriptionGates.add(oldSubscribe);
+        final oldResume = coordinator.handleLifecycleState(
+          AppLifecycleState.resumed,
+        );
+        await _flushAsync();
+
+        await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+        await coordinator.handleLifecycleState(AppLifecycleState.paused);
+        await scheduler.advance(const Duration(seconds: 5));
+        await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+        expect(port.subscriptionActive, isTrue);
+        expect(coordinator.isSubscribed, isTrue);
+
+        await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+        oldSubscribe.complete(true);
+        await oldResume;
+        await _flushAsync();
+
+        expect(port.subscriptionActive, isFalse);
+        expect(port.outboxPaused, isTrue);
+        expect(coordinator.isSubscribed, isFalse);
+
+        await scheduler.advance(const Duration(seconds: 4));
+        await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+
+        expect(port.subscriptionActive, isTrue);
+        expect(port.outboxPaused, isFalse);
+        expect(coordinator.isSubscribed, isTrue);
+        expect(port.subscribeCalls, 3);
+      },
+    );
+
+    test(
+      'ambiguous stale unsubscribe during inactive grace reconnects on resume',
+      () async {
+        final oldSubscribe = Completer<bool>();
+        port.subscriptionGates.add(oldSubscribe);
+        final oldResume = coordinator.handleLifecycleState(
+          AppLifecycleState.resumed,
+        );
+        await _flushAsync();
+
+        await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+        await coordinator.handleLifecycleState(AppLifecycleState.paused);
+        await scheduler.advance(const Duration(seconds: 5));
+        await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+        await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+
+        port.unsubscribeSideEffectThenError = true;
+        oldSubscribe.complete(true);
+        await oldResume;
+        await _flushAsync();
+
+        expect(port.subscriptionActive, isFalse);
+        expect(port.outboxPaused, isTrue);
+        expect(coordinator.isSubscribed, isFalse);
+
+        await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+        expect(port.subscriptionActive, isTrue);
+        expect(port.outboxPaused, isFalse);
+        expect(coordinator.isSubscribed, isTrue);
+      },
+    );
+
+    for (final backgroundState in <AppLifecycleState>[
+      AppLifecycleState.paused,
+      AppLifecycleState.hidden,
+    ]) {
+      test(
+        'inactive stale cleanup remains fenced through ${backgroundState.name}',
+        () async {
+          final oldSubscribe = Completer<bool>();
+          port.subscriptionGates.add(oldSubscribe);
+          final oldResume = coordinator.handleLifecycleState(
+            AppLifecycleState.resumed,
+          );
+          await _flushAsync();
+
+          await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+          await coordinator.handleLifecycleState(AppLifecycleState.paused);
+          await scheduler.advance(const Duration(seconds: 5));
+          await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+          await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+
+          oldSubscribe.complete(true);
+          await oldResume;
+          await _flushAsync();
+          await coordinator.handleLifecycleState(backgroundState);
+          await scheduler.advance(const Duration(seconds: 5));
+
+          expect(port.subscriptionActive, isFalse);
+          expect(port.outboxPaused, isTrue);
+          expect(coordinator.isSubscribed, isFalse);
+
+          await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+          expect(port.subscriptionActive, isTrue);
+          expect(port.outboxPaused, isFalse);
+          expect(coordinator.isSubscribed, isTrue);
+          expect(port.subscribeCalls, 3);
+        },
+      );
+    }
+
+    test(
       'late subscribe error with a side effect reconverges the current one',
       () async {
         final oldSubscribe = Completer<bool>();
