@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -68,17 +69,68 @@ void main() {
     ]);
   });
 
-  test('sink failure is swallowed without a fallback export', () {
+  test(
+    'delayed sink failure completes safely without fallback export',
+    () async {
+      final failing = AppLogger(
+        context: AppLogContext(environment: 'test', app: 'app', build: '1'),
+        sink: _DelayedFailingSink(),
+      );
+
+      await expectLater(
+        failing.record('safe_event', fields: {'body': 'secret'}),
+        completes,
+      );
+    },
+  );
+
+  test('synchronous sink throw also completes without an error', () async {
     final failing = AppLogger(
       context: AppLogContext(environment: 'test', app: 'app', build: '1'),
-      sink: _FailingSink(),
+      sink: _SynchronouslyFailingSink(),
     );
 
-    expect(
-      () => failing.record('safe_event', fields: {'body': 'secret'}),
-      returnsNormally,
-    );
+    await expectLater(failing.record('safe_event'), completes);
   });
+
+  test(
+    'ignored record and metric Futures contain delayed sink errors',
+    () async {
+      final release = Completer<void>();
+      final failingSink = _ControlledFailingSink(release.future);
+      final failing = AppLogger(
+        context: AppLogContext(environment: 'test', app: 'app', build: '1'),
+        sink: failingSink,
+      );
+      final uncaught = <Object>[];
+
+      await runZonedGuarded(() async {
+        // Existing preview/crash callers may intentionally ignore these Futures.
+        unawaited(
+          failing.record('safe_event', fields: {'body': 'private body'}),
+        );
+        unawaited(
+          failing.metric(
+            OutboxAgeMetric(
+              age: const Duration(seconds: 1),
+              clientMessageId: ClientMessageId('message-1'),
+            ),
+          ),
+        );
+        expect(failingSink.records, hasLength(2));
+        release.complete();
+        await Future<void>.delayed(Duration.zero);
+      }, (error, _) => uncaught.add(error));
+
+      expect(uncaught, isEmpty);
+      final export = jsonEncode(
+        failingSink.records.map((record) => record.export).toList(),
+      );
+      expect(export, contains('message-1'));
+      expect(export, isNot(contains('private body')));
+      expect(export, isNot(contains('sink secret')));
+    },
+  );
 
   test('invalid context is rejected and invalid event is ignored', () {
     expect(
@@ -90,7 +142,29 @@ void main() {
   });
 }
 
-final class _FailingSink implements AppLogSink {
+final class _DelayedFailingSink implements AppLogSink {
   @override
-  void write(AppLogRecord record) => throw StateError('sink secret');
+  Future<void> write(AppLogRecord record) async {
+    await Future<void>.delayed(Duration.zero);
+    throw StateError('sink secret');
+  }
+}
+
+final class _SynchronouslyFailingSink implements AppLogSink {
+  @override
+  Future<void> write(AppLogRecord record) => throw StateError('sink secret');
+}
+
+final class _ControlledFailingSink implements AppLogSink {
+  _ControlledFailingSink(this.release);
+
+  final Future<void> release;
+  final records = <AppLogRecord>[];
+
+  @override
+  Future<void> write(AppLogRecord record) async {
+    records.add(record);
+    await release;
+    throw StateError('sink secret');
+  }
 }

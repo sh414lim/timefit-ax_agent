@@ -7,9 +7,12 @@ import '../../../../core/observability/redaction.dart';
 /// names, or exception objects. The worker also treats every callback as
 /// best-effort so observation can never change delivery state.
 abstract interface class OutboxObservability {
-  void recordClaimAge({required String clientMessageId, required Duration age});
+  Future<void> recordClaimAge({
+    required String clientMessageId,
+    required Duration age,
+  });
 
-  void recordCompletedSend({
+  Future<void> recordCompletedSend({
     required String clientMessageId,
     required Duration latency,
   });
@@ -19,16 +22,16 @@ final class NoOpOutboxObservability implements OutboxObservability {
   const NoOpOutboxObservability();
 
   @override
-  void recordClaimAge({
+  Future<void> recordClaimAge({
     required String clientMessageId,
     required Duration age,
-  }) {}
+  }) async {}
 
   @override
-  void recordCompletedSend({
+  Future<void> recordCompletedSend({
     required String clientMessageId,
     required Duration latency,
-  }) {}
+  }) async {}
 }
 
 /// Adapts the Outbox seam to CHAT-071's typed, allowlisted local logger.
@@ -42,28 +45,30 @@ final class AppLoggerOutboxObservability implements OutboxObservability {
   final AppLogger _logger;
 
   @override
-  void recordClaimAge({
+  Future<void> recordClaimAge({
     required String clientMessageId,
     required Duration age,
-  }) {
+  }) async {
     try {
       final id = ClientMessageId.tryForExport(clientMessageId);
       if (id == null) return;
-      _logger.metric(OutboxAgeMetric(age: age, clientMessageId: id));
+      await _logger.metric(OutboxAgeMetric(age: age, clientMessageId: id));
     } on Object {
       // Invalid correlation IDs and sink failures have no product fallback.
     }
   }
 
   @override
-  void recordCompletedSend({
+  Future<void> recordCompletedSend({
     required String clientMessageId,
     required Duration latency,
-  }) {
+  }) async {
     try {
       final id = ClientMessageId.tryForExport(clientMessageId);
       if (id == null) return;
-      _logger.metric(SendLatencyMetric(latency: latency, clientMessageId: id));
+      await _logger.metric(
+        SendLatencyMetric(latency: latency, clientMessageId: id),
+      );
     } on Object {
       // Invalid correlation IDs and sink failures have no product fallback.
     }

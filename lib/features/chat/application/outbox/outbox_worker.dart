@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/daos/outbox_dao.dart';
@@ -41,16 +43,18 @@ final class OutboxWorker {
     if (_stopped || _authPaused || !_activeScopes.add(scope)) return;
     try {
       while (!_stopped && !_authPaused) {
-        final executionStartedAt = clock();
-        final lease = await dao.claim(executionStartedAt, _leaseToken());
+        final claimRequestedAt = clock();
+        final lease = await dao.claim(claimRequestedAt, _leaseToken());
         if (lease == null || _stopped) return;
+        final claimCompletedAt = clock();
         _observe(() {
-          observability.recordClaimAge(
+          return observability.recordClaimAge(
             clientMessageId: lease.clientRequestId,
-            age: _nonNegativeDuration(lease.createdAt, executionStartedAt),
+            age: _nonNegativeDuration(lease.createdAt, claimCompletedAt),
           );
         });
         CommandExecutionResult result;
+        final executionStartedAt = clock();
         try {
           result = await executor.execute(
             OutboxExecutionCommand(
@@ -106,7 +110,7 @@ final class OutboxWorker {
           return; // Expired/cancelled/reclaimed: ignore stale result.
         if (result.disposition == ExecutionDisposition.completed) {
           _observe(() {
-            observability.recordCompletedSend(
+            return observability.recordCompletedSend(
               clientMessageId: lease.clientRequestId,
               latency: _nonNegativeDuration(executionStartedAt, now),
             );
@@ -122,12 +126,12 @@ final class OutboxWorker {
     }
   }
 
-  void _observe(void Function() callback) {
-    try {
-      callback();
-    } on Object {
-      // Observability is best-effort and has no raw fallback output.
-    }
+  void _observe(Future<void> Function() callback) {
+    unawaited(
+      Future<void>.sync(callback).onError((Object _, StackTrace __) {
+        // Observability is best-effort and has no raw fallback output.
+      }),
+    );
   }
 }
 
