@@ -1,8 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
-/// Lifecycle seam for later session, realtime, and outbox coordination.
+import '../features/chat/application/chat_connection_coordinator.dart';
+
+/// Thin Flutter observer for an explicitly injected local coordinator.
 ///
-/// CHAT-006 intentionally performs no provider or data-layer work here.
+/// The normal app bootstrap does not construct this observer yet. Actual Auth,
+/// Realtime, and RPC adapters remain blocked by CHAT-035 and CHAT-036.
 class TimeFitLifecycleObserver with WidgetsBindingObserver {
-  const TimeFitLifecycleObserver();
+  TimeFitLifecycleObserver({required this.coordinator});
+
+  final ChatConnectionCoordinator coordinator;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    unawaited(coordinator.handleLifecycleState(state));
+  }
+
+  Future<void> logout() => coordinator.logout();
+
+  void dispose() => coordinator.dispose();
 }
