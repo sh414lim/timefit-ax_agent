@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../application/chat_connection_controller.dart';
 import '../application/composer_controller.dart';
 import '../application/history_controller.dart';
 import '../domain/chat_message.dart';
 import '../domain/repositories/message_repository.dart';
 import 'widgets/chat_composer.dart';
+import 'widgets/connection_banner.dart';
 import 'widgets/message_list.dart';
 
 enum ChatScreenStatus { ready, error, accessRevoked }
@@ -25,6 +27,7 @@ class ChatScreen extends StatefulWidget {
     this.isSelectingAttachments = false,
     this.compactKeyboardLayout = false,
     this.savesLocallyOnly = false,
+    this.connectionController,
     super.key,
   }) : repository = null;
 
@@ -43,6 +46,7 @@ class ChatScreen extends StatefulWidget {
     this.isSelectingAttachments = false,
     this.compactKeyboardLayout = false,
     this.savesLocallyOnly = false,
+    this.connectionController,
     super.key,
   }) : messages = null;
 
@@ -61,19 +65,24 @@ class ChatScreen extends StatefulWidget {
   final bool isSelectingAttachments;
   final bool compactKeyboardLayout;
   final bool savesLocallyOnly;
+  final ChatConnectionController? connectionController;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  final GlobalKey _messageBodyKey = GlobalKey(debugLabel: 'chat-message-body');
+  final GlobalKey _composerKey = GlobalKey(debugLabel: 'chat-composer');
   late Stream<List<ChatMessage>> _messages = _resolveMessages();
   HistoryController? _historyController;
+  ChatConnectionController? _connectionController;
 
   @override
   void initState() {
     super.initState();
     _bindHistoryController();
+    _bindConnectionController();
   }
 
   @override
@@ -87,6 +96,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (oldWidget.historyController != widget.historyController) {
       _bindHistoryController();
     }
+    if (oldWidget.connectionController != widget.connectionController) {
+      _bindConnectionController();
+    }
   }
 
   void _bindHistoryController() {
@@ -99,9 +111,20 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) setState(() {});
   }
 
+  void _bindConnectionController() {
+    _connectionController?.removeListener(_handleConnectionState);
+    _connectionController = widget.connectionController;
+    _connectionController?.addListener(_handleConnectionState);
+  }
+
+  void _handleConnectionState(ChatConnectionState _) {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     _historyController?.removeListener(_handleHistoryState);
+    _connectionController?.removeListener(_handleConnectionState);
     super.dispose();
   }
 
@@ -115,33 +138,98 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final ComposerController? composer = _matchingComposer;
+    final MediaQueryData mediaQuery = MediaQuery.of(context);
+    final bool hasVisibleConnectionBanner =
+        _connectionController?.state.showBanner ?? false;
+    final bool constrainedKeyboardLayout =
+        widget.compactKeyboardLayout ||
+        (hasVisibleConnectionBanner && mediaQuery.viewInsets.bottom > 0);
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: widget.compactKeyboardLayout ? 48 : null,
+        toolbarHeight: constrainedKeyboardLayout ? 48 : null,
         leading: widget.onBack == null
             ? null
             : BackButton(onPressed: widget.onBack),
         title: Text(widget.title),
       ),
       body: SafeArea(
-        child: Column(
-          children: <Widget>[
-            Expanded(child: _buildBody()),
-            if (widget.status == ChatScreenStatus.ready && composer != null)
-              ChatComposer(
-                controller: composer,
-                onAddAttachment: widget.onAddAttachment,
-                onRemoveQueuedAttachment: widget.onRemoveQueuedAttachment,
-                onOpenAttachment: widget.onOpenAttachment,
-                isSelectingAttachments: widget.isSelectingAttachments,
-                compactKeyboardLayout: widget.compactKeyboardLayout,
-                savesLocallyOnly: widget.savesLocallyOnly,
+        child: hasVisibleConnectionBanner && mediaQuery.viewInsets.bottom > 0
+            ? _buildScrollableConstrainedBody(
+                composer: composer,
+                compactKeyboardLayout: constrainedKeyboardLayout,
+              )
+            : _buildStandardBody(
+                composer: composer,
+                compactKeyboardLayout: constrainedKeyboardLayout,
               ),
-          ],
-        ),
       ),
     );
   }
+
+  Widget _buildStandardBody({
+    required ComposerController? composer,
+    required bool compactKeyboardLayout,
+  }) => Column(
+    children: <Widget>[
+      _buildConnectionBanner(),
+      Expanded(child: _buildStableBody()),
+      if (widget.status == ChatScreenStatus.ready && composer != null)
+        _buildComposer(composer, compactKeyboardLayout),
+    ],
+  );
+
+  Widget _buildScrollableConstrainedBody({
+    required ComposerController? composer,
+    required bool compactKeyboardLayout,
+  }) => LayoutBuilder(
+    builder: (BuildContext context, BoxConstraints constraints) {
+      final double messageViewport = (constraints.maxHeight * 0.25).clamp(
+        48,
+        160,
+      );
+      return SingleChildScrollView(
+        key: const ValueKey<String>('connection-keyboard-scroll'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _buildConnectionBanner(),
+            SizedBox(height: messageViewport, child: _buildStableBody()),
+            if (widget.status == ChatScreenStatus.ready && composer != null)
+              _buildComposer(composer, compactKeyboardLayout),
+          ],
+        ),
+      );
+    },
+  );
+
+  Widget _buildConnectionBanner() {
+    if (_connectionController case final controller?) {
+      return ConnectionBanner(
+        state: controller.state,
+        onRetry: () => controller.retry(),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildComposer(
+    ComposerController composer,
+    bool compactKeyboardLayout,
+  ) => KeyedSubtree(
+    key: _composerKey,
+    child: ChatComposer(
+      controller: composer,
+      onAddAttachment: widget.onAddAttachment,
+      onRemoveQueuedAttachment: widget.onRemoveQueuedAttachment,
+      onOpenAttachment: widget.onOpenAttachment,
+      isSelectingAttachments: widget.isSelectingAttachments,
+      compactKeyboardLayout: compactKeyboardLayout,
+      savesLocallyOnly: widget.savesLocallyOnly,
+    ),
+  );
+
+  Widget _buildStableBody() =>
+      KeyedSubtree(key: _messageBodyKey, child: _buildBody());
 
   Widget _buildBody() {
     if (widget.status == ChatScreenStatus.accessRevoked) {
