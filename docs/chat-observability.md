@@ -8,6 +8,8 @@ CHAT-071의 현재 범위는 모바일 앱 내부의 개인정보 안전 관측 
 
 정의된 metric은 Outbox age, send latency, upload stage, reconnect attempt, gap count다. CHAT-053 attachment preview는 기존 telemetry seam을 `AppLoggerAttachmentPreviewTelemetry`로 연결하며 URL, 경로, query, fragment, userinfo, 파일명은 전달하지 않는다. sink 실패는 앱 흐름에 영향을 주지 않으며 fallback print를 하지 않는다.
 
+Outbox worker는 선택적인 `OutboxObservability` 경계를 통해 lease를 실제 실행할 때 command 생성 이후의 대기 시간과, 성공 결과가 현재 lease에 반영된 경우의 executor 실행 시간을 기록한다. 기본값은 no-op이며 payload, conversation ID, 파일명, 예외 객체는 이 경계에 전달하지 않는다. 취소·lease 만료·stale 결과·실패 결과를 성공 latency로 기록하지 않으며, 잘못된 correlation ID나 sink 오류는 Outbox 상태를 바꾸지 않는다. 이 값은 로컬 진단 metric일 뿐 서버 수신·canonical 저장 또는 end-to-end 전송 완료 증거가 아니다.
+
 dev-local 첨부 흐름은 `DevLocalAttachmentObservability`를 통해 같은 경계를 사용한다. picker 취소, private-copy 준비, draft 복원, 로컬 preview 성공과 실패, private-copy cleanup 실패는 서로 다른 stable event code로 구분한다. export에는 검증된 `clientMessageId`와 `attachmentId`, 닫힌 error code만 포함한다. picker가 준 파일명, private-copy 절대 경로와 URI, query/fragment, 파일 내용은 structured field로 전달하지 않는다. 실패의 exception 객체는 local reporter 호출에 전달될 수 있지만 adapter와 reporter는 해당 객체의 문자열이나 stack을 읽거나 export하지 않는다. cleanup 실패의 사용자 안내도 고정된 로컬 문구만 사용한다. 잘못된 파일명·상관관계 ID 또는 sink/reporter 실패는 앱의 선택·미리보기·정리 동작에 새로운 예외를 만들지 않는다.
 
 기본 dev 앱 조립은 no-op sink와 local reporter를 사용하므로 외부 전송은 발생하지 않는다. 테스트에서는 같은 실제 draft/preview 경로에 fake sink를 주입해 파일명·경로·token canary가 export에 없고, 서로 다른 작업과 상관관계 ID는 보존되는지 확인한다.

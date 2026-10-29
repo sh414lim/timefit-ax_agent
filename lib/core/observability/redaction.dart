@@ -88,6 +88,15 @@ sealed class CorrelationId extends SafeLogValue {
 
 final class ClientMessageId extends CorrelationId {
   ClientMessageId(super.value);
+
+  static ClientMessageId? tryForExport(String value) {
+    try {
+      final id = ClientMessageId(value);
+      return _isTypedIdValue(id.value, 'message') ? id : null;
+    } on Object {
+      return null;
+    }
+  }
 }
 
 final class AttachmentId extends CorrelationId {

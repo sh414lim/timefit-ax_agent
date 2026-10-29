@@ -56,6 +56,22 @@ void main() {
     );
     expect(() => EventId('event id'), throwsArgumentError);
   });
+
+  test(
+    'client message export factory accepts only UUID or test fixture IDs',
+    () {
+      expect(ClientMessageId.tryForExport('message-7'), isNotNull);
+      expect(
+        ClientMessageId.tryForExport('8a515cf8-0b89-4fa1-b188-64ab2f088ecc'),
+        isNotNull,
+      );
+      expect(ClientMessageId.tryForExport('canary-private-file.pdf'), isNull);
+      expect(
+        ClientMessageId.tryForExport('https://host/?token=canary'),
+        isNull,
+      );
+    },
+  );
 }
 
 final class _ThrowingIterable extends Iterable<Object?> {
