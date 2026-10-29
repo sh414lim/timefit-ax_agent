@@ -60,6 +60,8 @@ final class _AttachmentPreviewScreenState
           AttachmentTile(
             metadata: controller.metadata,
             onOpen: controller.canOpen ? controller.open : null,
+            itemPosition: 1,
+            itemCount: 1,
           ),
           Expanded(child: Center(child: _body(controller))),
         ],

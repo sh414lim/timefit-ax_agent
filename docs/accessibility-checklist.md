@@ -21,6 +21,7 @@ CHAT-070은 REL-001, REL-002, CHAT-053, CHAT-062에 의해 전체 완료가 차�
 - [x] 로컬 preview에서 서버 미업로드 상태와 image/PDF 확대·이동 힌트를 semantics로 구분한다.
 - [x] 미리보기 실패를 text·error icon·단일 live-region으로 표시하고, 320dp·200% 글자에서 44dp 이상의 `다시 시도` 조작을 유지한다.
 - [x] 열 수 있는 attachment chip은 상태 live-region과 분리된 `미리보기 열기` semantics hint를 제공하고, 제거 action은 별도 button node로 유지한다.
+- [x] 여러 첨부의 열기 action은 제어·bidi·zero-width 문자를 안전하게 표시한 파일명과 `총 N개 중 M번째` 위치를 semantics label에 포함해 동일하게 표시되는 이름도 구분한다. tap action과 기본 48×48dp 조작 영역을 유지하며, 비활성 action은 대상 이름은 제공하되 tap action을 노출하지 않는다.
 - [x] dev-local Home의 네 가지 데모 프리뷰에서 852×393dp, 글자 200%, 키보드 216dp, 긴 초안의 183px overflow를 회귀 테스트로 고정한다. 입력 줄/버튼을 축소하지 않고 bounded input viewport 및 짧은 화면의 shell scroll로 처리한다.
 - [x] 위 프리뷰의 320/390/393/430/852/899dp 폭, 세로·가로, 글자 100/150/200%, light/dark 및 1024dp 기본형에서 입력 한 줄과 44dp 이상의 보내기·첨부·뒤로가기 전체 조작 영역 도달성을 확인한다. 반복 Home 왕복, resize 중 동일 EditableText State·focus·선택·IME, 입력 내부/결과 목록 스크롤을 검사한다. 상세 범위와 미해결 항목은 `evidence/chat-070-preview-keyboard.md`에 기록한다.
 
