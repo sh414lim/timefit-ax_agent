@@ -298,7 +298,7 @@ final class _ThrowingSink implements AppLogSink {
   int writeCount = 0;
 
   @override
-  void write(AppLogRecord record) {
+  Future<void> write(AppLogRecord record) async {
     writeCount += 1;
     throw StateError('sink-canary');
   }

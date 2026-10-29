@@ -141,7 +141,9 @@ class P implements AttachmentUrlProvider {
 }
 
 class Failing implements AppLogSink {
-  void write(AppLogRecord record) => throw StateError('canary-sink');
+  @override
+  Future<void> write(AppLogRecord record) async =>
+      throw StateError('canary-sink');
 }
 
 class CountingLeaf extends Iterable<Object?> {

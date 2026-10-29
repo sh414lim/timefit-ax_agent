@@ -60,5 +60,6 @@ void main() {
 
 final class _FailingSink implements AppLogSink {
   @override
-  void write(AppLogRecord record) => throw StateError('must not escape');
+  Future<void> write(AppLogRecord record) async =>
+      throw StateError('must not escape');
 }

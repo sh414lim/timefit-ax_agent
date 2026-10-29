@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/daos/outbox_dao.dart';
 import 'command_executor.dart';
+import 'outbox_observability.dart';
 import 'retry_policy.dart';
 
 /// One active drain per database scope within this process. Separate processes
@@ -13,6 +16,7 @@ final class OutboxWorker {
     required this.clock,
     required this.retryPolicy,
     required this.scope,
+    this.observability = const NoOpOutboxObservability(),
     String Function()? leaseToken,
   }) : _leaseToken = leaseToken ?? (() => const Uuid().v4());
 
@@ -20,6 +24,7 @@ final class OutboxWorker {
   final CommandExecutor executor;
   final DateTime Function() clock;
   final RetryPolicy retryPolicy;
+  final OutboxObservability observability;
 
   /// Composition must share this value for every worker on the same DB file.
   final String scope;
@@ -38,9 +43,18 @@ final class OutboxWorker {
     if (_stopped || _authPaused || !_activeScopes.add(scope)) return;
     try {
       while (!_stopped && !_authPaused) {
-        final lease = await dao.claim(clock(), _leaseToken());
+        final claimRequestedAt = clock();
+        final lease = await dao.claim(claimRequestedAt, _leaseToken());
         if (lease == null || _stopped) return;
+        final claimCompletedAt = clock();
+        _observe(() {
+          return observability.recordClaimAge(
+            clientMessageId: lease.clientRequestId,
+            age: _nonNegativeDuration(lease.createdAt, claimCompletedAt),
+          );
+        });
         CommandExecutionResult result;
+        final executionStartedAt = clock();
         try {
           result = await executor.execute(
             OutboxExecutionCommand(
@@ -94,6 +108,14 @@ final class OutboxWorker {
         );
         if (!applied)
           return; // Expired/cancelled/reclaimed: ignore stale result.
+        if (result.disposition == ExecutionDisposition.completed) {
+          _observe(() {
+            return observability.recordCompletedSend(
+              clientMessageId: lease.clientRequestId,
+              latency: _nonNegativeDuration(executionStartedAt, now),
+            );
+          });
+        }
       }
     } on OutboxContention {
       // Another connection still owns SQLite's write lock. Keep persisted
@@ -103,4 +125,17 @@ final class OutboxWorker {
       _activeScopes.remove(scope);
     }
   }
+
+  void _observe(Future<void> Function() callback) {
+    unawaited(
+      Future<void>.sync(callback).onError((Object _, StackTrace __) {
+        // Observability is best-effort and has no raw fallback output.
+      }),
+    );
+  }
+}
+
+Duration _nonNegativeDuration(DateTime start, DateTime end) {
+  final value = end.difference(start);
+  return value.isNegative ? Duration.zero : value;
 }

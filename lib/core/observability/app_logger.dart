@@ -45,19 +45,24 @@ final class AppLogRecord {
 }
 
 abstract interface class AppLogSink {
-  void write(AppLogRecord record);
+  /// Completes after the sink has accepted [record].
+  ///
+  /// A `Future<void>` return is deliberate: an `async void` implementation
+  /// cannot satisfy this contract, so delayed sink failures remain observable
+  /// to [AppLogger] and can be contained there.
+  Future<void> write(AppLogRecord record);
 }
 
 final class NoOpAppLogSink implements AppLogSink {
   const NoOpAppLogSink();
   @override
-  void write(AppLogRecord record) {}
+  Future<void> write(AppLogRecord record) async {}
 }
 
 final class FakeAppLogSink implements AppLogSink {
   final List<AppLogRecord> records = <AppLogRecord>[];
   @override
-  void write(AppLogRecord record) => records.add(record);
+  Future<void> write(AppLogRecord record) async => records.add(record);
 }
 
 final class AppLogger {
@@ -68,7 +73,7 @@ final class AppLogger {
   final AppLogContext _context;
   final AppLogSink _sink;
 
-  void record(
+  Future<void> record(
     String eventCode, {
     AppLogLevel level = AppLogLevel.info,
     Map<String, Object?> fields = const {},
@@ -82,14 +87,17 @@ final class AppLogger {
         fields: fields,
         errorCode: errorCode,
       );
-      _sink.write(record);
+      return Future<void>.sync(
+        () => _sink.write(record),
+      ).onError((Object _, StackTrace __) {});
     } on Object {
       // Observability must never change product behavior. There is no print or
       // fallback export because it could disclose the rejected payload.
+      return Future<void>.value();
     }
   }
 
-  void metric(ObservabilityMetric metric) =>
+  Future<void> metric(ObservabilityMetric metric) =>
       record(metric.eventCode, fields: metric.fields);
 }
 
