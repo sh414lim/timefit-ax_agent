@@ -9,12 +9,14 @@ import 'package:timefit_native/features/chat/data/chat_realtime_source.dart';
 
 import '../data/support/fake_realtime_port.dart';
 
-// Test-only candidate composition. It proves local ordering and fences without
-// choosing an Auth, wire, timeout, SDK, app-entry, or server adapter contract.
+// Test-only candidate composition. It observes local callback ordering and
+// fences without choosing an Auth, wire, timeout, SDK, app-entry, or server
+// adapter contract. Reaching idle here does not prove that a physical channel
+// was removed: `uncertain` and lifecycle failures are currently best effort.
 // Product code intentionally does not construct this harness.
 void main() {
   test(
-    'logout fences hints before repository drain and shares delayed cleanup',
+    'candidate logout fences hints while best-effort callbacks are delayed',
     () async {
       final realtimePort = FakeRealtimeReadPort();
       final realtime = ChatRealtimeSource(port: realtimePort);
@@ -115,85 +117,81 @@ void main() {
     },
   );
 
-  test(
-    'cleanupPending keeps the source fenced and retry does not re-close it',
-    () async {
-      final realtimePort = FakeRealtimeReadPort();
-      final realtime = ChatRealtimeSource(port: realtimePort);
-      final lifecyclePort = _DelayedLifecyclePort(autoReleaseLogout: true);
-      final lifecycle = _lifecycle(lifecyclePort);
-      var failPurge = true;
-      var purgeCalls = 0;
-      final retryPurge = Completer<void>();
-      final composition = _TestOnlySessionRealtimeComposition(
-        realtime: realtime,
-        lifecycle: lifecycle,
-        purgeLocalData: () async {
-          purgeCalls += 1;
-          if (failPurge) throw const _CandidatePurgeFailure();
-          await retryPurge.future;
-        },
-      );
-      addTearDown(() async {
-        await composition.close();
-        await realtimePort.close();
-      });
+  test('purge failure stays fenced across retry and dispose race', () async {
+    final realtimePort = FakeRealtimeReadPort();
+    final realtime = ChatRealtimeSource(port: realtimePort);
+    final lifecyclePort = _DelayedLifecyclePort(autoReleaseLogout: true);
+    final lifecycle = _lifecycle(lifecyclePort);
+    var failPurge = true;
+    var purgeCalls = 0;
+    final retryPurge = Completer<void>();
+    final composition = _TestOnlySessionRealtimeComposition(
+      realtime: realtime,
+      lifecycle: lifecycle,
+      purgeLocalData: () async {
+        purgeCalls += 1;
+        if (failPurge) throw const _CandidatePurgeFailure();
+        await retryPurge.future;
+      },
+    );
+    addTearDown(() async {
+      await composition.close();
+      await realtimePort.close();
+    });
 
-      await composition.subscribe('conversation-a');
-      final handle = realtime.trustedHandle!;
-      final hints = <int>[];
-      final hintSubscription = realtime.hints.listen(
-        (hint) => hints.add(hint.sequence),
-      );
-      addTearDown(hintSubscription.cancel);
+    await composition.subscribe('conversation-a');
+    final handle = realtime.trustedHandle!;
+    final hints = <int>[];
+    final hintSubscription = realtime.hints.listen(
+      (hint) => hints.add(hint.sequence),
+    );
+    addTearDown(hintSubscription.cancel);
 
-      await expectLater(
-        composition.logout(),
-        throwsA(isA<_CandidatePurgeFailure>()),
-      );
-      expect(
-        composition.coordinator.state,
-        LocalChatSessionState.cleanupPending,
-      );
-      expect(
-        composition.coordinator.lastFailedStage,
-        LocalChatSessionCleanupStage.purgeLocalData,
-      );
-      expect(realtime.trustedHandle, isNull);
-      expect(realtimePort.unsubscribeCalls[handle], 1);
-      expect(lifecyclePort.logoutCleanupCalls, 1);
+    await expectLater(
+      composition.logout(),
+      throwsA(isA<_CandidatePurgeFailure>()),
+    );
+    expect(composition.coordinator.state, LocalChatSessionState.cleanupPending);
+    expect(
+      composition.coordinator.lastFailedStage,
+      LocalChatSessionCleanupStage.purgeLocalData,
+    );
+    expect(realtime.trustedHandle, isNull);
+    expect(realtimePort.unsubscribeCalls[handle], 1);
+    expect(lifecyclePort.logoutCleanupCalls, 1);
 
-      realtimePort.emit(
-        RealtimeMessageCreatedEvent(
-          handle,
-          eventId: 'cleanup-pending',
-          conversationId: 'conversation-a',
-          sequence: 3,
-        ),
-      );
-      expect(hints, isEmpty);
-      expect(
-        await composition.subscribe('conversation-b'),
-        ChatRealtimeSubscribeResult.disposed,
-      );
+    realtimePort.emit(
+      RealtimeMessageCreatedEvent(
+        handle,
+        eventId: 'cleanup-pending',
+        conversationId: 'conversation-a',
+        sequence: 3,
+      ),
+    );
+    expect(hints, isEmpty);
+    expect(
+      await composition.subscribe('conversation-b'),
+      ChatRealtimeSubscribeResult.disposed,
+    );
 
-      failPurge = false;
-      final firstRetry = composition.retryCleanup();
-      final secondRetry = composition.retryCleanup();
-      expect(identical(firstRetry, secondRetry), isTrue);
-      await _flushAsync();
-      expect(purgeCalls, 2);
-      expect(realtimePort.unsubscribeCalls[handle], 1);
-      expect(lifecyclePort.logoutCleanupCalls, 1);
+    failPurge = false;
+    final firstRetry = composition.retryCleanup();
+    final secondRetry = composition.retryCleanup();
+    final disposal = composition.dispose();
+    expect(identical(firstRetry, secondRetry), isTrue);
+    expect(identical(firstRetry, disposal), isTrue);
+    await _flushAsync();
+    expect(purgeCalls, 2);
+    expect(realtimePort.unsubscribeCalls[handle], 1);
+    expect(lifecyclePort.logoutCleanupCalls, 1);
 
-      retryPurge.complete();
-      await Future.wait<void>(<Future<void>>[firstRetry, secondRetry]);
-      expect(composition.coordinator.state, LocalChatSessionState.idle);
-    },
-  );
+    retryPurge.complete();
+    await Future.wait<void>(<Future<void>>[firstRetry, secondRetry, disposal]);
+    expect(composition.coordinator.state, LocalChatSessionState.disposed);
+  });
 
   test(
-    'dispose joins an in-flight logout and cannot revive a late callback',
+    'dispose joins an in-flight observation and cannot revive a late callback',
     () async {
       final realtimePort = FakeRealtimeReadPort();
       final realtime = ChatRealtimeSource(port: realtimePort);
@@ -258,6 +256,111 @@ void main() {
       );
     },
   );
+
+  test(
+    'uncertain unsubscribe and lifecycle errors can still reach local idle',
+    () async {
+      final realtimePort = FakeRealtimeReadPort();
+      final realtime = ChatRealtimeSource(port: realtimePort);
+      final lifecyclePort = _DelayedLifecyclePort(
+        autoReleaseLogout: true,
+        pauseError: StateError('candidate pause failure'),
+        unsubscribeError: StateError('candidate unsubscribe failure'),
+        logoutError: StateError('candidate logout failure'),
+      );
+      final lifecycle = _lifecycle(lifecyclePort);
+      var purgeCalls = 0;
+      final composition = _TestOnlySessionRealtimeComposition(
+        realtime: realtime,
+        lifecycle: lifecycle,
+        purgeLocalData: () async {
+          purgeCalls += 1;
+        },
+      );
+      addTearDown(() async {
+        await composition.close();
+        await realtimePort.close();
+      });
+
+      await composition.subscribe('conversation-a');
+      final handle = realtime.trustedHandle!;
+      realtimePort.unsubscribeGates[handle] =
+          Completer<RealtimeUnsubscribeObservation>()
+            ..complete(RealtimeUnsubscribeObservation.uncertain);
+
+      await composition.logout();
+
+      expect(
+        composition.lastUnsubscribeObservation,
+        RealtimeUnsubscribeObservation.uncertain,
+      );
+      expect(composition.coordinator.state, LocalChatSessionState.idle);
+      expect(purgeCalls, 1);
+      expect(lifecyclePort.pauseCalls, 1);
+      expect(lifecyclePort.unsubscribeCalls, 1);
+      expect(lifecyclePort.logoutCleanupCalls, 1);
+      expect(realtime.diagnostics.quarantinedHandleCount, 1);
+      expect(realtimePort.unsubscribeCalls[handle], 1);
+    },
+  );
+
+  test(
+    'pending unsubscribe keeps cleanup waiting while local hints stay fenced',
+    () async {
+      final realtimePort = FakeRealtimeReadPort();
+      final realtime = ChatRealtimeSource(port: realtimePort);
+      final lifecyclePort = _DelayedLifecyclePort(autoReleaseLogout: true);
+      final lifecycle = _lifecycle(lifecyclePort);
+      final sourceUnsubscribe = Completer<RealtimeUnsubscribeObservation>();
+      var purgeCalls = 0;
+      final composition = _TestOnlySessionRealtimeComposition(
+        realtime: realtime,
+        lifecycle: lifecycle,
+        purgeLocalData: () async {
+          purgeCalls += 1;
+        },
+      );
+      addTearDown(() async {
+        await composition.close();
+        await realtimePort.close();
+      });
+
+      await composition.subscribe('conversation-a');
+      final handle = realtime.trustedHandle!;
+      realtimePort.unsubscribeGates[handle] = sourceUnsubscribe;
+      final hints = <int>[];
+      final hintSubscription = realtime.hints.listen(
+        (hint) => hints.add(hint.sequence),
+      );
+      addTearDown(hintSubscription.cancel);
+
+      var completed = false;
+      final logout = composition.logout();
+      unawaited(logout.then((_) => completed = true));
+      await _flushAsync();
+
+      expect(completed, isFalse);
+      expect(lifecyclePort.pauseCalls, 0);
+      expect(purgeCalls, 0);
+      realtimePort.emit(
+        RealtimeMessageCreatedEvent(
+          handle,
+          eventId: 'while-unsubscribe-pending',
+          conversationId: 'conversation-a',
+          sequence: 5,
+        ),
+      );
+      expect(hints, isEmpty);
+
+      // The fake is manually released only so the test can tear down. No
+      // production timeout or cancellation policy is inferred from this.
+      sourceUnsubscribe.complete(RealtimeUnsubscribeObservation.completed);
+      await logout;
+      expect(completed, isTrue);
+      expect(composition.coordinator.state, LocalChatSessionState.idle);
+      expect(purgeCalls, 1);
+    },
+  );
 }
 
 ChatConnectionCoordinator _lifecycle(_DelayedLifecyclePort port) =>
@@ -287,6 +390,7 @@ final class _TestOnlySessionRealtimeComposition {
   RealtimeSubscriptionHandle? _cleanupHandle;
   bool _fenced = false;
   bool _realtimeDisposed = false;
+  RealtimeUnsubscribeObservation? lastUnsubscribeObservation;
 
   Future<ChatRealtimeSubscribeResult> subscribe(String conversationId) {
     if (_fenced) {
@@ -311,7 +415,11 @@ final class _TestOnlySessionRealtimeComposition {
 
   Future<void> _stopLifecycleAndRealtime() async {
     final handle = _cleanupHandle;
-    if (handle != null) await realtime.unsubscribe(handle);
+    if (handle != null) {
+      // Observation only. Whether `uncertain` must block purge/retry is an
+      // unapproved contract decision and is deliberately not chosen here.
+      lastUnsubscribeObservation = await realtime.unsubscribe(handle);
+    }
     await lifecycle.logout();
   }
 
@@ -343,9 +451,17 @@ final class _TestOnlySessionRealtimeComposition {
 }
 
 final class _DelayedLifecyclePort implements ChatConnectionLifecyclePort {
-  _DelayedLifecyclePort({this.autoReleaseLogout = false});
+  _DelayedLifecyclePort({
+    this.autoReleaseLogout = false,
+    this.pauseError,
+    this.unsubscribeError,
+    this.logoutError,
+  });
 
   final bool autoReleaseLogout;
+  final Object? pauseError;
+  final Object? unsubscribeError;
+  final Object? logoutError;
   final Completer<void> logoutStarted = Completer<void>();
   final Completer<void> _logoutRelease = Completer<void>();
   int pauseCalls = 0;
@@ -369,11 +485,13 @@ final class _DelayedLifecyclePort implements ChatConnectionLifecyclePort {
   @override
   Future<void> pauseNewOutboxWork() async {
     pauseCalls += 1;
+    if (pauseError case final error?) throw error;
   }
 
   @override
   Future<void> unsubscribe() async {
     unsubscribeCalls += 1;
+    if (unsubscribeError case final error?) throw error;
   }
 
   @override
@@ -383,6 +501,7 @@ final class _DelayedLifecyclePort implements ChatConnectionLifecyclePort {
   Future<void> cleanupAfterLogout() async {
     logoutCleanupCalls += 1;
     if (!logoutStarted.isCompleted) logoutStarted.complete();
+    if (logoutError case final error?) throw error;
     if (!autoReleaseLogout) await _logoutRelease.future;
   }
 
