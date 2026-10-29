@@ -1,6 +1,5 @@
-import 'dart:convert';
-
 import '../../../../../core/network/candidate/candidate_contract_failure.dart';
+import '../../../../../core/network/candidate/candidate_decode_budget.dart';
 import '../../../../../core/network/candidate/candidate_validation.dart';
 import 'candidate_chat_page.dart';
 
@@ -9,7 +8,9 @@ import 'candidate_chat_page.dart';
 /// This type has no production export or domain mapper. It accepts an already
 /// parsed object or a JSON string and fails closed without retaining raw input.
 final class CandidateChatPageDecoder {
-  const CandidateChatPageDecoder();
+  const CandidateChatPageDecoder({this.budget = const CandidateDecodeBudget()});
+
+  final CandidateDecodeBudget budget;
 
   CandidateDecodeResult<CandidateChatPageDto> decode(
     Object? input, {
@@ -18,7 +19,14 @@ final class CandidateChatPageDecoder {
     try {
       final requestFailure = _validateRequest(request);
       if (requestFailure != null) return CandidateRejected(requestFailure);
-      final root = candidateStringKeyedMap(_decodeJson(input));
+      final bounded = decodeCandidateJsonWithinBudget(input, budget: budget);
+      if (bounded is CandidateBudgetRejected) {
+        return _reject(CandidateContractFailureCode.inputBudgetExceeded);
+      }
+      if (bounded is! CandidateBoundedValue) {
+        return _reject(CandidateContractFailureCode.contractInvalid);
+      }
+      final root = candidateStringKeyedMap(bounded.value);
       if (root == null)
         return _reject(CandidateContractFailureCode.contractInvalid);
 
@@ -58,6 +66,12 @@ final class CandidateChatPageDecoder {
       if (nextCursorValue != null &&
           (nextCursorValue is! String || nextCursorValue.isEmpty)) {
         return _reject(CandidateContractFailureCode.contractInvalid);
+      }
+      // Candidate-only defensive policy: this unapproved flat fixture uses
+      // nextCursor solely to make older data reachable. The real wire contract
+      // may instead use beforeSequence or an envelope and remains undecided.
+      if (hasMoreBefore != (nextCursorValue != null)) {
+        return _reject(CandidateContractFailureCode.cursorPolicyViolation);
       }
 
       final rawMessages = root['messages'];
@@ -266,15 +280,6 @@ final class CandidateChatPageDecoder {
         }
     }
     return null;
-  }
-
-  static Object? _decodeJson(Object? input) {
-    if (input is! String) return input;
-    try {
-      return jsonDecode(input);
-    } on Object {
-      return null;
-    }
   }
 
   static int? _sequence(Object? value, {bool allowZero = false}) {

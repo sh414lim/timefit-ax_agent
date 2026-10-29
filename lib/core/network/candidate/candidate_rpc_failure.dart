@@ -1,8 +1,9 @@
-import 'dart:convert';
-
+import 'candidate_decode_budget.dart';
 import 'candidate_validation.dart';
 
 enum CandidateStableRpcCode {
+  /// Local fail-closed result. This is not an approved backend wire code.
+  contractViolation('candidate_contract_violation'),
   authenticationRequired('authentication_required'),
   conversationNotFound('conversation_not_found'),
   messageEmpty('message_empty'),
@@ -22,6 +23,7 @@ enum CandidateStableRpcCode {
 
   static CandidateStableRpcCode? fromWireName(String value) {
     for (final code in values) {
+      if (code == CandidateStableRpcCode.contractViolation) continue;
       if (code.wireName == value) return code;
     }
     return null;
@@ -53,29 +55,34 @@ final class CandidateRpcFailure {
 /// Sanitizes a candidate error envelope without retaining raw server text.
 ///
 /// This mapper is deliberately isolated from production network code. Unknown
-/// and malformed envelopes collapse to `internal_error`.
+/// and malformed envelopes become a non-retryable local contract violation;
+/// only an explicit `internal_error` wire code is considered retryable.
 final class CandidateRpcFailureDecoder {
-  const CandidateRpcFailureDecoder();
+  const CandidateRpcFailureDecoder({
+    this.budget = const CandidateDecodeBudget(),
+  });
+
+  final CandidateDecodeBudget budget;
 
   CandidateRpcFailure decode(Object? input) {
-    final decoded = _decodeJson(input);
-    final map = candidateStringKeyedMap(decoded);
-    if (map == null) return _internal();
+    final bounded = decodeCandidateJsonWithinBudget(input, budget: budget);
+    if (bounded is! CandidateBoundedValue) return _contractViolation();
+    final map = candidateStringKeyedMap(bounded.value);
+    if (map == null) return _contractViolation();
 
     final rawCode = map['code'];
     final code = rawCode is String
         ? CandidateStableRpcCode.fromWireName(rawCode)
         : null;
-    if (code == null) return _internal(requestId: _requestId(map['requestId']));
+    if (code == null) {
+      return _contractViolation(requestId: _requestId(map['requestId']));
+    }
 
     final retryAfter = code == CandidateStableRpcCode.rateLimited
         ? _retryAfter(map['retryAfter'])
         : null;
-    if (code == CandidateStableRpcCode.rateLimited &&
-        map.containsKey('retryAfter') &&
-        map['retryAfter'] != null &&
-        retryAfter == null) {
-      return _internal(requestId: _requestId(map['requestId']));
+    if (code == CandidateStableRpcCode.rateLimited && retryAfter == null) {
+      return _contractViolation(requestId: _requestId(map['requestId']));
     }
     return CandidateRpcFailure(
       code: code,
@@ -84,24 +91,9 @@ final class CandidateRpcFailureDecoder {
     );
   }
 
-  static Object? _decodeJson(Object? input) {
-    if (input is! String) return input;
-    try {
-      return jsonDecode(input);
-    } on Object {
-      return null;
-    }
-  }
-
   static Duration? _retryAfter(Object? value) {
     if (value == null) return null;
-    if (value is! int ||
-        value < 0 ||
-        !isCandidateJsonSafeInteger(value) ||
-        value >
-            Duration.microsecondsPerDay *
-                365 ~/
-                Duration.microsecondsPerSecond) {
+    if (value is! int || value < 0 || !isCandidateJsonSafeInteger(value)) {
       return null;
     }
     return Duration(seconds: value);
@@ -113,9 +105,9 @@ final class CandidateRpcFailureDecoder {
     return value;
   }
 
-  static CandidateRpcFailure _internal({String? requestId}) =>
+  static CandidateRpcFailure _contractViolation({String? requestId}) =>
       CandidateRpcFailure(
-        code: CandidateStableRpcCode.internalError,
+        code: CandidateStableRpcCode.contractViolation,
         requestId: requestId,
       );
 }

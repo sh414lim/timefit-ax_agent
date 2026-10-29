@@ -8,9 +8,11 @@ enum CandidateContractFailureCode {
   invalidUuid('candidate_invalid_uuid'),
   invalidUtcTimestamp('candidate_invalid_utc_timestamp'),
   unsafeInteger('candidate_unsafe_integer'),
+  inputBudgetExceeded('candidate_input_budget_exceeded'),
   unknownEnum('candidate_unknown_enum'),
   conversationMismatch('candidate_conversation_mismatch'),
   nonContiguousSequence('candidate_non_contiguous_sequence'),
+  cursorPolicyViolation('candidate_cursor_policy_violation'),
   unapprovedAttachmentSchema('candidate_unapproved_attachment_schema');
 
   const CandidateContractFailureCode(this.stableCode);

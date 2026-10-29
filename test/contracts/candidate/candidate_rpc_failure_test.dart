@@ -1,19 +1,26 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:timefit_native/core/network/candidate/candidate_decode_budget.dart';
 import 'package:timefit_native/core/network/candidate/candidate_rpc_failure.dart';
 
 void main() {
   const decoder = CandidateRpcFailureDecoder();
 
   test('maps every recommended stable code without raw text', () {
-    for (final code in CandidateStableRpcCode.values) {
-      final failure = decoder.decode(<String, Object?>{
+    for (final code in CandidateStableRpcCode.values.where(
+      (code) => code != CandidateStableRpcCode.contractViolation,
+    )) {
+      final envelope = <String, Object?>{
         'code': code.wireName,
         'requestId': 'req_${code.index}',
         'message': '<html>canary-secret.pdf</html>',
         'details': 'postgres canary-token',
         'sql': 'select canary-secret',
         'url': 'https://example.invalid/?access_token=canary-token',
-      });
+      };
+      if (code == CandidateStableRpcCode.rateLimited) {
+        envelope['retryAfter'] = 30;
+      }
+      final failure = decoder.decode(envelope);
 
       expect(failure.code, code);
       expect(failure.requestId, 'req_${code.index}');
@@ -35,7 +42,7 @@ void main() {
     expect(failure.retryable, isTrue);
   });
 
-  test('unknown errors collapse to internal without raw payload leakage', () {
+  test('unknown errors become non-retryable contract violations', () {
     final failure = decoder.decode(<String, Object?>{
       'code': 'database exploded: canary-secret',
       'requestId': 'https://example.invalid/?token=canary-token',
@@ -43,23 +50,28 @@ void main() {
       'message': '<script>canary-secret</script>',
     });
 
-    expect(failure.code, CandidateStableRpcCode.internalError);
+    expect(failure.code, CandidateStableRpcCode.contractViolation);
+    expect(failure.retryable, isFalse);
     expect(failure.requestId, isNull);
     expect(failure.retryAfter, isNull);
-    expect(failure.toString(), 'CandidateRpcFailure(internal_error)');
+    expect(
+      failure.toString(),
+      'CandidateRpcFailure(candidate_contract_violation)',
+    );
   });
 
   test('malformed JSON and invalid retryAfter fail closed', () {
     expect(
       decoder.decode('{not json').code,
-      CandidateStableRpcCode.internalError,
+      CandidateStableRpcCode.contractViolation,
     );
     final malformedRetry = decoder.decode(<String, Object?>{
       'code': 'rate_limited',
       'retryAfter': 9007199254740992,
       'requestId': 'req_1',
     });
-    expect(malformedRetry.code, CandidateStableRpcCode.internalError);
+    expect(malformedRetry.code, CandidateStableRpcCode.contractViolation);
+    expect(malformedRetry.retryable, isFalse);
     expect(malformedRetry.retryAfter, isNull);
     expect(malformedRetry.requestId, 'req_1');
   });
@@ -77,14 +89,39 @@ void main() {
       }).retryable,
       isFalse,
     );
-    expect(
-      decoder.decode(<String, Object?>{'code': 'rate_limited'}).retryable,
-      isFalse,
-    );
+    final missingRetry = decoder.decode(<String, Object?>{
+      'code': 'rate_limited',
+    });
+    expect(missingRetry.code, CandidateStableRpcCode.contractViolation);
+    expect(missingRetry.retryable, isFalse);
     final irrelevantRetry = decoder.decode(<String, Object?>{
       'code': 'message_empty',
       'retryAfter': 30,
     });
     expect(irrelevantRetry.retryAfter, isNull);
+  });
+
+  test('applies injected structural budgets to string and object input', () {
+    const bounded = CandidateRpcFailureDecoder(
+      budget: CandidateDecodeBudget(
+        maxUtf8Bytes: 128,
+        maxDepth: 3,
+        maxContainerEntries: 4,
+        maxTotalNodes: 10,
+      ),
+    );
+    final oversized = bounded.decode(<String, Object?>{
+      'code': 'internal_error',
+      'message': 'canary-${List<String>.filled(256, 'x').join()}',
+    });
+    final tooDeep = bounded.decode(
+      '{"code":"internal_error","nested":{"a":{"b":{"c":1}}}}',
+    );
+
+    expect(oversized.code, CandidateStableRpcCode.contractViolation);
+    expect(tooDeep.code, CandidateStableRpcCode.contractViolation);
+    expect(oversized.retryable, isFalse);
+    expect(tooDeep.retryable, isFalse);
+    expect(oversized.toString(), isNot(contains('canary')));
   });
 }
