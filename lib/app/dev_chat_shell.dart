@@ -20,6 +20,7 @@ import '../features/chat/application/drift_attachment_composer_source.dart';
 import '../features/chat/application/send_message.dart';
 import '../features/chat/data/message_repository_impl.dart';
 import '../features/chat/presentation/chat_screen.dart';
+import '../features/chat/presentation/chat_session_gate.dart';
 import '../features/conversations/application/conversation_actions.dart';
 import '../features/conversations/application/conversation_list_controller.dart';
 import '../features/conversations/data/dev_local_conversation_repository.dart';
@@ -241,7 +242,7 @@ class _DevChatShellState extends State<DevChatShell>
   Future<void> _chooseAttachments() async {
     if (_selectingAttachments || _composer == null) return;
     final AttachmentPickerKind? kind =
-        await showModalBottomSheet<AttachmentPickerKind>(
+        await _showChatOwnedBottomSheet<AttachmentPickerKind>(
           context: context,
           builder: (BuildContext context) => SafeArea(
             child: Column(
@@ -343,12 +344,15 @@ class _DevChatShellState extends State<DevChatShell>
       localId: localId,
       observability: widget.attachmentObservability,
     );
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => DevLocalAttachmentPreviewScreen(
-          controller: controller,
-          imageRenderer: widget.previewImageRenderer,
-          pdfRenderer: widget.previewPdfRenderer,
+    unawaited(
+      _pushChatOwnedRoute<void>(
+        context: context,
+        route: MaterialPageRoute<void>(
+          builder: (_) => DevLocalAttachmentPreviewScreen(
+            controller: controller,
+            imageRenderer: widget.previewImageRenderer,
+            pdfRenderer: widget.previewPdfRenderer,
+          ),
         ),
       ),
     );
@@ -372,7 +376,7 @@ class _DevChatShellState extends State<DevChatShell>
 
   Future<void> _renameConversation(ConversationSummary conversation) async {
     String editedTitle = conversation.title;
-    final String? title = await showDialog<String>(
+    final String? title = await _showChatOwnedDialog<String>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
         title: const Text('대화 이름 변경'),
@@ -410,7 +414,7 @@ class _DevChatShellState extends State<DevChatShell>
 
   Future<void> _archiveConversation(ConversationSummary conversation) async {
     final bool confirmed =
-        await showDialog<bool>(
+        await _showChatOwnedDialog<bool>(
           context: context,
           builder: (BuildContext context) => AlertDialog(
             title: const Text('대화를 보관할까요?'),
@@ -561,6 +565,33 @@ class _DevChatShellState extends State<DevChatShell>
           _conversationActions?.state.isBusy(id) ?? false,
     );
   }
+}
+
+Future<T?> _showChatOwnedDialog<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+}) {
+  final owned = ChatSessionOwnedSurfaces.capture(context);
+  if (owned != null) return owned.openDialog<T>(builder: builder);
+  return showDialog<T>(context: context, builder: builder);
+}
+
+Future<T?> _showChatOwnedBottomSheet<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+}) {
+  final owned = ChatSessionOwnedSurfaces.capture(context);
+  if (owned != null) return owned.openBottomSheet<T>(builder: builder);
+  return showModalBottomSheet<T>(context: context, builder: builder);
+}
+
+Future<T?> _pushChatOwnedRoute<T>({
+  required BuildContext context,
+  required Route<T> route,
+}) {
+  final owned = ChatSessionOwnedSurfaces.capture(context);
+  if (owned != null) return owned.pushRoute<T>(route);
+  return Navigator.of(context).push<T>(route);
 }
 
 String _attachmentFailureMessage(AttachmentFailure failure) =>

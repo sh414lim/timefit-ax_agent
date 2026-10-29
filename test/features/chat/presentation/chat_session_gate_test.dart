@@ -45,7 +45,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('owned root overlay loses rendering semantics focus and hits', (
+  testWidgets('owned overlay loses rendering semantics focus and hits', (
     WidgetTester tester,
   ) async {
     final semantics = tester.ensureSemantics();
@@ -445,7 +445,7 @@ final class _OwnedOverlayChildState extends State<_OwnedOverlayChild> {
     _inserted = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      Overlay.of(context, rootOverlay: true).insert(
+      Overlay.of(context).insert(
         OverlayEntry(
           builder: (_) => Positioned.fill(
             child: Material(

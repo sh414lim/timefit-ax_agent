@@ -299,22 +299,24 @@ final class _ChatSessionGateState extends State<ChatSessionGate> {
   @override
   Widget build(BuildContext context) {
     return switch (widget.coordinator.state) {
-      LocalChatSessionState.active => LookupBoundary(
-        child: _ChatSessionOwnedSurfaceScope(
-          owner: _surfaceOwner,
-          child: Navigator(
-            key: _surfaceOwner.navigatorKey,
-            pages: <Page<void>>[
-              MaterialPage<void>(
-                key: const ValueKey<String>('chat-session-owned-root'),
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: widget.child,
-                ),
+      // The nested Navigator owns default dialogs, sheets, routes, and
+      // overlays. Do not add a LookupBoundary here: it also hides the View
+      // inherited widget that EditableText needs for focus and IME access.
+      // Explicit rootNavigator/rootOverlay calls remain outside this contract.
+      LocalChatSessionState.active => _ChatSessionOwnedSurfaceScope(
+        owner: _surfaceOwner,
+        child: Navigator(
+          key: _surfaceOwner.navigatorKey,
+          pages: <Page<void>>[
+            MaterialPage<void>(
+              key: const ValueKey<String>('chat-session-owned-root'),
+              child: Material(
+                type: MaterialType.transparency,
+                child: widget.child,
               ),
-            ],
-            onDidRemovePage: (Page<Object?> _) {},
-          ),
+            ),
+          ],
+          onDidRemovePage: (Page<Object?> _) {},
         ),
       ),
       LocalChatSessionState.loggingOut => const _GateStateSurface(
