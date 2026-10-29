@@ -129,15 +129,15 @@ void main() {
     addTearDown(subscription.cancel);
     await source.subscribe('conversation-a');
     final trusted = source.trustedHandle!;
-    const foreign = RealtimeSubscriptionHandle(
-      attemptId: RealtimeAttemptId(999),
-      generation: RealtimeConversationGeneration(1),
+    final foreign = RealtimeSubscriptionHandle(
+      attemptId: const RealtimeAttemptId(999),
+      generation: const RealtimeConversationGeneration(1),
       conversationId: 'conversation-a',
     );
 
     port.emitOn(
       trusted,
-      const RealtimeMessageCreatedEvent(
+      RealtimeMessageCreatedEvent(
         foreign,
         eventId: 'foreign-handle-event',
         conversationId: 'conversation-a',

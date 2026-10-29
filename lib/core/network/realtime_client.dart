@@ -43,7 +43,7 @@ final class RealtimeConversationGeneration {
 /// [conversationId] remains an internal routing value. [toString] deliberately
 /// omits it so diagnostics cannot accidentally expose a raw conversation ID.
 final class RealtimeSubscriptionHandle {
-  const RealtimeSubscriptionHandle({
+  RealtimeSubscriptionHandle({
     required this.attemptId,
     required this.generation,
     required this.conversationId,

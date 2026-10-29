@@ -3,6 +3,15 @@ import 'dart:async';
 import '../../../core/network/realtime_client.dart';
 import '../application/gap_fill_controller.dart';
 
+// Process-local, weak identity ownership. The Expando does not retain a raw
+// adapter handle after every other reference is gone, but it prevents one
+// live handle object from being trusted by two source instances. This is not
+// a substitute for an adapter guarantee that every subscribe attempt returns
+// one fresh handle object.
+final Expando<Object> _rawHandleOwners = Expando<Object>(
+  'ChatRealtimeSource raw handle owner',
+);
+
 enum ChatRealtimeSubscribeResult {
   trusted,
   stale,
@@ -42,6 +51,7 @@ final class ChatRealtimeSource {
   ChatRealtimeSource({required RealtimeReadPort port}) : _port = port;
 
   final RealtimeReadPort _port;
+  final Object _ownerToken = Object();
   final StreamController<GapFillHint> _hints =
       StreamController<GapFillHint>.broadcast(sync: true);
   final StreamController<RealtimeChannelStatus> _statuses =
@@ -138,10 +148,26 @@ final class ChatRealtimeSource {
       return ChatRealtimeSubscribeResult.stale;
     }
 
+    // Claim raw identity before registering or cleaning up the handle. A raw
+    // object already owned by another source is ambiguous, so this source
+    // must not quarantine or unsubscribe it through its port.
+    if (!_claimRawHandle(handle)) {
+      if (_isCurrentRequest(requestSerial, generation, conversationId)) {
+        _emitStatus(RealtimeChannelStatus.channelError);
+      }
+      return ChatRealtimeSubscribeResult.invalidHandle;
+    }
+
     // Both the opaque handle object and its attempt ID are single-use for the
     // full lifetime of this source. Conversation/session generations do not
     // reset this registry.
     if (_dispositions.containsKey(handle)) {
+      // A late result may repeat the exact raw object already accepted by a
+      // newer request in this source. It owns no cleanup authority over that
+      // newer request, so do not quarantine or unsubscribe the shared object.
+      if (!_isCurrentRequest(requestSerial, generation, conversationId)) {
+        return ChatRealtimeSubscribeResult.stale;
+      }
       _quarantine(handle, RealtimeQuarantineReason.invalidHandle);
       if (_isCurrentRequest(requestSerial, generation, conversationId)) {
         _emitStatus(RealtimeChannelStatus.channelError);
@@ -271,6 +297,13 @@ final class ChatRealtimeSource {
       requestSerial == _requestSerial &&
       generation.value == _generationValue &&
       conversationId == _conversationId;
+
+  bool _claimRawHandle(RealtimeSubscriptionHandle handle) {
+    final currentOwner = _rawHandleOwners[handle];
+    if (currentOwner != null) return identical(currentOwner, _ownerToken);
+    _rawHandleOwners[handle] = _ownerToken;
+    return true;
+  }
 
   void _handleEvent(
     RealtimeSubscriptionHandle expectedHandle,

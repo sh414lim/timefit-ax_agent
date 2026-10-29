@@ -21,9 +21,9 @@ void main() {
   });
 
   test('handle identity and diagnostics never stringify conversation ID', () {
-    const handle = RealtimeSubscriptionHandle(
-      attemptId: RealtimeAttemptId(7),
-      generation: RealtimeConversationGeneration(3),
+    final handle = RealtimeSubscriptionHandle(
+      attemptId: const RealtimeAttemptId(7),
+      generation: const RealtimeConversationGeneration(3),
       conversationId: 'private-conversation-canary',
     );
 
@@ -81,9 +81,9 @@ void main() {
   });
 
   test('invalid returned handle fails closed and is quarantined', () async {
-    port.nextHandleOverride = const RealtimeSubscriptionHandle(
-      attemptId: RealtimeAttemptId(99),
-      generation: RealtimeConversationGeneration(99),
+    port.nextHandleOverride = RealtimeSubscriptionHandle(
+      attemptId: const RealtimeAttemptId(99),
+      generation: const RealtimeConversationGeneration(99),
       conversationId: 'foreign',
     );
 
@@ -116,9 +116,9 @@ void main() {
   test(
     'an unregistered handle never reaches quarantine or unsubscribe',
     () async {
-      const foreign = RealtimeSubscriptionHandle(
-        attemptId: RealtimeAttemptId(300),
-        generation: RealtimeConversationGeneration(1),
+      final foreign = RealtimeSubscriptionHandle(
+        attemptId: const RealtimeAttemptId(300),
+        generation: const RealtimeConversationGeneration(1),
         conversationId: 'conversation-a',
       );
 
@@ -155,6 +155,203 @@ void main() {
       expect(port.unsubscribeCalls, isEmpty);
       expect(port.quarantineCalls, isEmpty);
       expect(source.trustedHandle, isNotNull);
+    },
+  );
+
+  test(
+    'one raw handle object cannot be owned by two sources sequentially',
+    () async {
+      final otherPort = FakeRealtimeReadPort();
+      final otherSource = ChatRealtimeSource(port: otherPort);
+      addTearDown(() async {
+        otherSource.dispose();
+        await otherPort.close();
+      });
+      final sharedHandle = RealtimeSubscriptionHandle(
+        attemptId: const RealtimeAttemptId(801),
+        generation: const RealtimeConversationGeneration(1),
+        conversationId: 'conversation-a',
+      );
+      port.nextHandleOverride = sharedHandle;
+      otherPort.nextHandleOverride = sharedHandle;
+
+      expect(
+        await source.subscribe('conversation-a'),
+        ChatRealtimeSubscribeResult.trusted,
+      );
+      expect(
+        await otherSource.subscribe('conversation-a'),
+        ChatRealtimeSubscribeResult.invalidHandle,
+      );
+
+      expect(source.trustedHandle, same(sharedHandle));
+      expect(otherSource.trustedHandle, isNull);
+      expect(otherSource.diagnostics.knownHandleCount, 0);
+      expect(otherPort.quarantineCalls, isEmpty);
+      expect(otherPort.unsubscribeCalls, isEmpty);
+      expect(
+        await source.unsubscribe(sharedHandle),
+        RealtimeUnsubscribeObservation.completed,
+      );
+      expect(port.unsubscribeCalls[sharedHandle], 1);
+      expect(otherPort.unsubscribeCalls, isEmpty);
+    },
+  );
+
+  test('simultaneous raw handle reuse produces exactly one owner', () async {
+    final otherPort = FakeRealtimeReadPort();
+    final otherSource = ChatRealtimeSource(port: otherPort);
+    addTearDown(() async {
+      otherSource.dispose();
+      await otherPort.close();
+    });
+    final sharedHandle = RealtimeSubscriptionHandle(
+      attemptId: const RealtimeAttemptId(802),
+      generation: const RealtimeConversationGeneration(1),
+      conversationId: 'conversation-a',
+    );
+    port.nextHandleOverride = sharedHandle;
+    otherPort.nextHandleOverride = sharedHandle;
+
+    final results = await Future.wait(<Future<ChatRealtimeSubscribeResult>>[
+      source.subscribe('conversation-a'),
+      otherSource.subscribe('conversation-a'),
+    ]);
+
+    expect(
+      results.where(
+        (ChatRealtimeSubscribeResult result) =>
+            result == ChatRealtimeSubscribeResult.trusted,
+      ),
+      hasLength(1),
+    );
+    expect(
+      results.where(
+        (ChatRealtimeSubscribeResult result) =>
+            result == ChatRealtimeSubscribeResult.invalidHandle,
+      ),
+      hasLength(1),
+    );
+    final losingPort = results.first == ChatRealtimeSubscribeResult.trusted
+        ? otherPort
+        : port;
+    expect(losingPort.quarantineCalls, isEmpty);
+    expect(losingPort.unsubscribeCalls, isEmpty);
+  });
+
+  test(
+    'late old request sharing current raw handle cannot tear it down',
+    () async {
+      port.autoCompleteSubscribe = false;
+      final sharedHandle = RealtimeSubscriptionHandle(
+        attemptId: const RealtimeAttemptId(805),
+        generation: const RealtimeConversationGeneration(1),
+        conversationId: 'conversation-a',
+      );
+      port.nextHandleOverride = sharedHandle;
+      final oldRequest = source.subscribe('conversation-a');
+      port.nextHandleOverride = sharedHandle;
+      final latestRequest = source.subscribe('conversation-a');
+
+      port.completeSubscribe(1);
+      expect(await latestRequest, ChatRealtimeSubscribeResult.trusted);
+      port.completeSubscribe(0);
+      expect(await oldRequest, ChatRealtimeSubscribeResult.stale);
+
+      expect(source.trustedHandle, same(sharedHandle));
+      expect(port.quarantineCalls, isEmpty);
+      expect(port.unsubscribeCalls, isEmpty);
+    },
+  );
+
+  test('old-first concurrent raw reuse fails closed once', () async {
+    port.autoCompleteSubscribe = false;
+    final sharedHandle = RealtimeSubscriptionHandle(
+      attemptId: const RealtimeAttemptId(806),
+      generation: const RealtimeConversationGeneration(1),
+      conversationId: 'conversation-a',
+    );
+    port.nextHandleOverride = sharedHandle;
+    final oldRequest = source.subscribe('conversation-a');
+    port.nextHandleOverride = sharedHandle;
+    final latestRequest = source.subscribe('conversation-a');
+
+    port.completeSubscribe(0);
+    expect(await oldRequest, ChatRealtimeSubscribeResult.stale);
+    port.completeSubscribe(1);
+    expect(await latestRequest, ChatRealtimeSubscribeResult.invalidHandle);
+
+    expect(source.trustedHandle, isNull);
+    expect(port.quarantineCalls, hasLength(1));
+    expect(port.unsubscribeCalls[sharedHandle], 1);
+  });
+
+  test(
+    'disposed owner does not transfer one raw handle to a new source',
+    () async {
+      final sharedHandle = RealtimeSubscriptionHandle(
+        attemptId: const RealtimeAttemptId(803),
+        generation: const RealtimeConversationGeneration(1),
+        conversationId: 'conversation-a',
+      );
+      port.nextHandleOverride = sharedHandle;
+      expect(
+        await source.subscribe('conversation-a'),
+        ChatRealtimeSubscribeResult.trusted,
+      );
+      source.dispose();
+
+      final otherPort = FakeRealtimeReadPort()
+        ..nextHandleOverride = sharedHandle;
+      final otherSource = ChatRealtimeSource(port: otherPort);
+      addTearDown(() async {
+        otherSource.dispose();
+        await otherPort.close();
+      });
+
+      expect(
+        await otherSource.subscribe('conversation-a'),
+        ChatRealtimeSubscribeResult.invalidHandle,
+      );
+      expect(otherSource.trustedHandle, isNull);
+      expect(otherPort.quarantineCalls, isEmpty);
+      expect(otherPort.unsubscribeCalls, isEmpty);
+    },
+  );
+
+  test(
+    'distinct raw handles with equal values keep distinct ownership',
+    () async {
+      final otherPort = FakeRealtimeReadPort();
+      final otherSource = ChatRealtimeSource(port: otherPort);
+      addTearDown(() async {
+        otherSource.dispose();
+        await otherPort.close();
+      });
+      final first = RealtimeSubscriptionHandle(
+        attemptId: const RealtimeAttemptId(804),
+        generation: const RealtimeConversationGeneration(1),
+        conversationId: 'conversation-a',
+      );
+      final second = RealtimeSubscriptionHandle(
+        attemptId: const RealtimeAttemptId(804),
+        generation: const RealtimeConversationGeneration(1),
+        conversationId: 'conversation-a',
+      );
+      port.nextHandleOverride = first;
+      otherPort.nextHandleOverride = second;
+
+      expect(identical(first, second), isFalse);
+      expect(
+        await source.subscribe('conversation-a'),
+        ChatRealtimeSubscribeResult.trusted,
+      );
+      expect(
+        await otherSource.subscribe('conversation-a'),
+        ChatRealtimeSubscribeResult.trusted,
+      );
+      expect(source.trustedHandle, same(first));
+      expect(otherSource.trustedHandle, same(second));
     },
   );
 
