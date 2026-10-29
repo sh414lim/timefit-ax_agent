@@ -39,8 +39,14 @@ final class AttachmentPreviewMetadata {
     _ => null,
   };
 
-  String get safeDisplayName =>
-      displayName.replaceAll(RegExp(r'[\u0000-\u001f\u007f]'), '\uFFFD');
+  /// Keeps the original attachment identity untouched while making its
+  /// user-facing name resistant to invisible and bidirectional controls.
+  String get safeDisplayName => displayName.replaceAll(
+    RegExp(
+      r'[\u0000-\u001f\u007f\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff\ufff9-\ufffb]',
+    ),
+    '\uFFFD',
+  );
 }
 
 final class SignedAttachmentUrl {

@@ -297,6 +297,8 @@ void main() {
                       contentType: 'application/pdf',
                     ),
                     onOpen: () {},
+                    itemPosition: 1,
+                    itemCount: 1,
                   ),
                 ],
               ),
