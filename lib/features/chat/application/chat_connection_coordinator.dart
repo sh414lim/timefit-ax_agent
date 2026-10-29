@@ -297,6 +297,7 @@ final class ChatConnectionCoordinator {
       cancelled: () => !_isCurrentConnection(generation),
     );
     var subscribedByThisRun = false;
+    var subscriptionAttempted = false;
     try {
       final authenticated = await _port.refreshAuthentication(cancellation);
       if (!_isCurrentConnection(generation)) return;
@@ -305,9 +306,10 @@ final class ChatConnectionCoordinator {
         return;
       }
 
+      subscriptionAttempted = true;
       final subscribed = await _port.subscribe(cancellation);
       if (!_isCurrentConnection(generation)) {
-        if (subscribed) await _ignoreFailure(_port.unsubscribe);
+        if (subscribed) await _unsubscribeBestEffortSerialized();
         return;
       }
       if (!subscribed) {
@@ -328,11 +330,16 @@ final class ChatConnectionCoordinator {
         _outboxResumedGeneration = generation;
       }
     } on Object {
-      if (!_isCurrentConnection(generation)) return;
-      if (_subscribed || subscribedByThisRun) {
+      if (!_isCurrentConnection(generation)) {
+        if (subscriptionAttempted) {
+          await _unsubscribeBestEffortSerialized();
+        }
+        return;
+      }
+      if (_subscribed || subscribedByThisRun || subscriptionAttempted) {
         _subscribed = false;
         _outboxResumedGeneration = null;
-        await _ignoreFailure(_port.unsubscribe);
+        await _unsubscribeBestEffortSerialized();
       }
       if (!_isCurrentConnection(generation)) return;
       _beginDisconnectedWindow();
@@ -449,26 +456,22 @@ final class ChatConnectionCoordinator {
     required bool repairIfResumed,
     Future<void> Function()? cleanupAfter,
   }) async {
-    await _ignoreFailureWithResult(_port.pauseNewOutboxWork);
+    await _ignoreFailure(_port.pauseNewOutboxWork);
     if (repairIfResumed && _cleanupIsStale(generation)) {
-      await _repairAfterLatePause();
+      unawaited(_repairAfterLatePause());
       return;
     }
 
-    final unsubscribed = await _ignoreFailureWithResult(_port.unsubscribe);
+    await _ignoreFailure(_port.unsubscribe);
     if (repairIfResumed && _cleanupIsStale(generation)) {
-      if (unsubscribed) {
-        await _repairAfterLateUnsubscribe();
-      } else {
-        await _repairAfterLatePause();
-      }
+      _startRepairAfterLateUnsubscribe();
       return;
     }
 
     if (cleanupAfter == null) return;
-    await _ignoreFailureWithResult(cleanupAfter);
+    await _ignoreFailure(cleanupAfter);
     if (repairIfResumed && _cleanupIsStale(generation)) {
-      await _repairAfterLateUnsubscribe();
+      _startRepairAfterLateUnsubscribe();
     }
   }
 
@@ -501,7 +504,7 @@ final class ChatConnectionCoordinator {
     }
   }
 
-  Future<void> _repairAfterLateUnsubscribe() async {
+  void _startRepairAfterLateUnsubscribe() {
     if (_disposed ||
         _loggedOut ||
         !_foreground ||
@@ -515,7 +518,13 @@ final class ChatConnectionCoordinator {
     _cancelReconnectTimer();
     _stopPolling(resetWindow: true);
     _beginDisconnectedWindow();
-    await _beginConnectionRun(_generation);
+    unawaited(_pauseOutboxBeforeReconnect(_generation));
+  }
+
+  Future<void> _pauseOutboxBeforeReconnect(int generation) async {
+    await _enqueueCleanup(() => _ignoreFailure(_port.pauseNewOutboxWork));
+    if (!_isCurrentConnection(generation)) return;
+    await _beginConnectionRun(generation);
   }
 
   Future<void> _enqueueCleanup(Future<void> Function() cleanup) {
@@ -542,20 +551,15 @@ final class ChatConnectionCoordinator {
     return run;
   }
 
+  Future<void> _unsubscribeBestEffortSerialized() {
+    return _enqueueCleanup(() => _ignoreFailure(_port.unsubscribe));
+  }
+
   Future<void> _ignoreFailure(Future<void> Function() action) async {
     try {
       await action();
     } on Object {
       // Lifecycle cleanup is best effort; later cleanup steps must still run.
-    }
-  }
-
-  Future<bool> _ignoreFailureWithResult(Future<void> Function() action) async {
-    try {
-      await action();
-      return true;
-    } on Object {
-      return false;
     }
   }
 }

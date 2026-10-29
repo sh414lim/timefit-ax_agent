@@ -287,6 +287,157 @@ void main() {
       },
     );
 
+    test(
+      'ambiguous late unsubscribe error repairs the resumed generation',
+      () async {
+        port.unsubscribeGate = Completer<void>();
+        port.unsubscribeSideEffectThenError = true;
+        await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+
+        await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+        await coordinator.handleLifecycleState(AppLifecycleState.paused);
+        await scheduler.advance(const Duration(seconds: 5));
+        await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+        expect(port.subscriptionActive, isTrue);
+
+        port.unsubscribeGate!.complete();
+        await _flushAsync();
+
+        expect(port.subscriptionActive, isTrue);
+        expect(port.outboxPaused, isFalse);
+        expect(coordinator.isSubscribed, isTrue);
+        expect(port.subscribeCalls, 3);
+      },
+    );
+
+    test('stalled reconnect repair does not hold logout cleanup', () async {
+      port.unsubscribeGate = Completer<void>();
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+      await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+      await coordinator.handleLifecycleState(AppLifecycleState.paused);
+      await scheduler.advance(const Duration(seconds: 5));
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+
+      final repairGate = Completer<bool>();
+      port.subscriptionGates.add(repairGate);
+      port.unsubscribeGate!.complete();
+      await _flushAsync();
+      expect(port.subscribeCalls, 3);
+
+      final firstResume = coordinator.handleLifecycleState(
+        AppLifecycleState.resumed,
+      );
+      final secondResume = coordinator.handleLifecycleState(
+        AppLifecycleState.resumed,
+      );
+      expect(identical(firstResume, secondResume), isTrue);
+
+      var logoutCompleted = false;
+      final logout = coordinator.logout().whenComplete(() {
+        logoutCompleted = true;
+      });
+      await _flushAsync();
+
+      expect(logoutCompleted, isTrue);
+      expect(port.logoutCleanupCalls, 1);
+      expect(port.subscriptionActive, isFalse);
+      expect(port.outboxPaused, isTrue);
+
+      repairGate.complete(true);
+      await Future.wait(<Future<void>>[firstResume, secondResume, logout]);
+      expect(port.subscriptionActive, isFalse);
+      expect(port.outboxPaused, isTrue);
+      expect(coordinator.isSubscribed, isFalse);
+    });
+
+    test('dispose is not held behind a stalled reconnect repair', () async {
+      port.unsubscribeGate = Completer<void>();
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+      await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+      await coordinator.handleLifecycleState(AppLifecycleState.paused);
+      await scheduler.advance(const Duration(seconds: 5));
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+
+      final repairGate = Completer<bool>();
+      port.subscriptionGates.add(repairGate);
+      port.unsubscribeGate!.complete();
+      await _flushAsync();
+      expect(port.subscribeCalls, 3);
+
+      final repair = coordinator.handleLifecycleState(
+        AppLifecycleState.resumed,
+      );
+      coordinator.dispose();
+      await _flushAsync();
+
+      expect(port.subscriptionActive, isFalse);
+      expect(port.outboxPaused, isTrue);
+      expect(scheduler.activeTimerCount, 0);
+
+      repairGate.complete(true);
+      await repair;
+      expect(port.subscriptionActive, isFalse);
+      expect(port.outboxPaused, isTrue);
+      expect(coordinator.isDisposed, isTrue);
+    });
+
+    test('expired auth leaves an ambiguous cleanup fail closed', () async {
+      port.unsubscribeGate = Completer<void>();
+      port.unsubscribeSideEffectThenError = true;
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+      await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+      await coordinator.handleLifecycleState(AppLifecycleState.paused);
+      await scheduler.advance(const Duration(seconds: 5));
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+
+      port.defaultAuthenticationResult = false;
+      port.unsubscribeGate!.complete();
+      await _flushAsync();
+
+      expect(port.subscriptionActive, isFalse);
+      expect(port.outboxPaused, isTrue);
+      expect(coordinator.isSubscribed, isFalse);
+      expect(scheduler.activeTimerCount, greaterThan(0));
+    });
+
+    test('partial subscribe side effect is closed before retry', () async {
+      port.subscribeSideEffectThenError = true;
+
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+
+      expect(port.subscriptionActive, isFalse);
+      expect(coordinator.isSubscribed, isFalse);
+      expect(port.outboxResumeCalls, 0);
+      expect(
+        port.events,
+        containsAllInOrder(<String>['subscribe', 'unsubscribe']),
+      );
+      expect(scheduler.activeTimerCount, greaterThan(0));
+    });
+
+    test('stalled Outbox repair does not hold logout cleanup', () async {
+      port.pauseGate = Completer<void>();
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+      await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+      await coordinator.handleLifecycleState(AppLifecycleState.paused);
+      await scheduler.advance(const Duration(seconds: 5));
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+
+      port.outboxResumeGate = Completer<void>();
+      port.pauseGate!.complete();
+      await _flushAsync();
+
+      final logout = coordinator.logout();
+      await logout;
+      expect(port.logoutCleanupCalls, 1);
+      expect(port.outboxPaused, isTrue);
+
+      port.outboxResumeGate!.complete();
+      await _flushAsync();
+      expect(port.outboxPaused, isTrue);
+      expect(coordinator.isSubscribed, isFalse);
+    });
+
     test('repeated background callbacks keep cleanup idempotent', () async {
       await coordinator.handleLifecycleState(AppLifecycleState.resumed);
       port.events.clear();
@@ -545,8 +696,11 @@ final class _FakeLifecyclePort implements ChatConnectionLifecyclePort {
   bool defaultSubscriptionResult = true;
   bool throwOnPause = false;
   bool throwOnUnsubscribe = false;
+  bool subscribeSideEffectThenError = false;
+  bool unsubscribeSideEffectThenError = false;
   Completer<bool>? authenticationGate;
   Completer<bool>? subscriptionGate;
+  final subscriptionGates = <Completer<bool>>[];
   Completer<void>? connectionGapGate;
   Completer<void>? pollingGapGate;
   Completer<void>? outboxResumeGate;
@@ -562,6 +716,7 @@ final class _FakeLifecyclePort implements ChatConnectionLifecyclePort {
   int pauseCalls = 0;
   int activePauseCalls = 0;
   int maximumPauseCalls = 0;
+  int logoutCleanupCalls = 0;
   bool subscriptionActive = false;
   bool outboxPaused = false;
 
@@ -580,7 +735,13 @@ final class _FakeLifecyclePort implements ChatConnectionLifecyclePort {
   Future<bool> subscribe(ChatLifecycleCancellation cancellation) async {
     subscribeCalls += 1;
     events.add('subscribe');
-    final gate = subscriptionGate;
+    if (subscribeSideEffectThenError) {
+      subscriptionActive = true;
+      throw StateError('ambiguous subscribe failure');
+    }
+    final gate = subscriptionGates.isNotEmpty
+        ? subscriptionGates.removeAt(0)
+        : subscriptionGate;
     final result = gate != null
         ? await gate.future
         : subscriptionResults.isNotEmpty
@@ -652,6 +813,10 @@ final class _FakeLifecyclePort implements ChatConnectionLifecyclePort {
     events.add('unsubscribe');
     final gate = unsubscribeGate;
     if (gate != null) await gate.future;
+    if (unsubscribeSideEffectThenError) {
+      subscriptionActive = false;
+      throw StateError('ambiguous unsubscribe failure');
+    }
     if (throwOnUnsubscribe) throw StateError('unsubscribe failed');
     subscriptionActive = false;
   }
@@ -663,6 +828,7 @@ final class _FakeLifecyclePort implements ChatConnectionLifecyclePort {
 
   @override
   Future<void> cleanupAfterLogout() async {
+    logoutCleanupCalls += 1;
     events.add('logout-cleanup');
   }
 }
