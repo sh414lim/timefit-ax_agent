@@ -19,8 +19,18 @@ Map<String, Object?> _emptyPage() => <String, Object?>{
   'nextCursor': null,
 };
 
-bool _accepted(Object? input, CandidateDecodeBudget budget) =>
-    decodeCandidateJsonWithinBudget(input, budget: budget)
+bool _acceptedJson(String source, CandidateDecodeBudget budget) =>
+    decodeCandidateJsonWithinBudget(
+          CandidateDecodeInput.jsonText(source),
+          budget: budget,
+        )
+        is CandidateBoundedValue;
+
+bool _acceptedParsed(Object? value, CandidateDecodeBudget budget) =>
+    decodeCandidateJsonWithinBudget(
+          CandidateDecodeInput.parsed(value),
+          budget: budget,
+        )
         is CandidateBoundedValue;
 
 void main() {
@@ -100,8 +110,8 @@ void main() {
           maxTotalNodes: 32,
         );
 
-        expect(_accepted(testCase.json, budget), testCase.accepted);
-        expect(_accepted(testCase.object, budget), testCase.accepted);
+        expect(_acceptedJson(testCase.json, budget), testCase.accepted);
+        expect(_acceptedParsed(testCase.object, budget), testCase.accepted);
       });
     }
 
@@ -121,10 +131,10 @@ void main() {
         maxTotalNodes: 128,
       );
 
-      expect(_accepted(acceptedJson, budget), isTrue);
-      expect(_accepted(acceptedObject, budget), isTrue);
-      expect(_accepted(rejectedJson, budget), isFalse);
-      expect(_accepted(rejectedObject, budget), isFalse);
+      expect(_acceptedJson(acceptedJson, budget), isTrue);
+      expect(_acceptedParsed(acceptedObject, budget), isTrue);
+      expect(_acceptedJson(rejectedJson, budget), isFalse);
+      expect(_acceptedParsed(rejectedObject, budget), isFalse);
     });
   });
 
@@ -144,10 +154,10 @@ void main() {
       maxTotalNodes: 4,
     );
 
-    expect(_accepted(json, acceptedBudget), isTrue);
-    expect(_accepted(object, acceptedBudget), isTrue);
-    expect(_accepted(json, rejectedBudget), isFalse);
-    expect(_accepted(object, rejectedBudget), isFalse);
+    expect(_acceptedJson(json, acceptedBudget), isTrue);
+    expect(_acceptedParsed(object, acceptedBudget), isTrue);
+    expect(_acceptedJson(json, rejectedBudget), isFalse);
+    expect(_acceptedParsed(object, rejectedBudget), isFalse);
     for (var maxBytes = 1; maxBytes <= 128; maxBytes += 1) {
       final budget = CandidateDecodeBudget(
         maxUtf8Bytes: maxBytes,
@@ -156,8 +166,8 @@ void main() {
         maxTotalNodes: 4,
       );
       expect(
-        _accepted(json, budget),
-        _accepted(object, budget),
+        _acceptedJson(json, budget),
+        _acceptedParsed(object, budget),
         reason: 'string/object byte parity at $maxBytes bytes',
       );
     }
@@ -175,8 +185,8 @@ void main() {
       maxTotalNodes: 8,
     );
 
-    expect(_accepted(alias, budget), isTrue);
-    expect(_accepted(cycle, budget), isFalse);
+    expect(_acceptedParsed(alias, budget), isTrue);
+    expect(_acceptedParsed(cycle, budget), isFalse);
   });
 
   test('node and container entry boundaries match for both paths', () {
@@ -194,12 +204,12 @@ void main() {
       maxContainerEntries: 1,
       maxTotalNodes: 2,
     );
-    expect(_accepted(jsonEncode(object), accepted), isTrue);
-    expect(_accepted(object, accepted), isTrue);
-    expect(_accepted(jsonEncode(object), tooFewNodes), isFalse);
-    expect(_accepted(object, tooFewNodes), isFalse);
-    expect(_accepted(jsonEncode(tooManyEntries), accepted), isFalse);
-    expect(_accepted(tooManyEntries, accepted), isFalse);
+    expect(_acceptedJson(jsonEncode(object), accepted), isTrue);
+    expect(_acceptedParsed(object, accepted), isTrue);
+    expect(_acceptedJson(jsonEncode(object), tooFewNodes), isFalse);
+    expect(_acceptedParsed(object, tooFewNodes), isFalse);
+    expect(_acceptedJson(jsonEncode(tooManyEntries), accepted), isFalse);
+    expect(_acceptedParsed(tooManyEntries, accepted), isFalse);
   });
 
   test('RPC decoder applies the same nested-depth policy to both inputs', () {
@@ -214,13 +224,22 @@ void main() {
       budget: CandidateDecodeBudget(maxDepth: 2),
     );
 
-    for (final input in <Object?>[envelope, jsonEncode(envelope)]) {
-      expect(
-        rejected.decode(input).code,
-        CandidateStableRpcCode.contractViolation,
-      );
-      expect(accepted.decode(input).code, CandidateStableRpcCode.internalError);
-    }
+    expect(
+      rejected.decodeParsed(envelope).code,
+      CandidateStableRpcCode.contractViolation,
+    );
+    expect(
+      rejected.decodeJsonText(jsonEncode(envelope)).code,
+      CandidateStableRpcCode.contractViolation,
+    );
+    expect(
+      accepted.decodeParsed(envelope).code,
+      CandidateStableRpcCode.internalError,
+    );
+    expect(
+      accepted.decodeJsonText(jsonEncode(envelope)).code,
+      CandidateStableRpcCode.internalError,
+    );
   });
 
   test('page decoder applies the same root/list depth policy', () {
@@ -235,19 +254,23 @@ void main() {
       expectedConversationId: _conversationId,
     );
 
-    for (final input in <Object?>[page, jsonEncode(page)]) {
-      final rejectedResult = rejected.decode(input, request: request);
+    for (final result in <CandidateDecodeResult<CandidateChatPageDto>>[
+      rejected.decodeParsed(page, request: request),
+      rejected.decodeJsonText(jsonEncode(page), request: request),
+    ]) {
       expect(
-        (rejectedResult as CandidateRejected<CandidateChatPageDto>)
-            .failure
-            .code,
+        (result as CandidateRejected<CandidateChatPageDto>).failure.code,
         CandidateContractFailureCode.inputBudgetExceeded,
       );
-      expect(
-        accepted.decode(input, request: request),
-        isA<CandidateDecoded<CandidateChatPageDto>>(),
-      );
     }
+    expect(
+      accepted.decodeParsed(page, request: request),
+      isA<CandidateDecoded<CandidateChatPageDto>>(),
+    );
+    expect(
+      accepted.decodeJsonText(jsonEncode(page), request: request),
+      isA<CandidateDecoded<CandidateChatPageDto>>(),
+    );
   });
 
   test('both decoders reject parsed cycles without raw data', () {

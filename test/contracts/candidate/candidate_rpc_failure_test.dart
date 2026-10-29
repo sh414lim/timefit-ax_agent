@@ -31,7 +31,7 @@ void main() {
   });
 
   test('rate limited exposes only validated retryAfter and requestId', () {
-    final failure = decoder.decode(
+    final failure = decoder.decodeJsonText(
       '{"code":"rate_limited","retryAfter":30,'
       '"requestId":"req_abc-123","message":"canary-secret"}',
     );
@@ -62,7 +62,7 @@ void main() {
 
   test('malformed JSON and invalid retryAfter fail closed', () {
     expect(
-      decoder.decode('{not json').code,
+      decoder.decodeJsonText('{not json').code,
       CandidateStableRpcCode.contractViolation,
     );
     final malformedRetry = decoder.decode(<String, Object?>{

@@ -62,7 +62,7 @@ void main() {
 
   group('candidate fixtures', () {
     test('decodes an empty latest page from JSON text', () {
-      final result = decoder.decode(
+      final result = decoder.decodeJsonText(
         _fixture('empty-latest.json'),
         request: const CandidatePageRequest.latest(
           expectedConversationId: _conversationId,
@@ -93,7 +93,7 @@ void main() {
     });
 
     test('decodes a contiguous multi-message cursor page', () {
-      final result = decoder.decode(
+      final result = decoder.decodeJsonText(
         _fixture('multi-cursor.json'),
         request: const CandidatePageRequest.cursor(
           expectedConversationId: _conversationId,
@@ -125,7 +125,7 @@ void main() {
     test('rejects malformed JSON, missing fields, and wrong field types', () {
       expect(
         _failureCode(
-          decoder.decode(
+          decoder.decodeJsonText(
             '{not json',
             request: const CandidatePageRequest.latest(
               expectedConversationId: _conversationId,

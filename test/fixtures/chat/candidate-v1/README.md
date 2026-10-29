@@ -26,6 +26,20 @@ The candidate cursor policy fails closed unless `hasMoreBefore` and a non-empty
 `nextCursor` agree. This is a defensive fixture rule, not evidence that the
 server will use cursors.
 
+## Explicit input origin
+
+Candidate decoding never guesses whether a Dart `String` is raw JSON source or
+an already parsed scalar. Callers with raw JSON must use
+`CandidateDecodeInput.jsonText` (or the decoder's `decodeJsonText` entry point).
+Callers with an already parsed value, including an empty string or the literal
+string `"null"`, must use `CandidateDecodeInput.parsed` (or `decodeParsed`). The
+backward-compatible decoder method named `decode` is parsed-value-only.
+
+Consequently, raw JSON `null`, raw JSON `"null"`, and the parsed Dart string
+`"null"` remain distinguishable. No product call site currently imports these
+candidate decoders; this policy is local scaffolding and does not approve a
+server transport or wire envelope.
+
 ## Local parser budgets
 
 Both candidate decoders default to 1,000,000 UTF-8 bytes, depth 32, 256 entries

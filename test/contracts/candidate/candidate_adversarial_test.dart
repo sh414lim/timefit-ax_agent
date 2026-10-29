@@ -65,7 +65,7 @@ void main() {
     final encoded = jsonEncode(page);
     expect(encoded.length, greaterThan(1000000));
 
-    final result = decoder.decode(
+    final result = decoder.decodeJsonText(
       encoded,
       request: const CandidatePageRequest.latest(
         expectedConversationId: _conversationId,
@@ -87,7 +87,7 @@ void main() {
     }
     final page = _emptyPage()..['unknownOptional'] = nested;
 
-    final result = decoder.decode(
+    final result = decoder.decodeJsonText(
       jsonEncode(page),
       request: const CandidatePageRequest.latest(
         expectedConversationId: _conversationId,
@@ -169,11 +169,17 @@ void main() {
     );
 
     expect(
-      decodeCandidateJsonWithinBudget('[]', budget: budget),
+      decodeCandidateJsonWithinBudget(
+        const CandidateDecodeInput.jsonText('[]'),
+        budget: budget,
+      ),
       isA<CandidateBoundedValue>(),
     );
     expect(
-      decodeCandidateJsonWithinBudget(<Object?>[], budget: budget),
+      decodeCandidateJsonWithinBudget(
+        const CandidateDecodeInput.parsed(<Object?>[]),
+        budget: budget,
+      ),
       isA<CandidateBoundedValue>(),
     );
   });

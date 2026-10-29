@@ -5,15 +5,24 @@ import 'candidate_chat_page.dart';
 
 /// Decoder for a deliberately unapproved candidate JSON shape.
 ///
-/// This type has no production export or domain mapper. It accepts an already
-/// parsed object or a JSON string and fails closed without retaining raw input.
+/// This type has no production export or domain mapper. Parsed values and raw
+/// JSON use separate entry points and fail closed without retaining raw input.
 final class CandidateChatPageDecoder {
   const CandidateChatPageDecoder({this.budget = const CandidateDecodeBudget()});
 
   final CandidateDecodeBudget budget;
 
+  /// Backward-compatible parsed-value entry point.
+  ///
+  /// A String passed here is an already parsed scalar. Raw JSON text must use
+  /// [decodeJsonText], so input origin is never inferred from runtime type.
   CandidateDecodeResult<CandidateChatPageDto> decode(
-    Object? input, {
+    Object? parsedValue, {
+    required CandidatePageRequest request,
+  }) => decodeParsed(parsedValue, request: request);
+
+  CandidateDecodeResult<CandidateChatPageDto> _decode(
+    CandidateDecodeInput input, {
     required CandidatePageRequest request,
   }) {
     try {
@@ -117,6 +126,16 @@ final class CandidateChatPageDecoder {
       return _reject(CandidateContractFailureCode.contractInvalid);
     }
   }
+
+  CandidateDecodeResult<CandidateChatPageDto> decodeJsonText(
+    String source, {
+    required CandidatePageRequest request,
+  }) => _decode(CandidateDecodeInput.jsonText(source), request: request);
+
+  CandidateDecodeResult<CandidateChatPageDto> decodeParsed(
+    Object? value, {
+    required CandidatePageRequest request,
+  }) => _decode(CandidateDecodeInput.parsed(value), request: request);
 
   static CandidateContractFailure? _validateRequest(
     CandidatePageRequest request,

@@ -27,6 +27,29 @@ sealed class CandidateBoundedDecodeResult {
   const CandidateBoundedDecodeResult();
 }
 
+/// Explicitly identifies whether a String is raw JSON or an already parsed
+/// scalar value. Candidate decoders intentionally do not infer this distinction.
+sealed class CandidateDecodeInput {
+  const CandidateDecodeInput();
+
+  const factory CandidateDecodeInput.jsonText(String source) =
+      CandidateJsonTextInput;
+  const factory CandidateDecodeInput.parsed(Object? value) =
+      CandidateParsedInput;
+}
+
+final class CandidateJsonTextInput extends CandidateDecodeInput {
+  const CandidateJsonTextInput(this.source);
+
+  final String source;
+}
+
+final class CandidateParsedInput extends CandidateDecodeInput {
+  const CandidateParsedInput(this.value);
+
+  final Object? value;
+}
+
 final class CandidateBoundedValue extends CandidateBoundedDecodeResult {
   const CandidateBoundedValue(this.value);
 
@@ -44,30 +67,35 @@ final class CandidateInputInvalid extends CandidateBoundedDecodeResult {
 
 /// Decodes and detaches candidate JSON without exposing parser exceptions.
 ///
-/// String input is rejected by UTF-8 byte and lexical nesting limits before
-/// `jsonDecode`. Parsed input is walked with the same structural limits. The
-/// detached result prevents a hostile/custom Map from changing or throwing on
-/// a later validation pass.
+/// [CandidateJsonTextInput] is rejected by UTF-8 byte and lexical nesting
+/// limits before `jsonDecode`. [CandidateParsedInput] is walked with the same
+/// structural limits. The caller must select the input origin explicitly: a
+/// parsed String is never reinterpreted as JSON source text. The detached
+/// result prevents a hostile/custom Map from changing or throwing on a later
+/// validation pass.
 CandidateBoundedDecodeResult decodeCandidateJsonWithinBudget(
-  Object? input, {
+  CandidateDecodeInput input, {
   CandidateDecodeBudget budget = const CandidateDecodeBudget(),
 }) {
   try {
-    Object? decoded = input;
-    if (input is String) {
-      switch (_checkJsonText(input, budget)) {
-        case _CandidateTextCheck.budgetExceeded:
-          return const CandidateBudgetRejected();
-        case _CandidateTextCheck.invalid:
+    final Object? decoded;
+    switch (input) {
+      case CandidateJsonTextInput(:final source):
+        switch (_checkJsonText(source, budget)) {
+          case _CandidateTextCheck.budgetExceeded:
+            return const CandidateBudgetRejected();
+          case _CandidateTextCheck.invalid:
+            return const CandidateInputInvalid();
+          case _CandidateTextCheck.ok:
+            break;
+        }
+        try {
+          decoded = jsonDecode(source);
+        } on Object {
           return const CandidateInputInvalid();
-        case _CandidateTextCheck.ok:
-          break;
-      }
-      try {
-        decoded = jsonDecode(input);
-      } on Object {
-        return const CandidateInputInvalid();
-      }
+        }
+      case CandidateParsedInput(:final value):
+        decoded = value;
     }
     final walker = _CandidateBudgetWalker(budget);
     return CandidateBoundedValue(walker.detach(decoded));

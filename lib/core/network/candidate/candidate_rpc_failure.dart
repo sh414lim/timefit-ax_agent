@@ -64,7 +64,13 @@ final class CandidateRpcFailureDecoder {
 
   final CandidateDecodeBudget budget;
 
-  CandidateRpcFailure decode(Object? input) {
+  /// Backward-compatible parsed-value entry point.
+  ///
+  /// A String passed here is an already parsed scalar. Raw JSON text must use
+  /// [decodeJsonText], so input origin is never inferred from runtime type.
+  CandidateRpcFailure decode(Object? parsedValue) => decodeParsed(parsedValue);
+
+  CandidateRpcFailure _decode(CandidateDecodeInput input) {
     final bounded = decodeCandidateJsonWithinBudget(input, budget: budget);
     if (bounded is! CandidateBoundedValue) return _contractViolation();
     final map = candidateStringKeyedMap(bounded.value);
@@ -90,6 +96,12 @@ final class CandidateRpcFailureDecoder {
       requestId: _requestId(map['requestId']),
     );
   }
+
+  CandidateRpcFailure decodeJsonText(String source) =>
+      _decode(CandidateDecodeInput.jsonText(source));
+
+  CandidateRpcFailure decodeParsed(Object? value) =>
+      _decode(CandidateDecodeInput.parsed(value));
 
   static Duration? _retryAfter(Object? value) {
     if (value == null) return null;
