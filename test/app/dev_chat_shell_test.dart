@@ -489,6 +489,7 @@ void main() {
 
         await tester.tap(find.byTooltip('로컬 첨부 제거'));
         await _settleFileIo(tester);
+        await _waitForAttachmentCount(tester, openedDatabase!, 0);
         expect(
           await _runFileIo(
             tester,

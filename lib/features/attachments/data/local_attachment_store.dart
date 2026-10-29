@@ -13,6 +13,16 @@ final class AttachmentCleanupException implements Exception {
   final List<Uri> residualUris;
 }
 
+/// Private-copy storage used by the dev-local draft aggregate.
+///
+/// [AttachmentStore] owns newly selected copies while [deletePersisted]
+/// removes a UUID copy recovered from Drift after an app restart. Keeping this
+/// boundary injectable lets failure-ordering tests prove that a database row
+/// continues to track every residual private file.
+abstract interface class PersistedAttachmentStore implements AttachmentStore {
+  Future<void> deletePersisted(Uri uri);
+}
+
 class _DigestSink implements Sink<Digest> {
   Digest? digest;
   @override
@@ -24,7 +34,7 @@ class _DigestSink implements Sink<Digest> {
   void close() {}
 }
 
-final class LocalAttachmentStore implements AttachmentStore {
+final class LocalAttachmentStore implements PersistedAttachmentStore {
   LocalAttachmentStore({required this.privateRoot, String Function()? uuid})
     : _uuid = uuid ?? (() => const Uuid().v4());
   final Directory privateRoot;
@@ -176,6 +186,7 @@ final class LocalAttachmentStore implements AttachmentStore {
   /// Deletes a private copy recovered from the local database after restart.
   /// Only direct-child UUID v4 files are eligible; arbitrary persisted paths
   /// never become deletion authority.
+  @override
   Future<void> deletePersisted(Uri uri) async {
     final String root = await _root();
     if (uri.scheme != 'file') {
@@ -193,7 +204,10 @@ final class LocalAttachmentStore implements AttachmentStore {
       target,
       followLinks: false,
     );
-    if (type == FileSystemEntityType.notFound) return;
+    if (type == FileSystemEntityType.notFound) {
+      _owned.remove(target);
+      return;
+    }
     if (type != FileSystemEntityType.file) {
       throw const AttachmentException(AttachmentFailure.unsafePath);
     }

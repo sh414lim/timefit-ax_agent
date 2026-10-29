@@ -375,4 +375,25 @@ void main() {
       throwsA(isA<AttachmentException>()),
     );
   });
+  test('persisted delete treats a missing owned UUID as cleaned', () async {
+    const String id = '00000000-0000-4000-8000-000000000000';
+    final LocalAttachmentStore fixed = LocalAttachmentStore(
+      privateRoot: root,
+      uuid: () => id,
+    );
+    final PrivateAttachment first = await fixed.copy(
+      input('pdf'),
+      AttachmentCancellation(),
+    );
+    await File.fromUri(first.uri).delete();
+
+    await fixed.deletePersisted(first.uri);
+    final PrivateAttachment replacement = await fixed.copy(
+      input('pdf'),
+      AttachmentCancellation(),
+    );
+
+    expect(replacement.uri, first.uri);
+    expect(await File.fromUri(replacement.uri).exists(), isTrue);
+  });
 }

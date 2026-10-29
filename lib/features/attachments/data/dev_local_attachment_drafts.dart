@@ -14,7 +14,7 @@ final class DevLocalAttachmentDrafts {
   DevLocalAttachmentDrafts({
     required AppDatabase database,
     required LocalRepositorySession session,
-    required LocalAttachmentStore store,
+    required PersistedAttachmentStore store,
     DevLocalAttachmentObservability? observability,
     String Function()? uuid,
   }) : _database = database,
@@ -26,7 +26,7 @@ final class DevLocalAttachmentDrafts {
 
   final AppDatabase _database;
   final LocalRepositorySession _session;
-  final LocalAttachmentStore _store;
+  final PersistedAttachmentStore _store;
   final SelectAttachments _select;
   final DevLocalAttachmentObservability? _observability;
   final String Function() _uuid;
@@ -191,7 +191,7 @@ final class DevLocalAttachmentDrafts {
     required String clientMessageId,
     required String localId,
   }) async {
-    final LocalAttachment? removed = await _session.write(_database, () async {
+    final LocalAttachment? row = await _session.write(_database, () async {
       final LocalAttachment? row = await (_database.select(
         _database.localAttachments,
       )..where((item) => item.localId.equals(localId))).getSingleOrNull();
@@ -206,26 +206,17 @@ final class DevLocalAttachmentDrafts {
       final OutboxCommand? submitted = await (_database.select(
         _database.outboxCommands,
       )..where((item) => item.id.equals(clientMessageId))).getSingleOrNull();
-      if (submitted != null) return null;
-      final int changed = await (_database.delete(
-        _database.localAttachments,
-      )..where((item) => item.localId.equals(localId))).go();
-      return changed == 1 ? row : null;
+      return submitted == null ? row : null;
     });
-    if (removed == null) return;
+    if (row == null) return;
+
+    // The row remains the durable cleanup ledger until the private file is
+    // gone. Filesystem work intentionally stays outside the Drift transaction
+    // so widget fake-async and database executors cannot hold one another.
+    // Missing in-root files are deliberately idempotent.
     try {
-      await _store.deletePersisted(Uri.parse(removed.localFileUri!));
+      await _store.deletePersisted(Uri.parse(row.localFileUri!));
     } on Object catch (error) {
-      // Preserve a retryable local reference if filesystem cleanup fails.
-      await _session.write(
-        _database,
-        () => _database
-            .into(_database.localAttachments)
-            .insert(
-              removed.toCompanion(false),
-              mode: InsertMode.insertOrIgnore,
-            ),
-      );
       _observability?.cleanupFailed(
         exception: error,
         clientMessageId: clientMessageId,
@@ -233,6 +224,25 @@ final class DevLocalAttachmentDrafts {
       );
       rethrow;
     }
+
+    // If the database write or owning session now fails, the row stays as an
+    // idempotent retry ledger for the already-absent private file.
+    await _session.write(_database, () async {
+      final OutboxCommand? submitted = await (_database.select(
+        _database.outboxCommands,
+      )..where((item) => item.id.equals(clientMessageId))).getSingleOrNull();
+      if (submitted != null) return;
+      await (_database.delete(_database.localAttachments)..where(
+            (item) =>
+                item.localId.equals(localId) &
+                item.conversationId.equals(conversationId) &
+                item.clientMessageId.equals(clientMessageId) &
+                item.localFileUri.equals(row.localFileUri!) &
+                item.uploadState.equals('queued') &
+                item.attachmentId.isNull(),
+          ))
+          .go();
+    });
   }
 
   Future<int> _count({
