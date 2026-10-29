@@ -415,6 +415,145 @@ void main() {
       expect(scheduler.activeTimerCount, greaterThan(0));
     });
 
+    test(
+      'late subscribe from an old generation reconverges the current one',
+      () async {
+        final oldSubscribe = Completer<bool>();
+        port.subscriptionGates.add(oldSubscribe);
+        final oldResume = coordinator.handleLifecycleState(
+          AppLifecycleState.resumed,
+        );
+        await _flushAsync();
+
+        await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+        await coordinator.handleLifecycleState(AppLifecycleState.paused);
+        await scheduler.advance(const Duration(seconds: 5));
+        await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+        expect(port.subscriptionActive, isTrue);
+        expect(coordinator.isSubscribed, isTrue);
+
+        oldSubscribe.complete(true);
+        await oldResume;
+        await _flushAsync();
+
+        expect(port.subscriptionActive, isTrue);
+        expect(port.outboxPaused, isFalse);
+        expect(coordinator.isSubscribed, isTrue);
+        expect(port.subscribeCalls, 3);
+      },
+    );
+
+    test(
+      'late subscribe error with a side effect reconverges the current one',
+      () async {
+        final oldSubscribe = Completer<bool>();
+        port.subscriptionGates.add(oldSubscribe);
+        port.subscribeSideEffectErrorCalls.add(1);
+        final oldResume = coordinator.handleLifecycleState(
+          AppLifecycleState.resumed,
+        );
+        await _flushAsync();
+
+        await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+        await coordinator.handleLifecycleState(AppLifecycleState.paused);
+        await scheduler.advance(const Duration(seconds: 5));
+        await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+
+        oldSubscribe.complete(true);
+        await oldResume;
+        await _flushAsync();
+
+        expect(port.subscriptionActive, isTrue);
+        expect(port.outboxPaused, isFalse);
+        expect(coordinator.isSubscribed, isTrue);
+        expect(port.subscribeCalls, 3);
+      },
+    );
+
+    test(
+      'several stale generations converge to one active generation',
+      () async {
+        final firstSubscribe = Completer<bool>();
+        final secondSubscribe = Completer<bool>();
+        port.subscriptionGates.addAll(<Completer<bool>>[
+          firstSubscribe,
+          secondSubscribe,
+        ]);
+        final firstResume = coordinator.handleLifecycleState(
+          AppLifecycleState.resumed,
+        );
+        await _flushAsync();
+
+        await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+        await coordinator.handleLifecycleState(AppLifecycleState.paused);
+        await scheduler.advance(const Duration(seconds: 5));
+        final secondResume = coordinator.handleLifecycleState(
+          AppLifecycleState.resumed,
+        );
+        await _flushAsync();
+
+        await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+        await coordinator.handleLifecycleState(AppLifecycleState.paused);
+        await scheduler.advance(const Duration(seconds: 5));
+        await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+        expect(port.subscriptionActive, isTrue);
+
+        firstSubscribe.complete(true);
+        secondSubscribe.complete(true);
+        await Future.wait(<Future<void>>[firstResume, secondResume]);
+        await _flushAsync();
+
+        expect(port.subscriptionActive, isTrue);
+        expect(port.outboxPaused, isFalse);
+        expect(coordinator.isSubscribed, isTrue);
+        expect(port.subscribeCalls, 4);
+      },
+    );
+
+    test('late old generation cannot resurrect after logout', () async {
+      final oldSubscribe = Completer<bool>();
+      port.subscriptionGates.add(oldSubscribe);
+      final oldResume = coordinator.handleLifecycleState(
+        AppLifecycleState.resumed,
+      );
+      await _flushAsync();
+
+      await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+      await coordinator.handleLifecycleState(AppLifecycleState.paused);
+      await scheduler.advance(const Duration(seconds: 5));
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+      await coordinator.logout();
+
+      oldSubscribe.complete(true);
+      await oldResume;
+      await _flushAsync();
+
+      expect(port.subscriptionActive, isFalse);
+      expect(port.outboxPaused, isTrue);
+      expect(coordinator.isSubscribed, isFalse);
+      expect(port.logoutCleanupCalls, 1);
+    });
+
+    test('late old generation cannot resurrect after dispose', () async {
+      final oldSubscribe = Completer<bool>();
+      port.subscriptionGates.add(oldSubscribe);
+      final oldResume = coordinator.handleLifecycleState(
+        AppLifecycleState.resumed,
+      );
+      await _flushAsync();
+
+      coordinator.dispose();
+      await _flushAsync();
+      oldSubscribe.complete(true);
+      await oldResume;
+      await _flushAsync();
+
+      expect(port.subscriptionActive, isFalse);
+      expect(port.outboxPaused, isTrue);
+      expect(coordinator.isSubscribed, isFalse);
+      expect(scheduler.activeTimerCount, 0);
+    });
+
     test('stalled Outbox repair does not hold logout cleanup', () async {
       port.pauseGate = Completer<void>();
       await coordinator.handleLifecycleState(AppLifecycleState.resumed);
@@ -698,6 +837,7 @@ final class _FakeLifecyclePort implements ChatConnectionLifecyclePort {
   bool throwOnUnsubscribe = false;
   bool subscribeSideEffectThenError = false;
   bool unsubscribeSideEffectThenError = false;
+  final subscribeSideEffectErrorCalls = <int>{};
   Completer<bool>? authenticationGate;
   Completer<bool>? subscriptionGate;
   final subscriptionGates = <Completer<bool>>[];
@@ -734,6 +874,7 @@ final class _FakeLifecyclePort implements ChatConnectionLifecyclePort {
   @override
   Future<bool> subscribe(ChatLifecycleCancellation cancellation) async {
     subscribeCalls += 1;
+    final call = subscribeCalls;
     events.add('subscribe');
     if (subscribeSideEffectThenError) {
       subscriptionActive = true;
@@ -747,6 +888,10 @@ final class _FakeLifecyclePort implements ChatConnectionLifecyclePort {
         : subscriptionResults.isNotEmpty
         ? subscriptionResults.removeAt(0)
         : defaultSubscriptionResult;
+    if (subscribeSideEffectErrorCalls.remove(call)) {
+      subscriptionActive = true;
+      throw StateError('ambiguous subscribe failure');
+    }
     if (cancellation.isCancelled) cancelledSubscriptionCompletions += 1;
     if (result) subscriptionActive = true;
     return result;

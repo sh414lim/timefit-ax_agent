@@ -309,7 +309,7 @@ final class ChatConnectionCoordinator {
       subscriptionAttempted = true;
       final subscribed = await _port.subscribe(cancellation);
       if (!_isCurrentConnection(generation)) {
-        if (subscribed) await _unsubscribeBestEffortSerialized();
+        if (subscribed) await _closeStaleSubscriptionAndRepair();
         return;
       }
       if (!subscribed) {
@@ -332,7 +332,7 @@ final class ChatConnectionCoordinator {
     } on Object {
       if (!_isCurrentConnection(generation)) {
         if (subscriptionAttempted) {
-          await _unsubscribeBestEffortSerialized();
+          await _closeStaleSubscriptionAndRepair();
         }
         return;
       }
@@ -553,6 +553,15 @@ final class ChatConnectionCoordinator {
 
   Future<void> _unsubscribeBestEffortSerialized() {
     return _enqueueCleanup(() => _ignoreFailure(_port.unsubscribe));
+  }
+
+  Future<void> _closeStaleSubscriptionAndRepair() async {
+    // The current local port has one global unsubscribe operation rather than
+    // per-attempt handles. Closing a stale attempt can therefore also close a
+    // newer subscription. Treat the result as ambiguous and converge through
+    // a fresh generation instead of trusting the coordinator's cached state.
+    await _unsubscribeBestEffortSerialized();
+    _startRepairAfterLateUnsubscribe();
   }
 
   Future<void> _ignoreFailure(Future<void> Function() action) async {
