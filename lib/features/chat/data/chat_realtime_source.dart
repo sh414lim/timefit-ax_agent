@@ -148,9 +148,18 @@ final class ChatRealtimeSource {
       return ChatRealtimeSubscribeResult.stale;
     }
 
-    // Claim raw identity before registering or cleaning up the handle. A raw
-    // object already owned by another source is ambiguous, so this source
-    // must not quarantine or unsubscribe it through its port.
+    // Every attempt ID returned by this port is consumed for this source's
+    // lifetime, including handles rejected by ownership or later validation.
+    // Otherwise a rejected adapter response could replay its attempt ID on a
+    // fresh raw object and become trusted.
+    final attemptWasConsumed = _consumedAttempts.containsKey(handle.attemptId);
+    if (!attemptWasConsumed) {
+      _consumedAttempts[handle.attemptId] = handle;
+    }
+
+    // Claim raw identity only after consuming the attempt. A raw object
+    // already owned by another source is ambiguous, so this source must not
+    // quarantine or unsubscribe it through its port.
     if (!_claimRawHandle(handle)) {
       if (_isCurrentRequest(requestSerial, generation, conversationId)) {
         _emitStatus(RealtimeChannelStatus.channelError);
@@ -175,14 +184,13 @@ final class ChatRealtimeSource {
       return ChatRealtimeSubscribeResult.invalidHandle;
     }
     _dispositions[handle] = RealtimeHandleDisposition.pending;
-    if (_consumedAttempts.containsKey(handle.attemptId)) {
+    if (attemptWasConsumed) {
       _quarantine(handle, RealtimeQuarantineReason.invalidHandle);
       if (_isCurrentRequest(requestSerial, generation, conversationId)) {
         _emitStatus(RealtimeChannelStatus.channelError);
       }
       return ChatRealtimeSubscribeResult.invalidHandle;
     }
-    _consumedAttempts[handle.attemptId] = handle;
     if (!_isCurrentRequest(requestSerial, generation, conversationId)) {
       _quarantine(handle, RealtimeQuarantineReason.staleSubscribeCompletion);
       return ChatRealtimeSubscribeResult.stale;

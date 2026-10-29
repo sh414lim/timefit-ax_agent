@@ -198,6 +198,147 @@ void main() {
     },
   );
 
+  test('foreign raw rejection still consumes its attempt ID locally', () async {
+    final ownerPort = FakeRealtimeReadPort();
+    final ownerSource = ChatRealtimeSource(port: ownerPort);
+    addTearDown(() async {
+      ownerSource.dispose();
+      await ownerPort.close();
+    });
+    final foreignHandle = RealtimeSubscriptionHandle(
+      attemptId: const RealtimeAttemptId(807),
+      generation: const RealtimeConversationGeneration(1),
+      conversationId: 'conversation-a',
+    );
+    ownerPort.nextHandleOverride = foreignHandle;
+    expect(
+      await ownerSource.subscribe('conversation-a'),
+      ChatRealtimeSubscribeResult.trusted,
+    );
+
+    port.nextHandleOverride = foreignHandle;
+    expect(
+      await source.subscribe('conversation-a'),
+      ChatRealtimeSubscribeResult.invalidHandle,
+    );
+    expect(port.quarantineCalls, isEmpty);
+    expect(port.unsubscribeCalls, isEmpty);
+
+    final freshHandleWithConsumedAttempt = RealtimeSubscriptionHandle(
+      attemptId: foreignHandle.attemptId,
+      generation: foreignHandle.generation,
+      conversationId: foreignHandle.conversationId,
+    );
+    port.nextHandleOverride = freshHandleWithConsumedAttempt;
+    expect(
+      await source.subscribe('conversation-a'),
+      ChatRealtimeSubscribeResult.invalidHandle,
+    );
+    expect(source.trustedHandle, isNull);
+    expect(
+      port.quarantineCalls.map((entry) => entry.handle),
+      <RealtimeSubscriptionHandle>[freshHandleWithConsumedAttempt],
+    );
+    expect(port.unsubscribeCalls[foreignHandle], isNull);
+    expect(port.unsubscribeCalls[freshHandleWithConsumedAttempt], 1);
+  });
+
+  test(
+    'foreign-first concurrent return consumes attempt before latest clone',
+    () async {
+      final ownerPort = FakeRealtimeReadPort();
+      final ownerSource = ChatRealtimeSource(port: ownerPort);
+      addTearDown(() async {
+        ownerSource.dispose();
+        await ownerPort.close();
+      });
+      final foreignHandle = RealtimeSubscriptionHandle(
+        attemptId: const RealtimeAttemptId(808),
+        generation: const RealtimeConversationGeneration(1),
+        conversationId: 'conversation-a',
+      );
+      ownerPort.nextHandleOverride = foreignHandle;
+      await ownerSource.subscribe('conversation-a');
+      final freshClone = RealtimeSubscriptionHandle(
+        attemptId: foreignHandle.attemptId,
+        generation: foreignHandle.generation,
+        conversationId: foreignHandle.conversationId,
+      );
+      port.autoCompleteSubscribe = false;
+      port.nextHandleOverride = foreignHandle;
+      final oldRequest = source.subscribe('conversation-a');
+      port.nextHandleOverride = freshClone;
+      final latestRequest = source.subscribe('conversation-a');
+
+      port.completeSubscribe(0);
+      expect(await oldRequest, ChatRealtimeSubscribeResult.invalidHandle);
+      port.completeSubscribe(1);
+      expect(await latestRequest, ChatRealtimeSubscribeResult.invalidHandle);
+
+      expect(source.trustedHandle, isNull);
+      expect(port.unsubscribeCalls[foreignHandle], isNull);
+      expect(port.unsubscribeCalls[freshClone], 1);
+    },
+  );
+
+  test('invalid metadata still consumes the returned attempt ID', () async {
+    final invalid = RealtimeSubscriptionHandle(
+      attemptId: const RealtimeAttemptId(809),
+      generation: const RealtimeConversationGeneration(99),
+      conversationId: 'wrong-conversation',
+    );
+    port.nextHandleOverride = invalid;
+    expect(
+      await source.subscribe('conversation-a'),
+      ChatRealtimeSubscribeResult.invalidHandle,
+    );
+
+    final correctedClone = RealtimeSubscriptionHandle(
+      attemptId: invalid.attemptId,
+      generation: const RealtimeConversationGeneration(1),
+      conversationId: 'conversation-a',
+    );
+    port.nextHandleOverride = correctedClone;
+    expect(
+      await source.subscribe('conversation-a'),
+      ChatRealtimeSubscribeResult.invalidHandle,
+    );
+
+    expect(source.trustedHandle, isNull);
+    expect(port.unsubscribeCalls[invalid], 1);
+    expect(port.unsubscribeCalls[correctedClone], 1);
+  });
+
+  test('stale returned handle still consumes its attempt ID', () async {
+    port.autoCompleteSubscribe = false;
+    final staleHandle = RealtimeSubscriptionHandle(
+      attemptId: const RealtimeAttemptId(810),
+      generation: const RealtimeConversationGeneration(1),
+      conversationId: 'conversation-a',
+    );
+    port.nextHandleOverride = staleHandle;
+    final staleRequest = source.subscribe('conversation-a');
+    source.revokeSession();
+    port.completeSubscribe(0);
+    expect(await staleRequest, ChatRealtimeSubscribeResult.stale);
+
+    port.autoCompleteSubscribe = true;
+    final replay = RealtimeSubscriptionHandle(
+      attemptId: staleHandle.attemptId,
+      generation: const RealtimeConversationGeneration(3),
+      conversationId: 'conversation-a',
+    );
+    port.nextHandleOverride = replay;
+    expect(
+      await source.subscribe('conversation-a'),
+      ChatRealtimeSubscribeResult.invalidHandle,
+    );
+
+    expect(source.trustedHandle, isNull);
+    expect(port.unsubscribeCalls[staleHandle], 1);
+    expect(port.unsubscribeCalls[replay], 1);
+  });
+
   test('simultaneous raw handle reuse produces exactly one owner', () async {
     final otherPort = FakeRealtimeReadPort();
     final otherSource = ChatRealtimeSource(port: otherPort);
