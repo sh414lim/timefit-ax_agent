@@ -21,6 +21,41 @@ void main() {
     },
   );
 
+  testWidgets('meaningful ZWJ and ZWNJ survive display and semantics', (
+    WidgetTester tester,
+  ) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    try {
+      const String meaningfulName =
+          'team-\u{1f469}\u200d\u{1f4bb}-می\u200cباشد.pdf';
+      const AttachmentPreviewMetadata metadata = AttachmentPreviewMetadata(
+        attachmentId: 'meaningful-joiners',
+        displayName: meaningfulName,
+        contentType: 'application/pdf',
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AttachmentTile(
+              metadata: metadata,
+              onOpen: _noop,
+              itemPosition: 1,
+              itemCount: 1,
+            ),
+          ),
+        ),
+      );
+
+      expect(metadata.displayName, meaningfulName);
+      expect(metadata.safeDisplayName, meaningfulName);
+      expect(find.text(meaningfulName), findsOneWidget);
+      expect(find.bySemanticsLabel('첨부 $meaningfulName 열기'), findsOneWidget);
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   testWidgets(
     'exact duplicate names stay distinct and expose the correct tap actions',
     (WidgetTester tester) async {
@@ -260,3 +295,5 @@ void main() {
     },
   );
 }
+
+void _noop() {}
