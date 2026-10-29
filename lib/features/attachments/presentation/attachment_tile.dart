@@ -21,10 +21,18 @@ final class AttachmentTile extends StatelessWidget {
     }),
     title: Text(metadata.safeDisplayName),
     subtitle: Text(metadata.contentType),
-    trailing: IconButton(
-      tooltip: '첨부 열기',
-      onPressed: onOpen,
-      icon: const Icon(Icons.open_in_new),
+    trailing: Semantics(
+      button: true,
+      enabled: onOpen != null,
+      label: '첨부 ${metadata.safeDisplayName} 열기',
+      onTap: onOpen,
+      excludeSemantics: true,
+      child: IconButton(
+        tooltip: '첨부 열기',
+        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        onPressed: onOpen,
+        icon: const Icon(Icons.open_in_new),
+      ),
     ),
   );
 }
