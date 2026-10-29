@@ -233,6 +233,81 @@ void main() {
       expect(port.events, contains('outbox-cancelled'));
     });
 
+    test('late background pause cannot undo a completed resume', () async {
+      port.pauseGate = Completer<void>();
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+      port.events.clear();
+
+      await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+      await coordinator.handleLifecycleState(AppLifecycleState.paused);
+      await scheduler.advance(const Duration(seconds: 5));
+      expect(port.events, <String>['outbox-pause']);
+
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+      expect(port.subscriptionActive, isTrue);
+      expect(port.outboxPaused, isFalse);
+      port.pauseGate!.complete();
+      await _flushAsync();
+
+      expect(port.subscriptionActive, isTrue);
+      expect(port.outboxPaused, isFalse);
+      expect(coordinator.isSubscribed, isTrue);
+      expect(
+        port.events.where((event) => event == 'unsubscribe'),
+        isEmpty,
+        reason: 'stale cleanup must not unsubscribe the resumed generation',
+      );
+    });
+
+    test(
+      'late background unsubscribe repairs the resumed generation',
+      () async {
+        port.unsubscribeGate = Completer<void>();
+        await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+        port.events.clear();
+
+        await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+        await coordinator.handleLifecycleState(AppLifecycleState.paused);
+        await scheduler.advance(const Duration(seconds: 5));
+        expect(port.events, <String>['outbox-pause', 'unsubscribe']);
+
+        await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+        expect(port.subscriptionActive, isTrue);
+        port.unsubscribeGate!.complete();
+        await _flushAsync();
+
+        expect(port.subscriptionActive, isTrue);
+        expect(port.outboxPaused, isFalse);
+        expect(coordinator.isSubscribed, isTrue);
+        expect(
+          port.events.where((event) => event == 'subscribe'),
+          hasLength(2),
+          reason: 'resume plus one repair after the stale unsubscribe',
+        );
+      },
+    );
+
+    test('repeated background callbacks keep cleanup idempotent', () async {
+      await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+      port.events.clear();
+      await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+      await coordinator.handleLifecycleState(AppLifecycleState.paused);
+      await scheduler.advance(const Duration(seconds: 5));
+
+      await coordinator.handleLifecycleState(AppLifecycleState.hidden);
+      await coordinator.handleLifecycleState(AppLifecycleState.paused);
+      await scheduler.advance(Duration.zero);
+
+      expect(
+        port.events.where((event) => event == 'outbox-pause'),
+        hasLength(1),
+      );
+      expect(
+        port.events.where((event) => event == 'unsubscribe'),
+        hasLength(1),
+      );
+    });
+
     test('reconnect signals coalesce and follow the backoff series', () async {
       port.subscriptionResults.addAll(<bool>[false, false, true]);
       await coordinator.handleLifecycleState(AppLifecycleState.resumed);
@@ -317,6 +392,54 @@ void main() {
       expect(coordinator.isSubscribed, isFalse);
     });
 
+    test('repeated logout callers await the same cleanup future', () async {
+      port.pauseGate = Completer<void>();
+      final first = coordinator.logout();
+      final second = coordinator.logout();
+      var secondCompleted = false;
+      unawaited(second.whenComplete(() => secondCompleted = true));
+      await _flushAsync();
+
+      expect(identical(first, second), isTrue);
+      expect(secondCompleted, isFalse);
+      expect(
+        port.events.where((event) => event == 'outbox-pause'),
+        hasLength(1),
+      );
+
+      port.pauseGate!.complete();
+      await Future.wait(<Future<void>>[first, second]);
+      expect(
+        port.events.where((event) => event == 'unsubscribe'),
+        hasLength(1),
+      );
+      expect(
+        port.events.where((event) => event == 'logout-cleanup'),
+        hasLength(1),
+      );
+    });
+
+    test('detach and logout cleanup operations are serialized', () async {
+      port.pauseGate = Completer<void>();
+      final detach = coordinator.handleLifecycleState(
+        AppLifecycleState.detached,
+      );
+      final logout = coordinator.logout();
+      await _flushAsync();
+
+      expect(port.activePauseCalls, 1);
+      expect(port.pauseCalls, 1);
+      port.pauseGate!.complete();
+      await Future.wait(<Future<void>>[detach, logout]);
+
+      expect(port.maximumPauseCalls, 1);
+      expect(port.pauseCalls, 2);
+      expect(
+        port.events,
+        containsAllInOrder(<String>['detach-cleanup', 'logout-cleanup']),
+      );
+    });
+
     test(
       'detached cleanup remains best effort after individual failures',
       () async {
@@ -346,6 +469,29 @@ void main() {
       expect(port.authCalls, authCalls);
       expect(coordinator.isDisposed, isTrue);
     });
+
+    test(
+      'dispose queues cleanup behind an active background cleanup',
+      () async {
+        port.pauseGate = Completer<void>();
+        await coordinator.handleLifecycleState(AppLifecycleState.resumed);
+        await coordinator.handleLifecycleState(AppLifecycleState.inactive);
+        await coordinator.handleLifecycleState(AppLifecycleState.paused);
+        await scheduler.advance(const Duration(seconds: 5));
+        expect(port.activePauseCalls, 1);
+
+        coordinator.dispose();
+        await _flushAsync();
+        expect(port.pauseCalls, 1);
+        expect(scheduler.activeTimerCount, 0);
+        port.pauseGate!.complete();
+        await _flushAsync();
+
+        expect(port.maximumPauseCalls, 1);
+        expect(port.pauseCalls, 2);
+        expect(coordinator.isDisposed, isTrue);
+      },
+    );
 
     test('background never starts foreground polling', () async {
       port.defaultSubscriptionResult = false;
@@ -404,6 +550,8 @@ final class _FakeLifecyclePort implements ChatConnectionLifecyclePort {
   Completer<void>? connectionGapGate;
   Completer<void>? pollingGapGate;
   Completer<void>? outboxResumeGate;
+  Completer<void>? pauseGate;
+  Completer<void>? unsubscribeGate;
   int authCalls = 0;
   int subscribeCalls = 0;
   int cancelledSubscriptionCompletions = 0;
@@ -411,6 +559,11 @@ final class _FakeLifecyclePort implements ChatConnectionLifecyclePort {
   int pollingGapCalls = 0;
   int pollingGapWrites = 0;
   int outboxResumeCalls = 0;
+  int pauseCalls = 0;
+  int activePauseCalls = 0;
+  int maximumPauseCalls = 0;
+  bool subscriptionActive = false;
+  bool outboxPaused = false;
 
   @override
   Future<bool> refreshAuthentication(
@@ -434,6 +587,7 @@ final class _FakeLifecyclePort implements ChatConnectionLifecyclePort {
         ? subscriptionResults.removeAt(0)
         : defaultSubscriptionResult;
     if (cancellation.isCancelled) cancelledSubscriptionCompletions += 1;
+    if (result) subscriptionActive = true;
     return result;
   }
 
@@ -472,18 +626,34 @@ final class _FakeLifecyclePort implements ChatConnectionLifecyclePort {
       return;
     }
     outboxResumeCalls += 1;
+    outboxPaused = false;
   }
 
   @override
   Future<void> pauseNewOutboxWork() async {
+    pauseCalls += 1;
+    activePauseCalls += 1;
+    if (activePauseCalls > maximumPauseCalls) {
+      maximumPauseCalls = activePauseCalls;
+    }
     events.add('outbox-pause');
-    if (throwOnPause) throw StateError('pause failed');
+    try {
+      final gate = pauseGate;
+      if (gate != null) await gate.future;
+      if (throwOnPause) throw StateError('pause failed');
+      outboxPaused = true;
+    } finally {
+      activePauseCalls -= 1;
+    }
   }
 
   @override
   Future<void> unsubscribe() async {
     events.add('unsubscribe');
+    final gate = unsubscribeGate;
+    if (gate != null) await gate.future;
     if (throwOnUnsubscribe) throw StateError('unsubscribe failed');
+    subscriptionActive = false;
   }
 
   @override

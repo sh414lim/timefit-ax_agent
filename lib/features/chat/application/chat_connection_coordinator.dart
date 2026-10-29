@@ -96,11 +96,17 @@ final class ChatConnectionCoordinator {
   Future<void>? _connectionRun;
   int? _connectionRunGeneration;
   Future<void>? _pollingRun;
+  Future<void>? _cleanupTail;
+  Future<void>? _logoutCleanup;
+  Future<void>? _detachedCleanup;
   int _generation = 0;
   int _pollingGeneration = 0;
   int _reconnectAttempt = 0;
+  int? _outboxResumedGeneration;
   bool _foreground = false;
   bool _subscribed = false;
+  bool _backgroundCleanupRequested = false;
+  bool _detachedCleanupRequested = false;
   bool _loggedOut = false;
   bool _disposed = false;
 
@@ -126,24 +132,32 @@ final class ChatConnectionCoordinator {
     if (_disposed || _loggedOut || !_foreground) return;
     final alreadyDisconnected = !_subscribed && _disconnectedSince != null;
     _subscribed = false;
+    _outboxResumedGeneration = null;
     if (!alreadyDisconnected) _generation += 1;
     _beginDisconnectedWindow();
     _scheduleReconnect();
   }
 
   Future<void> logout() {
-    if (_disposed || _loggedOut) return Future<void>.value();
+    final existing = _logoutCleanup;
+    if (existing != null) return existing;
+    if (_disposed) return Future<void>.value();
     _loggedOut = true;
     _foreground = false;
     _subscribed = false;
+    _outboxResumedGeneration = null;
     _generation += 1;
     _cancelAllTimers();
     _stopPolling(resetWindow: true);
-    return _runBestEffort(<Future<void> Function()>[
-      _port.pauseNewOutboxWork,
-      _port.unsubscribe,
-      _port.cleanupAfterLogout,
-    ]);
+    final cleanup = _enqueueCleanup(
+      () => _runLifecycleCleanup(
+        generation: _generation,
+        cleanupAfter: _port.cleanupAfterLogout,
+        repairIfResumed: false,
+      ),
+    );
+    _logoutCleanup = cleanup;
+    return cleanup;
   }
 
   void dispose() {
@@ -151,19 +165,24 @@ final class ChatConnectionCoordinator {
     _disposed = true;
     _foreground = false;
     _subscribed = false;
+    _outboxResumedGeneration = null;
     _generation += 1;
     _cancelAllTimers();
     _stopPolling(resetWindow: true);
     unawaited(
-      _runBestEffort(<Future<void> Function()>[
-        _port.pauseNewOutboxWork,
-        _port.unsubscribe,
-      ]),
+      _enqueueCleanup(
+        () => _runLifecycleCleanup(
+          generation: _generation,
+          repairIfResumed: false,
+        ),
+      ),
     );
   }
 
   Future<void> _handleResumed(AppLifecycleState? previous) {
     _foreground = true;
+    _backgroundCleanupRequested = false;
+    _detachedCleanupRequested = false;
     _cancelBackgroundGrace(clearStart: true);
     if (_subscribed) return Future<void>.value();
     if (_connectionRun != null && _connectionRunGeneration == _generation) {
@@ -183,6 +202,7 @@ final class ChatConnectionCoordinator {
 
   Future<void> _handleInactive() {
     _foreground = false;
+    if (_backgroundCleanupRequested) return Future<void>.value();
     _backgroundGraceStartedAt ??= _scheduler.now;
     _ensureBackgroundGraceTimer();
     return Future<void>.value();
@@ -190,26 +210,39 @@ final class ChatConnectionCoordinator {
 
   Future<void> _handleBackgroundPending() {
     _foreground = false;
+    if (_backgroundCleanupRequested) return Future<void>.value();
     _backgroundGraceStartedAt ??= _scheduler.now;
     _ensureBackgroundGraceTimer();
     return Future<void>.value();
   }
 
   Future<void> _handleDetached() {
+    final existing = _detachedCleanup;
+    if (_detachedCleanupRequested && existing != null) return existing;
     _foreground = false;
     _subscribed = false;
+    _outboxResumedGeneration = null;
     _generation += 1;
+    final cleanupGeneration = _generation;
+    _detachedCleanupRequested = true;
     _cancelAllTimers();
     _stopPolling(resetWindow: true);
-    return _runBestEffort(<Future<void> Function()>[
-      _port.pauseNewOutboxWork,
-      _port.unsubscribe,
-      _port.cleanupAfterDetach,
-    ]);
+    final cleanup = _enqueueCleanup(
+      () => _runLifecycleCleanup(
+        generation: cleanupGeneration,
+        cleanupAfter: _port.cleanupAfterDetach,
+        repairIfResumed: true,
+      ),
+    );
+    _detachedCleanup = cleanup;
+    return cleanup;
   }
 
   void _ensureBackgroundGraceTimer() {
-    if (_backgroundGraceTimer?.isActive == true) return;
+    if (_backgroundCleanupRequested ||
+        _backgroundGraceTimer?.isActive == true) {
+      return;
+    }
     final startedAt = _backgroundGraceStartedAt ?? _scheduler.now;
     final elapsed = _scheduler.now.difference(startedAt);
     final remaining = backgroundGrace - elapsed;
@@ -224,14 +257,19 @@ final class ChatConnectionCoordinator {
           return;
         }
         _generation += 1;
+        final cleanupGeneration = _generation;
+        _backgroundCleanupRequested = true;
         _subscribed = false;
+        _outboxResumedGeneration = null;
         _cancelReconnectTimer();
         _stopPolling(resetWindow: true);
         unawaited(
-          _runBestEffort(<Future<void> Function()>[
-            _port.pauseNewOutboxWork,
-            _port.unsubscribe,
-          ]),
+          _enqueueCleanup(
+            () => _runLifecycleCleanup(
+              generation: cleanupGeneration,
+              repairIfResumed: true,
+            ),
+          ),
         );
       },
     );
@@ -286,10 +324,14 @@ final class ChatConnectionCoordinator {
       await _port.gapFill(cancellation);
       if (!_isCurrentConnection(generation)) return;
       await _port.resumeOutbox(cancellation);
+      if (_isCurrentConnection(generation)) {
+        _outboxResumedGeneration = generation;
+      }
     } on Object {
       if (!_isCurrentConnection(generation)) return;
       if (_subscribed || subscribedByThisRun) {
         _subscribed = false;
+        _outboxResumedGeneration = null;
         await _ignoreFailure(_port.unsubscribe);
       }
       if (!_isCurrentConnection(generation)) return;
@@ -402,10 +444,102 @@ final class ChatConnectionCoordinator {
     _cancelReconnectTimer();
   }
 
-  Future<void> _runBestEffort(Iterable<Future<void> Function()> actions) async {
-    for (final action in actions) {
-      await _ignoreFailure(action);
+  Future<void> _runLifecycleCleanup({
+    required int generation,
+    required bool repairIfResumed,
+    Future<void> Function()? cleanupAfter,
+  }) async {
+    await _ignoreFailureWithResult(_port.pauseNewOutboxWork);
+    if (repairIfResumed && _cleanupIsStale(generation)) {
+      await _repairAfterLatePause();
+      return;
     }
+
+    final unsubscribed = await _ignoreFailureWithResult(_port.unsubscribe);
+    if (repairIfResumed && _cleanupIsStale(generation)) {
+      if (unsubscribed) {
+        await _repairAfterLateUnsubscribe();
+      } else {
+        await _repairAfterLatePause();
+      }
+      return;
+    }
+
+    if (cleanupAfter == null) return;
+    await _ignoreFailureWithResult(cleanupAfter);
+    if (repairIfResumed && _cleanupIsStale(generation)) {
+      await _repairAfterLateUnsubscribe();
+    }
+  }
+
+  bool _cleanupIsStale(int generation) {
+    return generation != _generation &&
+        !_disposed &&
+        !_loggedOut &&
+        _foreground &&
+        _lifecycleState == AppLifecycleState.resumed;
+  }
+
+  Future<void> _repairAfterLatePause() async {
+    final generation = _generation;
+    if (!_isCurrentConnection(generation) ||
+        !_subscribed ||
+        _outboxResumedGeneration != generation) {
+      return;
+    }
+    final cancellation = _CoordinatorCancellation(
+      operation: ChatLifecycleOperation.connection,
+      cancelled: () => !_isCurrentConnection(generation),
+    );
+    try {
+      await _port.resumeOutbox(cancellation);
+      if (_isCurrentConnection(generation)) {
+        _outboxResumedGeneration = generation;
+      }
+    } on Object {
+      // A future adapter reports recovery failure through its normal state.
+    }
+  }
+
+  Future<void> _repairAfterLateUnsubscribe() async {
+    if (_disposed ||
+        _loggedOut ||
+        !_foreground ||
+        _lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    _subscribed = false;
+    _outboxResumedGeneration = null;
+    _generation += 1;
+    _reconnectAttempt = 0;
+    _cancelReconnectTimer();
+    _stopPolling(resetWindow: true);
+    _beginDisconnectedWindow();
+    await _beginConnectionRun(_generation);
+  }
+
+  Future<void> _enqueueCleanup(Future<void> Function() cleanup) {
+    final previous = _cleanupTail;
+    late final Future<void> run;
+    run =
+        () async {
+          if (previous != null) {
+            try {
+              await previous;
+            } on Object {
+              // A failed best-effort cleanup must not poison the serial queue.
+            }
+          }
+          try {
+            await cleanup();
+          } on Object {
+            // Cleanup callers share a nonthrowing completion boundary.
+          }
+        }().whenComplete(() {
+          if (identical(_cleanupTail, run)) _cleanupTail = null;
+        });
+    _cleanupTail = run;
+    return run;
   }
 
   Future<void> _ignoreFailure(Future<void> Function() action) async {
@@ -413,6 +547,15 @@ final class ChatConnectionCoordinator {
       await action();
     } on Object {
       // Lifecycle cleanup is best effort; later cleanup steps must still run.
+    }
+  }
+
+  Future<bool> _ignoreFailureWithResult(Future<void> Function() action) async {
+    try {
+      await action();
+      return true;
+    } on Object {
+      return false;
     }
   }
 }
