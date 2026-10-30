@@ -33,19 +33,41 @@ does not close the shared DB session. The existing repository/session boundary
 still decides whether an admitted write may commit or must roll back when the
 session itself is revoked. No remote cancellation policy is established here.
 
+## Cancellation-error follow-up
+
+Independent QA found that both attachment subscriptions discarded their
+`cancel()` Futures. A new ten-case fixture reproduced synchronous throws,
+delayed Future failures, mixed failures, repeated/reentrant disposal and
+error leakage during an admitted submit/retry; all ten failed before repair.
+
+Disposal is now idempotent and detaches both subscription references before
+starting independent best-effort cancellation. Each helper catches both the
+synchronous invocation and its returned Future's failure without retaining,
+stringifying, logging or rethrowing the cleanup error/stack. A failure in one
+does not prevent attempting the other. No cancellation completion mutates
+controller state, a new editor, or the shared DB session.
+
+This consumes failures connected to the returned cancellation Future. It is
+not a physical-cleanup acknowledgement, a timeout/cancellation policy, or a
+guarantee about independently detached work in a custom stream implementation.
+An indefinitely pending cancellation does not block editor disposal; late data
+callbacks remain subject to the existing disposed guards.
+
 ## Evidence
 
 - New regression suite: `test/features/chat/application/composer_disposal_test.dart`.
+- Cancellation regression: `test/features/chat/application/composer_cancellation_test.dart`.
 - It uses only in-memory Drift, scripted submitters/sources, and the production
   `ChatComposer` widget; no user database, file, account, or Simulator is used.
-- The final new suite contains 14 regression tests. Coverage includes real
+- The disposal suite contains 14 regression tests; cancellation adds 10.
+  Coverage includes real
   message/Outbox non-creation, failed-row and client-ID
   preservation, released dependencies, admitted success/failure drain and
   Future sharing, a new conversation in the shared session, and a retained
   send callback after unmount, and synchronous disposal during admission.
 - Focused new/existing composer, attachment barrier and session/Drift suites:
-  69 tests passed.
-- Full Flutter regression, including existing goldens: 861 tests passed.
+  79 tests passed.
+- Full Flutter regression, including existing goldens: 871 tests passed.
 - Generated-file consistency passed without source/generated drift (the
   existing analyzer/SDK compatibility warning remains; dependencies unchanged).
 - Analyze, format and bootstrap boundary checks passed.

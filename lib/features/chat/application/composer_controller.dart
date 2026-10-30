@@ -258,14 +258,31 @@ final class ComposerController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  Future<void> _cancelSubscription<T>(
+    StreamSubscription<T>? subscription,
+  ) async {
+    if (subscription == null) return;
+    try {
+      await subscription.cancel();
+    } on Object {
+      // Editor admission is already closed. Cancellation is best effort;
+      // never retain, stringify, log or rethrow a raw cleanup error/stack.
+    }
+  }
+
   @override
   void dispose() {
+    if (_disposed) return;
     // Close this editor's admission only. Already admitted operations retain
     // their shared Futures and drain through the repository/session boundary;
     // disposing a conversation editor must not close the shared DB session.
     _disposed = true;
-    unawaited(_attachmentSubscription?.cancel());
-    unawaited(_attachmentMutationSubscription?.cancel());
+    final attachmentSubscription = _attachmentSubscription;
+    final mutationSubscription = _attachmentMutationSubscription;
+    _attachmentSubscription = null;
+    _attachmentMutationSubscription = null;
+    unawaited(_cancelSubscription(attachmentSubscription));
+    unawaited(_cancelSubscription(mutationSubscription));
     super.dispose();
   }
 }
