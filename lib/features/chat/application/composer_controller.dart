@@ -96,14 +96,23 @@ final class ComposerController extends ChangeNotifier {
   bool get hasFailedAttachment => attachments.any(
     (attachment) => attachment.state == ComposerAttachmentState.failed,
   );
+
+  bool _hasMutationAdmission() {
+    if (_disposed) return false;
+    final allowed = _mutationAdmission();
+    // The injected predicate may synchronously dispose this editor itself.
+    return allowed && !_disposed;
+  }
+
   bool get canSubmit {
+    if (_disposed) return false;
     final bool attachmentDraftMutating = isAttachmentDraftMutating;
     if (attachmentDraftMutating &&
         _attachmentSource is! AttachmentDraftMutationEvents) {
       _scheduleAttachmentMutationFallback();
     }
     return conversationId.isNotEmpty &&
-        _mutationAdmission() &&
+        _hasMutationAdmission() &&
         characterCount <= maximumLength &&
         !_aggregateSubmitted &&
         !attachmentDraftMutating &&
@@ -114,7 +123,7 @@ final class ComposerController extends ChangeNotifier {
   }
 
   void updateDraft(String value) {
-    if (_draft == value) return;
+    if (_disposed || _draft == value) return;
     _draft = value;
     _draftVersion += 1;
     _lastError = null;
@@ -123,7 +132,7 @@ final class ComposerController extends ChangeNotifier {
 
   Future<void> submit() {
     if (_activeSubmit case final Future<void> active) return active;
-    if (!_mutationAdmission()) return Future<void>.value();
+    if (!_hasMutationAdmission()) return Future<void>.value();
     if (!canSubmit) return Future<void>.value();
 
     final String submittedDraft = _draft;
@@ -217,7 +226,7 @@ final class ComposerController extends ChangeNotifier {
   }
 
   Future<void> removeFailedAttachment(String localId) async {
-    if (_disposed || !_mutationAdmission()) return;
+    if (!_hasMutationAdmission()) return;
     final attachment = attachments
         .where((item) => item.localId == localId)
         .firstOrNull;
@@ -233,7 +242,7 @@ final class ComposerController extends ChangeNotifier {
     if (_activeRetries[clientMessageId] case final Future<bool> active) {
       return active;
     }
-    if (!_mutationAdmission()) return Future<bool>.value(false);
+    if (!_hasMutationAdmission()) return Future<bool>.value(false);
     late final Future<bool> operation;
     operation = Future<bool>.sync(() => _submitter.retry(clientMessageId))
         .whenComplete(() {
@@ -251,6 +260,9 @@ final class ComposerController extends ChangeNotifier {
 
   @override
   void dispose() {
+    // Close this editor's admission only. Already admitted operations retain
+    // their shared Futures and drain through the repository/session boundary;
+    // disposing a conversation editor must not close the shared DB session.
     _disposed = true;
     unawaited(_attachmentSubscription?.cancel());
     unawaited(_attachmentMutationSubscription?.cancel());
