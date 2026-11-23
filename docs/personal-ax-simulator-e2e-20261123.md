@@ -86,3 +86,20 @@ Python 저장소의 별도 Draft PR [#7](https://github.com/sh414lim/timefit-ax-
 서버 오류 내용, GPT 답변 원문, OAuth 토큰 및 페어링 값을 표시·저장하지 않습니다.
 원인 미확인 요청은 동일 세션에서 다시 보내지 않으며, 새 계정 호출은 오프라인 회귀 검사와
 본인 동의를 마친 별도 실험에서만 진행합니다. 앱 코드와 문서 자체는 실제 E2E 성공 증거가 아닙니다.
+
+## 2026-11-23 native iPhone Simulator actual response evidence
+
+The owner supplied an actual iPhone Simulator screen showing a request
+transitioning `pending` → `complete`, a nonempty GPT greeting answer
+rendered under `실제 GPT 답변`, and `인증 정리 확인: 완료` in
+the personal-only app. The previous failed session reported
+`live_session_expired` after diagnostics were introduced. The successful
+capture followed a new consent/session. This establishes the **one-shot
+owner-local native app → Python AX bridge → SIWC GPT → app response-display**
+path, not production service integration.
+
+This run does not validate multi-turn conversation, public WSS, customer
+subscriptions, operational Supabase ledger or physical-device deployment.
+The successful request UUID, model output body, pairing secret, or OAuth
+tokens must not be committed. A separate final SQLite ledger query would
+strengthen durability proof.
