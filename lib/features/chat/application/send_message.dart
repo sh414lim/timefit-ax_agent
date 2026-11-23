@@ -45,6 +45,24 @@ final class LocalTextCommand {
     'conversationId': conversationId,
     'bodyText': bodyText,
   });
+
+  static LocalTextCommand decode(String value) {
+    final decoded = jsonDecode(value);
+    if (decoded is! Map<String, Object?> ||
+        decoded.length != 5 ||
+        decoded['localVersion'] != 1 ||
+        decoded['localMessageId'] is! String ||
+        decoded['clientMessageId'] != decoded['localMessageId'] ||
+        decoded['conversationId'] is! String ||
+        decoded['bodyText'] is! String) {
+      throw const FormatException('Invalid local text payload');
+    }
+    return LocalTextCommand(
+      id: decoded['localMessageId']! as String,
+      conversationId: decoded['conversationId']! as String,
+      bodyText: decoded['bodyText']! as String,
+    );
+  }
 }
 
 /// Persisted local aggregate for CHAT-052. Attachment identifiers are local

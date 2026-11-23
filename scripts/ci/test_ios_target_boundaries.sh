@@ -17,6 +17,7 @@ trap cleanup EXIT
 
 mkdir -p "$ios_project/Flutter" "$project/integration_test" "$project/lib/dev"
 touch "$project/lib/dev/main_personal_ax.dart"
+touch "$project/lib/dev/main_personal_chat.dart"
 touch "$project/integration_test/chat_e2e_test.dart"
 project="$(cd "$project" && pwd -P)"
 ios_project="$project/ios"
@@ -116,6 +117,21 @@ run_case pass 'personal AX one-greeting dev debug simulator target' \
   iphonesimulator iphonesimulator18.1
 run_case pass 'personal AX absolute simulator target' \
   dev lib/main.dart "$project/lib/dev/main_personal_ax.dart" Debug-dev \
+  iphonesimulator iphonesimulator18.1
+run_case pass 'personal AX general chat dev debug simulator target' \
+  dev lib/main.dart lib/dev/main_personal_chat.dart Debug-dev \
+  iphonesimulator iphonesimulator18.1
+run_case pass 'personal AX general chat absolute simulator target' \
+  dev lib/main.dart "$project/lib/dev/main_personal_chat.dart" Debug-dev \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'personal AX general chat target staging rejected' \
+  staging lib/main_staging.dart lib/dev/main_personal_chat.dart Debug-staging \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'personal AX general chat target device rejected' \
+  dev lib/main.dart lib/dev/main_personal_chat.dart Debug-dev \
+  iphoneos iphoneos18.1
+run_case reject 'personal AX general chat release rejected' \
+  dev lib/main.dart lib/dev/main_personal_chat.dart Release-dev \
   iphonesimulator iphonesimulator18.1
 run_case reject 'personal AX target staging rejected' \
   staging lib/main_staging.dart lib/dev/main_personal_ax.dart Debug-staging \

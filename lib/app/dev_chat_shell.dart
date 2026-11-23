@@ -8,6 +8,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../core/database/app_database.dart';
 import '../core/database/local_repository_session.dart';
+import '../dev/personal_chat_client.dart';
+import '../dev/personal_chat_outbox_executor.dart';
 import '../features/attachments/application/attachment_picker.dart';
 import '../features/attachments/application/dev_local_attachment_observability.dart';
 import '../features/attachments/application/dev_local_attachment_preview_controller.dart';
@@ -17,6 +19,8 @@ import '../features/attachments/domain/attachment_policy.dart';
 import '../features/attachments/presentation/dev_local_attachment_preview_screen.dart';
 import '../features/chat/application/composer_controller.dart';
 import '../features/chat/application/drift_attachment_composer_source.dart';
+import '../features/chat/application/outbox/outbox_worker.dart';
+import '../features/chat/application/outbox/retry_policy.dart';
 import '../features/chat/application/send_message.dart';
 import '../features/chat/data/message_repository_impl.dart';
 import '../features/chat/presentation/chat_screen.dart';
@@ -33,6 +37,38 @@ import '../features/home/presentation/home_screen.dart';
 typedef DevChatDatabaseFactory = Future<AppDatabase> Function();
 typedef DevAttachmentRootFactory = Future<Directory> Function();
 typedef DevChatDisposalObserver = void Function(Future<void> disposal);
+
+Future<String?> showPersonalChatPairingDialog(BuildContext context) {
+  var enteredPairing = '';
+  return showDialog<String>(
+    context: context,
+    builder: (BuildContext context) => AlertDialog(
+      title: const Text('Mac 개인 서버 연결'),
+      content: TextField(
+        autofocus: true,
+        obscureText: true,
+        autocorrect: false,
+        enableSuggestions: false,
+        decoration: const InputDecoration(
+          labelText: 'pairing.txt 값',
+          helperText: '127.0.0.1:8790 · 이 실행 메모리에만 유지',
+        ),
+        onChanged: (value) => enteredPairing = value,
+        onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('취소'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(enteredPairing.trim()),
+          child: const Text('연결'),
+        ),
+      ],
+    ),
+  );
+}
 
 Future<AppDatabase> openDevChatDatabase() async {
   final support = await getApplicationSupportDirectory();
@@ -70,6 +106,8 @@ class DevChatShell extends StatefulWidget {
     this.previewPdfRenderer,
     this.attachmentObservability,
     this.disposalObserver,
+    this.personalChatOptIn = false,
+    this.personalChatApi,
     super.key,
   });
 
@@ -80,6 +118,8 @@ class DevChatShell extends StatefulWidget {
   final DevLocalFileRenderer? previewPdfRenderer;
   final DevLocalAttachmentObservability? attachmentObservability;
   final DevChatDisposalObserver? disposalObserver;
+  final bool personalChatOptIn;
+  final PersonalChatApi? personalChatApi;
 
   @override
   State<DevChatShell> createState() => _DevChatShellState();
@@ -102,6 +142,11 @@ class _DevChatShellState extends State<DevChatShell>
   final TextEditingController _homeDraftController = TextEditingController();
   final FocusNode _homeDraftFocusNode = FocusNode();
   AttachmentCancellation? _attachmentCancellation;
+  OutboxWorker? _personalChatWorker;
+  Timer? _personalChatTimer;
+  String? _personalPairing;
+  String? _personalConnectionError;
+  bool _personalConnecting = false;
   String? _selectedConversationId;
   Object? _initializationError;
   bool _creatingConversation = false;
@@ -169,6 +214,70 @@ class _DevChatShellState extends State<DevChatShell>
       if (database != null) await database.close();
       if (mounted) setState(() => _initializationError = error);
     }
+  }
+
+  Future<void> _connectPersonalChat() async {
+    if (!widget.personalChatOptIn ||
+        _personalConnecting ||
+        _database == null ||
+        _session == null) {
+      return;
+    }
+    final pairing = await showPersonalChatPairingDialog(context);
+    if (pairing == null || !mounted) return;
+    setState(() {
+      _personalConnecting = true;
+      _personalConnectionError = null;
+    });
+    try {
+      await (widget.personalChatApi ?? const PersonalChatHttpClient()).history(
+        pairing,
+      );
+      if (!mounted) return;
+      _startPersonalChatWorker(pairing);
+      setState(() {
+        _personalPairing = pairing;
+        _personalConnecting = false;
+      });
+      unawaited(_personalChatWorker!.wake());
+    } on PersonalChatFailure catch (failure) {
+      if (mounted) {
+        setState(() {
+          _personalConnecting = false;
+          _personalConnectionError = failure.code;
+        });
+      }
+    } on Object {
+      if (mounted) {
+        setState(() {
+          _personalConnecting = false;
+          _personalConnectionError = 'connection_failed';
+        });
+      }
+    }
+  }
+
+  void _startPersonalChatWorker(String pairing) {
+    _personalChatTimer?.cancel();
+    _personalChatWorker?.stop();
+    final worker = OutboxWorker(
+      dao: _database!.outboxDao,
+      executor: PersonalChatOutboxExecutor(
+        database: _database!,
+        session: _session!,
+        api: widget.personalChatApi ?? const PersonalChatHttpClient(),
+        pairing: pairing,
+        clock: DateTime.now,
+      ),
+      clock: DateTime.now,
+      retryPolicy: RetryPolicy(() => 0.5),
+      scope: 'dev-local-chat-v1:personal-loopback',
+    );
+    _personalChatWorker = worker;
+    _personalChatTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => unawaited(worker.wake()),
+    );
   }
 
   Future<void> _createConversation() async {
@@ -502,6 +611,9 @@ class _DevChatShellState extends State<DevChatShell>
     WidgetsBinding.instance.removeObserver(this);
     _disposed = true;
     _attachmentCancellation?.cancel();
+    _personalChatTimer?.cancel();
+    _personalChatWorker?.stop();
+    _personalPairing = null;
     _composer?.dispose();
     _homeDraftController.dispose();
     _homeDraftFocusNode.dispose();
@@ -534,11 +646,16 @@ class _DevChatShellState extends State<DevChatShell>
     return Scaffold(
       body: Column(
         children: <Widget>[
-          if (!showingSourceHome)
+          if (!showingSourceHome || widget.personalChatOptIn)
             _DevLocalModeBanner(
               compact: compactKeyboardLayout,
               includesWaitingStatus:
                   compactKeyboardLayout && _selectedConversationId != null,
+              personalChatOptIn: widget.personalChatOptIn,
+              personalConnected: _personalPairing != null,
+              personalConnecting: _personalConnecting,
+              connectionError: _personalConnectionError,
+              onConnect: () => unawaited(_connectPersonalChat()),
             ),
           Expanded(child: _buildContent(compactKeyboardLayout)),
         ],
@@ -549,6 +666,13 @@ class _DevChatShellState extends State<DevChatShell>
   @override
   void didChangeMetrics() {
     if (mounted) setState(() {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _personalPairing != null) {
+      unawaited(_personalChatWorker?.wake());
+    }
   }
 
   Widget _buildContent(bool compactKeyboardLayout) {
@@ -568,11 +692,16 @@ class _DevChatShellState extends State<DevChatShell>
       return Column(
         children: <Widget>[
           if (!compactKeyboardLayout)
-            const Material(
+            Material(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Text(
-                  '서버 미연결 · 이 기기에 대기 중',
+                  _personalPairing == null
+                      ? '서버 미연결 · 이 기기에 대기 중'
+                      : 'Mac 개인 서버 연결됨 · Outbox 전송 중',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -587,12 +716,14 @@ class _DevChatShellState extends State<DevChatShell>
                     conversationId: conversationId,
                     composerController: composer,
                     onBack: _closeConversation,
-                    onAddAttachment: () => unawaited(_chooseAttachments()),
+                    onAddAttachment: _personalPairing == null
+                        ? () => unawaited(_chooseAttachments())
+                        : null,
                     onRemoveQueuedAttachment: _removeQueuedAttachment,
                     onOpenAttachment: _openLocalAttachmentPreview,
                     isSelectingAttachments: _selectingAttachments,
                     compactKeyboardLayout: compactKeyboardLayout,
-                    savesLocallyOnly: true,
+                    savesLocallyOnly: _personalPairing == null,
                   ),
           ),
         ],
@@ -648,10 +779,20 @@ class _DevLocalModeBanner extends StatelessWidget {
   const _DevLocalModeBanner({
     required this.compact,
     required this.includesWaitingStatus,
+    required this.personalChatOptIn,
+    required this.personalConnected,
+    required this.personalConnecting,
+    required this.connectionError,
+    required this.onConnect,
   });
 
   final bool compact;
   final bool includesWaitingStatus;
+  final bool personalChatOptIn;
+  final bool personalConnected;
+  final bool personalConnecting;
+  final String? connectionError;
+  final VoidCallback onConnect;
 
   @override
   Widget build(BuildContext context) {
@@ -666,14 +807,45 @@ class _DevLocalModeBanner extends StatelessWidget {
               horizontal: 16,
               vertical: compact ? 0 : 8,
             ),
-            child: Text(
-              includesWaitingStatus
-                  ? '개발 로컬 · 로그인/서버 없음 · 이 기기에 대기 중'
-                  : '개발용 로컬 모드 · 로그인/서버 연결 없음',
-              textAlign: TextAlign.center,
-              maxLines: compact ? 1 : null,
-              overflow: compact ? TextOverflow.ellipsis : TextOverflow.clip,
-            ),
+            child: personalChatOptIn
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Flexible(
+                        child: Text(
+                          personalConnected
+                              ? '개발용 · Mac 개인 서버 연결됨'
+                              : connectionError == null
+                              ? '개발용 · pairing 필요 · 이 기기에 대기 중'
+                              : '개발용 · 연결 실패 · 자동 재전송 없음',
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (personalConnecting)
+                        const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      else
+                        TextButton(
+                          onPressed: personalConnected ? null : onConnect,
+                          child: Text(personalConnected ? '연결됨' : 'Mac 서버 연결'),
+                        ),
+                    ],
+                  )
+                : Text(
+                    includesWaitingStatus
+                        ? '개발 로컬 · 로그인/서버 없음 · 이 기기에 대기 중'
+                        : '개발용 로컬 모드 · 로그인/서버 연결 없음',
+                    textAlign: TextAlign.center,
+                    maxLines: compact ? 1 : null,
+                    overflow: compact
+                        ? TextOverflow.ellipsis
+                        : TextOverflow.clip,
+                  ),
           ),
         ),
       ),

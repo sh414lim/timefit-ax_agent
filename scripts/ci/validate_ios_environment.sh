@@ -21,21 +21,24 @@ if [[ "$actual_target" == "${TIMEFIT_EXPECTED_FLUTTER_TARGET}" ]] ||
   exit 0
 fi
 
-# Personal owner-only SIWC bridge: only exact dev/debug simulator target.
+# Personal owner-only SIWC bridges: only exact dev/debug simulator targets.
 # The non-production boundary remains fail-closed for all other targets.
-personal_ax_target='lib/dev/main_personal_ax.dart'
-personal_ax_absolute_target="${repository_root}/${personal_ax_target}"
-if [[ "${TIMEFIT_ENVIRONMENT}" == 'dev' ]] &&
-    [[ "${TIMEFIT_EXPECTED_FLUTTER_TARGET}" == 'lib/main.dart' ]] &&
-    [[ "${CONFIGURATION}" == 'Debug-dev' ]] &&
-    [[ "${PLATFORM_NAME}" == 'iphonesimulator' ]] &&
-    [[ "${SDK_NAME}" == iphonesimulator* ]] &&
-    [[ -f "$personal_ax_absolute_target" ]] &&
-    [[ ! -L "$personal_ax_absolute_target" ]] &&
-    { [[ "$actual_target" == "$personal_ax_target" ]] ||
-      [[ "$actual_target" == "$personal_ax_absolute_target" ]]; }; then
-  exit 0
-fi
+for personal_ax_target in \
+  'lib/dev/main_personal_ax.dart' \
+  'lib/dev/main_personal_chat.dart'; do
+  personal_ax_absolute_target="${repository_root}/${personal_ax_target}"
+  if [[ "${TIMEFIT_ENVIRONMENT}" == 'dev' ]] &&
+      [[ "${TIMEFIT_EXPECTED_FLUTTER_TARGET}" == 'lib/main.dart' ]] &&
+      [[ "${CONFIGURATION}" == 'Debug-dev' ]] &&
+      [[ "${PLATFORM_NAME}" == 'iphonesimulator' ]] &&
+      [[ "${SDK_NAME}" == iphonesimulator* ]] &&
+      [[ -f "$personal_ax_absolute_target" ]] &&
+      [[ ! -L "$personal_ax_absolute_target" ]] &&
+      { [[ "$actual_target" == "$personal_ax_target" ]] ||
+        [[ "$actual_target" == "$personal_ax_absolute_target" ]]; }; then
+    exit 0
+  fi
+done
 
 chat_e2e_target='integration_test/chat_e2e_test.dart'
 expected_test_uri="file://${repository_root}/${chat_e2e_target}"
