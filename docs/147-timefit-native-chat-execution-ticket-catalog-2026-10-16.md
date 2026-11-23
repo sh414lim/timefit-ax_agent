@@ -2077,7 +2077,8 @@ dev/staging scheme을 사용하는 현재 프로젝트에서는 `--flavor`와 �
 **대상 경로:**
 
 - `lib/app/theme/`, `lib/features/**/presentation/`
-- `test/accessibility/`, `test/goldens/`
+- `test/accessibility/`, `test/app/theme/`
+- `test/features/conversations/presentation/`, `test/features/chat/presentation/`
 - `docs/accessibility-checklist.md`
 
 **구현 단계:**
@@ -2090,7 +2091,7 @@ dev/staging scheme을 사용하는 현재 프로젝트에서는 `--flavor`와 �
 
 **테스트 명령·케이스:**
 
-- `fvm flutter test test/accessibility test/goldens`
+- `fvm flutter test test/accessibility test/app/theme/app_theme_test.dart test/features/conversations/presentation/conversation_list_screen_test.dart test/features/chat/presentation/chat_screen_test.dart`
 - iOS VoiceOver, Android TalkBack: 목록→대화→작성→실패 재시도→첨부
 
 **인수 조건:**
