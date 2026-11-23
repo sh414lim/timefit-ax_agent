@@ -15,7 +15,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$ios_project/Flutter" "$project/integration_test"
+mkdir -p "$ios_project/Flutter" "$project/integration_test" "$project/lib/dev"
+touch "$project/lib/dev/main_personal_ax.dart"
 touch "$project/integration_test/chat_e2e_test.dart"
 project="$(cd "$project" && pwd -P)"
 ios_project="$project/ios"
@@ -110,6 +111,34 @@ run_case pass 'normal staging absolute entrypoint from flutter run' \
 run_case reject 'absolute entrypoint outside repository' \
   dev lib/main.dart "$sandbox/outside/lib/main.dart" Debug-dev \
   iphonesimulator iphonesimulator18.1
+run_case pass 'personal AX one-greeting dev debug simulator target' \
+  dev lib/main.dart lib/dev/main_personal_ax.dart Debug-dev \
+  iphonesimulator iphonesimulator18.1
+run_case pass 'personal AX absolute simulator target' \
+  dev lib/main.dart "$project/lib/dev/main_personal_ax.dart" Debug-dev \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'personal AX target staging rejected' \
+  staging lib/main_staging.dart lib/dev/main_personal_ax.dart Debug-staging \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'personal AX target device rejected' \
+  dev lib/main.dart lib/dev/main_personal_ax.dart Debug-dev \
+  iphoneos iphoneos18.1
+run_case reject 'personal AX profile rejected' \
+  dev lib/main.dart lib/dev/main_personal_ax.dart Profile-dev \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'personal AX release rejected' \
+  dev lib/main.dart lib/dev/main_personal_ax.dart Release-dev \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'personal AX wrong expected entrypoint rejected' \
+  dev lib/main_staging.dart lib/dev/main_personal_ax.dart Debug-dev \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'personal AX arbitrary sibling target rejected' \
+  dev lib/main.dart lib/dev/other_private.dart Debug-dev \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'personal AX outside-root spoof rejected' \
+  dev lib/main.dart "$sandbox/outside/lib/dev/main_personal_ax.dart" Debug-dev \
+  iphonesimulator iphonesimulator18.1
+
 run_case pass 'CHAT-074 dev debug simulator target' \
   dev lib/main.dart CHAT_E2E_LISTENER Debug-dev \
   iphonesimulator iphonesimulator18.1
