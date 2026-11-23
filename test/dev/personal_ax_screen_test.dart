@@ -19,7 +19,9 @@ class FakePersonalApi implements PersonalAxApi {
     'clientRequestId': id,
     'answer': state == 'complete' ? '실제 답변 자리표시 테스트' : null,
     'cleanup': null,
-    'failure': failureCode == null ? null : <String, Object>{'code': failureCode!},
+    'failure': failureCode == null
+        ? null
+        : <String, Object>{'code': failureCode!},
   };
 
   @override
