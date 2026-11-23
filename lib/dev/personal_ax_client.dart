@@ -56,12 +56,7 @@ class PersonalAxHttpClient implements PersonalAxApi {
       final request = await client
           .openUrl(
             method,
-            Uri(
-              scheme: 'http',
-              host: '127.0.0.1',
-              port: 8790,
-              path: path,
-            ),
+            Uri(scheme: 'http', host: '127.0.0.1', port: 8790, path: path),
           )
           .timeout(const Duration(seconds: 5));
       request.followRedirects = false;
@@ -72,11 +67,11 @@ class PersonalAxHttpClient implements PersonalAxApi {
         request.add(utf8.encode(jsonEncode(body)));
       }
 
-      final response =
-          await request.close().timeout(const Duration(seconds: 8));
+      final response = await request.close().timeout(
+        const Duration(seconds: 8),
+      );
       final bytes = BytesBuilder(copy: false);
-      await for (final chunk
-          in response.timeout(const Duration(seconds: 8))) {
+      await for (final chunk in response.timeout(const Duration(seconds: 8))) {
         if (bytes.length + chunk.length > 65536) {
           throw const PersonalAxFailure('response_too_large');
         }
@@ -97,8 +92,7 @@ class PersonalAxHttpClient implements PersonalAxApi {
 
       if (response.statusCode != (body == null ? 200 : 202)) {
         final code = decoded['code'];
-        if (code is String &&
-            RegExp(r'^[a-z_]{1,64}$').hasMatch(code)) {
+        if (code is String && RegExp(r'^[a-z_]{1,64}$').hasMatch(code)) {
           throw PersonalAxFailure(code);
         }
         throw const PersonalAxFailure('request_rejected');

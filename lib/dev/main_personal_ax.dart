@@ -47,7 +47,12 @@ class _PersonalAxScreenState extends State<PersonalAxScreen> {
   void apply(Map<String, dynamic> snapshot) {
     final next = snapshot['state'];
     if (next is! String ||
-        !const {'ready', 'pending', 'complete', 'dispatch_unknown'}.contains(next)) {
+        !const {
+          'ready',
+          'pending',
+          'complete',
+          'dispatch_unknown',
+        }.contains(next)) {
       error = 'invalid_state';
       return;
     }
@@ -71,7 +76,8 @@ class _PersonalAxScreenState extends State<PersonalAxScreen> {
     }
     final cleanup = snapshot['cleanup'];
     if (cleanup is Map) {
-      cleanedUp = cleanup['remoteRevokeConfirmed'] == true &&
+      cleanedUp =
+          cleanup['remoteRevokeConfirmed'] == true &&
           cleanup['localTokensCleared'] == true;
     }
     if (state == 'complete' || state == 'dispatch_unknown') {
@@ -81,7 +87,10 @@ class _PersonalAxScreenState extends State<PersonalAxScreen> {
 
   Future<void> refresh() async {
     if (busy || !mounted) return;
-    setState(() { busy = true; error = null; });
+    setState(() {
+      busy = true;
+      error = null;
+    });
     try {
       final snapshot = await widget.api.status(pairing.text.trim());
       if (mounted) setState(() => apply(snapshot));
@@ -105,7 +114,7 @@ class _PersonalAxScreenState extends State<PersonalAxScreen> {
     final id = const Uuid().v4();
     setState(() {
       busy = true;
-      sent = true;  // Never retry an uncertain dispatch with a new UUID.
+      sent = true; // Never retry an uncertain dispatch with a new UUID.
       requestId = id;
       state = 'pending';
       error = null;
@@ -128,54 +137,58 @@ class _PersonalAxScreenState extends State<PersonalAxScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('TimeFit AX · 개인 GPT 검증')),
-    body: SafeArea(child: ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        const Text('Mac iPhone 시뮬레이터 전용 · 127.0.0.1:8790'),
-        const SizedBox(height: 10),
-        const Text('개인 OAuth 1회 테스트. 일반 채팅 및 운영 서비스와 분리됩니다.'),
-        const SizedBox(height: 20),
-        TextField(
-          controller: pairing,
-          obscureText: true,
-          autocorrect: false,
-          enableSuggestions: false,
-          decoration: const InputDecoration(
-            labelText: 'Mac pairing.txt 값',
-            border: OutlineInputBorder(),
+    body: SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const Text('Mac iPhone 시뮬레이터 전용 · 127.0.0.1:8790'),
+          const SizedBox(height: 10),
+          const Text('개인 OAuth 1회 테스트. 일반 채팅 및 운영 서비스와 분리됩니다.'),
+          const SizedBox(height: 20),
+          TextField(
+            controller: pairing,
+            obscureText: true,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: const InputDecoration(
+              labelText: 'Mac pairing.txt 값',
+              border: OutlineInputBorder(),
+            ),
           ),
-        ),
-        const SizedBox(height: 10),
-        FilledButton(
-          onPressed: busy || sent ? null : refresh,
-          child: const Text('서버 연결 확인'),
-        ),
-        const SizedBox(height: 12),
-        Text('상태: ' + state, key: const Key('personal-ax-status')),
-        const SizedBox(height: 10),
-        FilledButton(
-          onPressed: !busy && !sent && state == 'ready' ? sendGreeting : null,
-          child: const Text('안녕하세요 1회 전송'),
-        ),
-        if (sent) OutlinedButton(
-          onPressed: busy ? null : refresh,
-          child: const Text('응답 상태만 재조회'),
-        ),
-        if (busy) const LinearProgressIndicator(),
-        if (error != null) Text(
-          '진단: ' + error! + ' (자동 재전송 없음)',
-          key: const Key('personal-ax-error'),
-        ),
-        if (requestId != null) Text('요청 ID: ' + requestId!),
-        if (answer != null) ...[
-          const Divider(height: 32),
-          const Text('실제 GPT 답변'),
-          SelectableText(answer!, key: const Key('personal-ax-answer')),
+          const SizedBox(height: 10),
+          FilledButton(
+            onPressed: busy || sent ? null : refresh,
+            child: const Text('서버 연결 확인'),
+          ),
+          const SizedBox(height: 12),
+          Text('상태: ' + state, key: const Key('personal-ax-status')),
+          const SizedBox(height: 10),
+          FilledButton(
+            onPressed: !busy && !sent && state == 'ready' ? sendGreeting : null,
+            child: const Text('안녕하세요 1회 전송'),
+          ),
+          if (sent)
+            OutlinedButton(
+              onPressed: busy ? null : refresh,
+              child: const Text('응답 상태만 재조회'),
+            ),
+          if (busy) const LinearProgressIndicator(),
+          if (error != null)
+            Text(
+              '진단: ' + error! + ' (자동 재전송 없음)',
+              key: const Key('personal-ax-error'),
+            ),
+          if (requestId != null) Text('요청 ID: ' + requestId!),
+          if (answer != null) ...[
+            const Divider(height: 32),
+            const Text('실제 GPT 답변'),
+            SelectableText(answer!, key: const Key('personal-ax-answer')),
+          ],
+          if (sent) Text('인증 정리 확인: ' + (cleanedUp ? '완료' : '미확인')),
+          const SizedBox(height: 24),
+          const Text('페어링 값은 앱 메모리에만 보관하며 Git이나 로그에 저장하지 않습니다.'),
         ],
-        if (sent) Text('인증 정리 확인: ' + (cleanedUp ? '완료' : '미확인')),
-        const SizedBox(height: 24),
-        const Text('페어링 값은 앱 메모리에만 보관하며 Git이나 로그에 저장하지 않습니다.'),
-      ],
-    )),
+      ),
+    ),
   );
 }

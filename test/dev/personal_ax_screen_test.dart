@@ -21,7 +21,10 @@ class FakePersonalApi implements PersonalAxApi {
   };
 
   @override
-  Future<Map<String, dynamic>> greeting(String pairing, String requestId) async {
+  Future<Map<String, dynamic>> greeting(
+    String pairing,
+    String requestId,
+  ) async {
     sends += 1;
     id = requestId;
     if (failSend) throw const PersonalAxFailure('request_timeout');
@@ -31,8 +34,9 @@ class FakePersonalApi implements PersonalAxApi {
 }
 
 void main() {
-  testWidgets('connection check does not send; one greeting shows answer',
-      (tester) async {
+  testWidgets('connection check does not send; one greeting shows answer', (
+    tester,
+  ) async {
     final api = FakePersonalApi();
     await tester.pumpWidget(PersonalAxVerificationApp(api: api));
     await tester.enterText(find.byType(TextField), 'a' * 43);
@@ -51,8 +55,9 @@ void main() {
     expect(send.onPressed, isNull);
   });
 
-  testWidgets('timeout never permits another provider dispatch',
-      (tester) async {
+  testWidgets('timeout never permits another provider dispatch', (
+    tester,
+  ) async {
     final api = FakePersonalApi()..failSend = true;
     await tester.pumpWidget(PersonalAxVerificationApp(api: api));
     await tester.enterText(find.byType(TextField), 'a' * 43);
