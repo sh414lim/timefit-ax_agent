@@ -30,6 +30,14 @@ CHAT-070은 REL-001, REL-002, CHAT-053, CHAT-062에 의해 전체 완료가 차�
 - [x] 키보드가 열린 Home → 네 가지 프리뷰 → Home 및 크기 전환에서 동일 EditableText와 실제 TextInput client를 유지한다. controller/FocusNode 유지뿐 아니라 clearClient/setClient/hide 호출 부재, selection/composing 보존, 후속 편집과 dispose 시 연결 종료를 검사한다.
 - [x] 900×600dp 확장형 근무표의 100/200% 가로 action overflow와 확장형 대화의 세로 overflow를 재현 후 수정한다. 짧은 높이의 대화/홈 사이드바는 scroll, 좁은 라벨/공지 제목·메타는 wrap을 허용하되 폰트·본문·데모 비활성 상태는 유지한다. 4개 화면의 추가 회귀와 한계는 `evidence/chat-070-preview-ime-and-expanded.md`에 기록한다.
 
+## 로컬 재검증 명령
+
+CHAT-070의 접근성 행렬과 현재 golden을 함께 실행하려면 아래 명령을 사용한다. Golden 파일은 각 widget test 옆의 `goldens/` 디렉터리에 있으므로 별도 `test/goldens` test suite 경로는 사용하지 않는다.
+
+```sh
+fvm flutter test test/accessibility test/app/theme/app_theme_test.dart test/features/conversations/presentation/conversation_list_screen_test.dart test/features/chat/presentation/chat_screen_test.dart
+```
+
 ## 실제 기기 수동 검증 필요
 
 - [ ] iOS 실제 기기에서 VoiceOver를 켜고 목록 → 대화 → 작성 → 실패 재시도 → 첨부 제거·미리보기 순서의 focus 이동과 낭독을 녹화한다.
