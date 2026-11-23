@@ -8,6 +8,7 @@ class FakePersonalApi implements PersonalAxApi {
   String? id;
   bool failSend = false;
   String state = 'ready';
+  String? failureCode;
 
   @override
   Future<Map<String, dynamic>> status(String pairing) async => {
@@ -18,6 +19,7 @@ class FakePersonalApi implements PersonalAxApi {
     'clientRequestId': id,
     'answer': state == 'complete' ? '실제 답변 자리표시 테스트' : null,
     'cleanup': null,
+    'failure': failureCode == null ? null : <String, Object>{'code': failureCode!},
   };
 
   @override
@@ -49,6 +51,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.sends, 1);
     expect(find.text('실제 답변 자리표시 테스트'), findsOneWidget);
+    final send = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, '안녕하세요 1회 전송'),
+    );
+    expect(send.onPressed, isNull);
+  });
+
+  testWidgets('failure detail is visible and never enables re-dispatch', (
+    tester,
+  ) async {
+    final api = FakePersonalApi()
+      ..state = 'dispatch_unknown'
+      ..id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+      ..failureCode = 'live_session_expired';
+    await tester.pumpWidget(PersonalAxVerificationApp(api: api));
+    await tester.enterText(find.byType(TextField), 'a' * 43);
+    await tester.tap(find.text('서버 연결 확인'));
+    await tester.pumpAndSettle();
+    expect(find.text('상태: dispatch_unknown'), findsOneWidget);
+    expect(find.text('SIWC 오류 코드: live_session_expired'), findsOneWidget);
+    expect(api.sends, 0);
     final send = tester.widget<FilledButton>(
       find.widgetWithText(FilledButton, '안녕하세요 1회 전송'),
     );
