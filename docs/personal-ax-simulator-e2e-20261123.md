@@ -72,3 +72,17 @@ bash scripts/ci/test_ios_target_boundaries.sh
 - 기존 2026-11-22 G2 단일 호출은 **모바일 E2E 성공의 증거가 아닙니다**.
 - 이 파일과 Flutter 테스트는 아직 실제 iPhone 시뮬레이터↔실계정 E2E를 증명하지 않습니다.
 - 개인 로컬 실험 전용이며 운영 연결, 다중 사용자, 영속 세션, WSS, 상용 계정 중계를 지원하지 않습니다.
+
+## 2026-11-23 dispatch_unknown 후속 진단
+
+실제 iPhone 시뮬레이터에서는 앱에서 Python으로 요청이 접수돼 개인 SQLite에 기록되었지만,
+답변이 없는 `dispatch_unknown` 상태가 두 차례 관측되었습니다. 토큰 정리 표시는 완료였으며,
+이는 **GPT 응답 성공이나 외부 제공자의 요청 수락 확인이 아닙니다**. 기존 코드에서는 원래
+내부 실패 원인을 제거했으므로 이전 SQLite만으로 원인을 확정할 수 없습니다.
+
+Python 저장소의 별도 Draft PR [#7](https://github.com/sh414lim/timefit-ax-server/pull/7)은
+개인 one-shot 상태에 allowlist로 제한한 `failure.code`를 추가하며,
+이번 Flutter 개발 화면은 그 코드가 있을 때만 `SIWC 오류 코드`로 표시합니다.
+서버 오류 내용, GPT 답변 원문, OAuth 토큰 및 페어링 값을 표시·저장하지 않습니다.
+원인 미확인 요청은 동일 세션에서 다시 보내지 않으며, 새 계정 호출은 오프라인 회귀 검사와
+본인 동의를 마친 별도 실험에서만 진행합니다. 앱 코드와 문서 자체는 실제 E2E 성공 증거가 아닙니다.
