@@ -32,8 +32,12 @@ bash scripts/ci/test_ios_target_boundaries.sh
 ## 본인 승인 실제 E2E
 
 이 단계는 본인 Mac에서 새 OAuth 동의와 실계정 사용량 발생을
-명시적으로 승인한 후에만 수행한다. 서버는 `--personal-chat`으로
-실행하고 새 private DB와 pairing 파일을 사용한다. 서버의
+명시적으로 승인한 후에만 수행한다. 서버는 `--openai-sdk`,
+`--allow-missing-content-type`, `--personal-chat`으로 실행하고 새 private
+DB와 pairing 파일을 사용한다. `--allow-missing-content-type`은 공식
+OpenAI endpoint의 200 응답에서 Content-Type이 완전히 빠지는 현재 SIWC
+호환 경로에만 사용하며 외부 endpoint나 비-200 응답을 허용하지 않는다.
+서버의
 `personal.ready loopback=8790 mode=personal_chat`을 확인한 다음:
 
 ```bash
@@ -67,4 +71,24 @@ from personal_chat_turns order by sequence;
 
 성공 판정은 양쪽의 user ID 일치, 별도 assistant ID, 서버 `complete`,
 앱 assistant 버블, Outbox `completed`, 재시작 복구를 모두 확인해야 한다.
-실제 GPT 호출은 CI와 이 자동 작업에서 실행하지 않는다.
+실제 GPT 호출은 CI에서 실행하지 않는다.
+
+## 2026-11-23 본인 Mac 실제 검증 결과
+
+계정 소유자의 사용량 승인을 받은 새 OAuth 세션에서 한 개의 합성 텍스트를
+전송했다. Python private SQLite와 Flutter Drift SQLite를 본문·pairing·토큰
+없이 대조한 결과는 다음과 같다.
+
+- 원래 user UUID가 서버 `request_id`, 앱 `local_id`, `server_id`,
+  `client_message_id`, Outbox ID와 `client_request_id`에 그대로 유지됐다.
+- 서버는 `sequence=1`, `state=complete`, 비어 있지 않은 답변을 커밋했다.
+- 별도 remote assistant UUID가 생성됐고 앱은
+  `personal-assistant:<remote UUID>`로 한 번만 저장·표시했다.
+- user와 assistant가 모두 `sent`, Outbox는 `completed`, 재시도 횟수는 0이었다.
+- 앱을 완전히 종료·재실행한 뒤 같은 대화의 두 버블이 SQLite에서 복구됐다.
+- pairing은 재실행 뒤 연결되지 않은 상태로 초기화돼 실행 메모리에만
+  유지된다는 경계도 확인됐다.
+
+이 증거는 본인 Mac의 iPhone Simulator와 개인 loopback 서버에만 해당한다.
+운영 인증·Supabase·외부 공개·실기기·다중 사용자 중계·스토어 배포를
+검증하거나 허용하지 않는다.

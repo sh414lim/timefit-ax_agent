@@ -38,6 +38,38 @@ typedef DevChatDatabaseFactory = Future<AppDatabase> Function();
 typedef DevAttachmentRootFactory = Future<Directory> Function();
 typedef DevChatDisposalObserver = void Function(Future<void> disposal);
 
+Future<String?> showPersonalChatPairingDialog(BuildContext context) {
+  var enteredPairing = '';
+  return showDialog<String>(
+    context: context,
+    builder: (BuildContext context) => AlertDialog(
+      title: const Text('Mac 개인 서버 연결'),
+      content: TextField(
+        autofocus: true,
+        obscureText: true,
+        autocorrect: false,
+        enableSuggestions: false,
+        decoration: const InputDecoration(
+          labelText: 'pairing.txt 값',
+          helperText: '127.0.0.1:8790 · 이 실행 메모리에만 유지',
+        ),
+        onChanged: (value) => enteredPairing = value,
+        onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('취소'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(enteredPairing.trim()),
+          child: const Text('연결'),
+        ),
+      ],
+    ),
+  );
+}
+
 Future<AppDatabase> openDevChatDatabase() async {
   final support = await getApplicationSupportDirectory();
   final namespace = Directory(
@@ -191,36 +223,7 @@ class _DevChatShellState extends State<DevChatShell>
         _session == null) {
       return;
     }
-    final controller = TextEditingController();
-    final pairing = await showDialog<String>(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text('Mac 개인 서버 연결'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          obscureText: true,
-          autocorrect: false,
-          enableSuggestions: false,
-          decoration: const InputDecoration(
-            labelText: 'pairing.txt 값',
-            helperText: '127.0.0.1:8790 · 이 실행 메모리에만 유지',
-          ),
-          onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('연결'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
+    final pairing = await showPersonalChatPairingDialog(context);
     if (pairing == null || !mounted) return;
     setState(() {
       _personalConnecting = true;
