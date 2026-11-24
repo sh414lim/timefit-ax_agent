@@ -10,6 +10,7 @@ import '../core/database/app_database.dart';
 import '../core/database/local_repository_session.dart';
 import '../dev/personal_chat_client.dart';
 import '../dev/personal_chat_outbox_executor.dart';
+import '../features/account/presentation/account_preview.dart';
 import '../features/attachments/application/attachment_picker.dart';
 import '../features/attachments/application/dev_local_attachment_observability.dart';
 import '../features/attachments/application/dev_local_attachment_preview_controller.dart';
@@ -33,6 +34,8 @@ import '../features/conversations/presentation/archived_conversation_screen.dart
 import '../features/conversations/presentation/conversation_list_screen.dart';
 import '../features/conversations/presentation/conversation_menu.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/home/presentation/widgets/brand_asset_slot.dart';
+import '../features/home/presentation/widgets/demo_quick_composer.dart';
 
 typedef DevChatDatabaseFactory = Future<AppDatabase> Function();
 typedef DevAttachmentRootFactory = Future<Directory> Function();
@@ -108,6 +111,7 @@ class DevChatShell extends StatefulWidget {
     this.disposalObserver,
     this.personalChatOptIn = false,
     this.personalChatApi,
+    this.chatExperienceEnabled = false,
     super.key,
   });
 
@@ -120,6 +124,7 @@ class DevChatShell extends StatefulWidget {
   final DevChatDisposalObserver? disposalObserver;
   final bool personalChatOptIn;
   final PersonalChatApi? personalChatApi;
+  final bool chatExperienceEnabled;
 
   @override
   State<DevChatShell> createState() => _DevChatShellState();
@@ -141,6 +146,29 @@ class _DevChatShellState extends State<DevChatShell>
   final Map<String, String> _draftClientMessageIds = <String, String>{};
   final TextEditingController _homeDraftController = TextEditingController();
   final FocusNode _homeDraftFocusNode = FocusNode();
+  final TextEditingController _newDraftController = TextEditingController();
+  final FocusNode _newDraftFocusNode = FocusNode();
+  final TextEditingController _listSearchController = TextEditingController();
+  final PageStorageBucket _listStorage = PageStorageBucket();
+  final Map<String, String> _roomTextDrafts = <String, String>{};
+  bool _showingNewChat = false;
+  bool _sendingFirst = false;
+  int _firstDraftRevision = 0;
+  String _lastHomeDraft = '';
+  String _lastNewDraft = '';
+
+  bool get _newExperience =>
+      widget.chatExperienceEnabled && !widget.personalChatOptIn;
+
+  void _trackDraftChange() {
+    final home = _homeDraftController.text;
+    final newChat = _newDraftController.text;
+    if (home == _lastHomeDraft && newChat == _lastNewDraft) return;
+    _lastHomeDraft = home;
+    _lastNewDraft = newChat;
+    _firstDraftRevision += 1;
+  }
+
   AttachmentCancellation? _attachmentCancellation;
   OutboxWorker? _personalChatWorker;
   Timer? _personalChatTimer;
@@ -160,6 +188,8 @@ class _DevChatShellState extends State<DevChatShell>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _homeDraftController.addListener(_trackDraftChange);
+    _newDraftController.addListener(_trackDraftChange);
     unawaited(_initialize());
   }
 
@@ -280,6 +310,81 @@ class _DevChatShellState extends State<DevChatShell>
     );
   }
 
+  void _beginConversation() {
+    if (!_newExperience) {
+      unawaited(_createConversation());
+      return;
+    }
+    _conversationGeneration += 1;
+    setState(() => _showingNewChat = true);
+  }
+
+  void _closeNewChat() {
+    _conversationGeneration += 1;
+    _newDraftFocusNode.unfocus();
+    setState(() => _showingNewChat = false);
+  }
+
+  Future<void> _sendFirst(TextEditingController controller) async {
+    final body = controller.text;
+    final database = _database;
+    final session = _session;
+    if (_sendingFirst ||
+        database == null ||
+        session == null ||
+        body.trim().isEmpty ||
+        ComposerController.characterCountOf(body) >
+            ComposerController.maximumLength) {
+      return;
+    }
+    final admission = ChatSessionOwnedSurfaces.admit(context);
+    final generation = _conversationGeneration;
+    final revision = _firstDraftRevision;
+    bool current() =>
+        mounted &&
+        !_disposed &&
+        admission.isAllowed &&
+        generation == _conversationGeneration;
+    if (!current()) return;
+    setState(() => _sendingFirst = true);
+    try {
+      final command = await SendMessage(
+        database: database,
+        session: session,
+        clock: DateTime.now,
+      ).startConversation(bodyText: body, stillAdmitted: current);
+      if (!current()) return;
+      // A user edit during the save belongs to the newly opened room.
+      if (revision == _firstDraftRevision) {
+        controller.clear();
+      } else {
+        if (controller.text.isNotEmpty) {
+          _roomTextDrafts[command.conversationId] = controller.text;
+        }
+        controller.clear();
+      }
+      FocusManager.instance.primaryFocus?.unfocus();
+      setState(() => _showingNewChat = false);
+      _openConversation(command.conversationId);
+    } on Object {
+      if (current()) _showLocalNotice('메시지를 저장하지 못했습니다. 다시 시도해 주세요.');
+    } finally {
+      if (mounted && !_disposed) setState(() => _sendingFirst = false);
+    }
+  }
+
+  void _rememberCurrentDraft() {
+    final id = _selectedConversationId;
+    final composer = _composer;
+    if (!_newExperience || id == null || composer == null) return;
+    final draft = composer.draftForNavigation;
+    if (draft.isEmpty) {
+      _roomTextDrafts.remove(id);
+    } else {
+      _roomTextDrafts[id] = draft;
+    }
+  }
+
   Future<void> _createConversation() async {
     if (_creatingConversation) return;
     final ChatSessionOwnedSurfaceAdmission admission =
@@ -305,6 +410,7 @@ class _DevChatShellState extends State<DevChatShell>
   }
 
   Future<void> _prepareConversation(String conversationId) async {
+    _rememberCurrentDraft();
     final int generation = ++_conversationGeneration;
     _attachmentCancellation?.cancel();
     _composer?.dispose();
@@ -344,11 +450,12 @@ class _DevChatShellState extends State<DevChatShell>
           session: session,
         ),
         mutationAdmission: () => admission.isAllowed,
-      );
+      )..updateDraft(_roomTextDrafts[conversationId] ?? '');
     });
   }
 
   void _closeConversation() {
+    _rememberCurrentDraft();
     _conversationGeneration += 1;
     _attachmentCancellation?.cancel();
     _attachmentCancellation = null;
@@ -617,6 +724,9 @@ class _DevChatShellState extends State<DevChatShell>
     _composer?.dispose();
     _homeDraftController.dispose();
     _homeDraftFocusNode.dispose();
+    _newDraftFocusNode.dispose();
+    _newDraftController.dispose();
+    _listSearchController.dispose();
     _conversationActions?.removeListener(_handleActionsState);
     _conversationActions?.dispose();
     final controller = _listController;
@@ -642,8 +752,9 @@ class _DevChatShellState extends State<DevChatShell>
         _listController != null &&
         _selectedConversationId == null &&
         !_showingArchive &&
-        !_showingConversationList;
-    return Scaffold(
+        !_showingConversationList &&
+        !_showingNewChat;
+    final shell = Scaffold(
       body: Column(
         children: <Widget>[
           if (!showingSourceHome || widget.personalChatOptIn)
@@ -660,6 +771,27 @@ class _DevChatShellState extends State<DevChatShell>
           Expanded(child: _buildContent(compactKeyboardLayout)),
         ],
       ),
+    );
+    if (!_newExperience) return shell;
+    return PopScope<Object?>(
+      canPop:
+          _selectedConversationId == null &&
+          !_showingNewChat &&
+          !_showingConversationList &&
+          !_showingArchive,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_selectedConversationId != null) {
+          _closeConversation();
+        } else if (_showingNewChat) {
+          _closeNewChat();
+        } else if (_showingArchive) {
+          setState(() => _showingArchive = false);
+        } else if (_showingConversationList) {
+          setState(() => _showingConversationList = false);
+        }
+      },
+      child: shell,
     );
   }
 
@@ -712,6 +844,7 @@ class _DevChatShellState extends State<DevChatShell>
                 ? const Center(child: CircularProgressIndicator())
                 : ChatScreen.repository(
                     title: '로컬 대화',
+                    axBranding: _newExperience,
                     repository: _messageRepository!,
                     conversationId: conversationId,
                     composerController: composer,
@@ -729,6 +862,15 @@ class _DevChatShellState extends State<DevChatShell>
         ],
       );
     }
+    if (_showingNewChat) {
+      return _NewChatPage(
+        controller: _newDraftController,
+        focusNode: _newDraftFocusNode,
+        onBack: _closeNewChat,
+        onSend: () => unawaited(_sendFirst(_newDraftController)),
+        sendEnabled: !_sendingFirst,
+      );
+    }
     if (_showingArchive) {
       return ArchivedConversationScreen(
         conversations: _conversationRepository!.watchArchivedConversations(),
@@ -743,17 +885,34 @@ class _DevChatShellState extends State<DevChatShell>
         onOpenConversationList: () =>
             setState(() => _showingConversationList = true),
         onOpenArchive: () => setState(() => _showingArchive = true),
-        onNewConversation: () => unawaited(_createConversation()),
+        onNewConversation: _beginConversation,
+        onSend: _newExperience
+            ? () => unawaited(_sendFirst(_homeDraftController))
+            : null,
+        sendEnabled: !_sendingFirst,
         draftController: _homeDraftController,
         draftFocusNode: _homeDraftFocusNode,
       );
     }
-    return ConversationListScreen(
+    final list = ConversationListScreen(
       controller: controller,
+      searchController: _newExperience ? _listSearchController : null,
       loadOnMount: false,
       onBack: () => setState(() => _showingConversationList = false),
-      onNewConversation: () => unawaited(_createConversation()),
-      onOpenSettings: () => _showLocalNotice('설정은 로컬 개발 모드에서 비활성화되어 있습니다.'),
+      onNewConversation: _beginConversation,
+      onOpenSettings: () {
+        if (!_newExperience) {
+          _showLocalNotice('설정은 로컬 개발 모드에서 비활성화되어 있습니다.');
+          return;
+        }
+        unawaited(
+          Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => const AxAccountPreviewPage(),
+            ),
+          ),
+        );
+      },
       onOpenArchive: () => setState(() => _showingArchive = true),
       onOpenConversation: _openConversation,
       onConversationAction: (conversation, action) =>
@@ -761,6 +920,9 @@ class _DevChatShellState extends State<DevChatShell>
       isConversationBusy: (String id) =>
           _conversationActions?.state.isBusy(id) ?? false,
     );
+    return _newExperience
+        ? PageStorage(bucket: _listStorage, child: list)
+        : list;
   }
 }
 
@@ -875,4 +1037,101 @@ class _LocalState extends StatelessWidget {
       ),
     );
   }
+}
+
+class _NewChatPage extends StatelessWidget {
+  const _NewChatPage({
+    required this.controller,
+    required this.focusNode,
+    required this.onBack,
+    required this.onSend,
+    required this.sendEnabled,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onBack;
+  final VoidCallback onSend;
+  final bool sendEnabled;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      leading: BackButton(onPressed: onBack),
+      title: const Row(
+        children: <Widget>[
+          TimeFitAssetSlot(
+            kind: TimeFitAssetKind.squareLogo,
+            width: 28,
+            height: 28,
+          ),
+          SizedBox(width: 10),
+          Text('새 채팅'),
+        ],
+      ),
+    ),
+    body: SafeArea(
+      child: Column(
+        children: <Widget>[
+          Expanded(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const TimeFitAssetSlot(
+                      kind: TimeFitAssetKind.mobileRobot,
+                      width: 122,
+                      height: 122,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '무엇을 도와드릴까요?',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.center,
+                      children: <Widget>[
+                        for (final label in [
+                          '오늘 매장 현황',
+                          '이번 주 근무표',
+                          '비용 분석',
+                          '직원 공지 작성',
+                        ])
+                          ActionChip(
+                            label: Text(label),
+                            onPressed: () =>
+                                controller.value = TextEditingValue(
+                                  text: label,
+                                  selection: TextSelection.collapsed(
+                                    offset: label.length,
+                                  ),
+                                ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+            child: DemoQuickComposer(
+              key: const Key('new-chat-composer'),
+              controller: controller,
+              focusNode: focusNode,
+              onSend: onSend,
+              sendEnabled: sendEnabled,
+              inputMaxHeight: 100,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }

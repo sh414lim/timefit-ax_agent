@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../home/presentation/widgets/brand_asset_slot.dart';
 import '../../domain/conversation_summary.dart';
 
 class ConversationListRow extends StatelessWidget {
@@ -8,6 +9,7 @@ class ConversationListRow extends StatelessWidget {
     required this.updatedAtLabel,
     required this.onTap,
     this.trailing,
+    this.showAvatar = false,
     super.key,
   });
 
@@ -15,6 +17,7 @@ class ConversationListRow extends StatelessWidget {
   final String updatedAtLabel;
   final VoidCallback onTap;
   final Widget? trailing;
+  final bool showAvatar;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +40,14 @@ class ConversationListRow extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              if (showAvatar) ...<Widget>[
+                const TimeFitAssetSlot(
+                  kind: TimeFitAssetKind.mobileRobot,
+                  width: 40,
+                  height: 40,
+                ),
+                const SizedBox(width: 10),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

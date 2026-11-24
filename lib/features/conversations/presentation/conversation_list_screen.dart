@@ -17,6 +17,7 @@ class ConversationListScreen extends StatefulWidget {
     this.onBack,
     this.loadOnMount = true,
     this.currentTime,
+    this.searchController,
     this.onConversationAction,
     this.isConversationBusy,
     super.key,
@@ -30,6 +31,7 @@ class ConversationListScreen extends StatefulWidget {
   final VoidCallback? onBack;
   final bool loadOnMount;
   final DateTime Function()? currentTime;
+  final TextEditingController? searchController;
   final void Function(ConversationSummary, ConversationMenuAction)?
   onConversationAction;
   final bool Function(String conversationId)? isConversationBusy;
@@ -84,6 +86,12 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
             : BackButton(onPressed: widget.onBack),
         title: const Text('대화'),
         actions: <Widget>[
+          if (widget.searchController != null)
+            IconButton(
+              tooltip: '새 채팅',
+              onPressed: widget.onNewConversation,
+              icon: const Icon(Icons.edit_square),
+            ),
           Semantics(
             button: true,
             label: '설정 열기',
@@ -95,17 +103,45 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
           ),
         ],
       ),
-      floatingActionButton: _state.phase == ConversationListPhase.empty
+      floatingActionButton:
+          widget.searchController != null ||
+              _state.phase == ConversationListPhase.empty
           ? null
           : FloatingActionButton.extended(
               onPressed: widget.onNewConversation,
               label: const Text('새 대화'),
             ),
-      body: SafeArea(child: _buildBody()),
+      body: SafeArea(
+        child: widget.searchController == null
+            ? _buildBody()
+            : Column(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: TextField(
+                      controller: widget.searchController,
+                      textInputAction: TextInputAction.search,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: '대화 제목 또는 메시지 검색',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: widget.searchController!,
+                      builder: (context, value, _) => _buildBody(value.text),
+                    ),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody([String query = '']) {
     return switch (_state.phase) {
       ConversationListPhase.loading => Center(
         child: Semantics(
@@ -136,26 +172,41 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
         ),
       ),
       ConversationListPhase.ready ||
-      ConversationListPhase.stale => _buildConversationList(),
+      ConversationListPhase.stale => _buildConversationList(query),
     };
   }
 
-  Widget _buildConversationList() {
+  Widget _buildConversationList(String query) {
+    final String normalized = query.trim().toLowerCase();
+    final conversations = _state.conversations
+        .where(
+          (conversation) =>
+              normalized.isEmpty ||
+              conversation.title.toLowerCase().contains(normalized) ||
+              conversation.displayPreview.toLowerCase().contains(normalized),
+        )
+        .toList(growable: false);
+    if (conversations.isEmpty && normalized.isNotEmpty) {
+      return const Center(child: Text('검색 결과가 없습니다'));
+    }
     final DateTime now = widget.currentTime?.call() ?? DateTime.now();
     final bool hasBanner = _state.phase == ConversationListPhase.stale;
     final int conversationOffset = hasBanner ? 1 : 0;
     return RefreshIndicator(
       onRefresh: widget.controller.refresh,
       child: ListView.separated(
+        key: widget.searchController == null
+            ? null
+            : const PageStorageKey<String>('ax-conversations-list'),
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _state.conversations.length + conversationOffset + 1,
+        itemCount: conversations.length + conversationOffset + 1,
         separatorBuilder: (BuildContext context, int index) =>
             const Divider(height: 1),
         itemBuilder: (BuildContext context, int index) {
           if (hasBanner && index == 0) {
             return ConversationSyncBanner(state: _state);
           }
-          if (index == _state.conversations.length + conversationOffset) {
+          if (index == conversations.length + conversationOffset) {
             return Semantics(
               button: true,
               label: '보관된 대화 열기',
@@ -169,9 +220,10 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
           }
 
           final ConversationSummary conversation =
-              _state.conversations[index - conversationOffset];
+              conversations[index - conversationOffset];
           return ConversationListRow(
             conversation: conversation,
+            showAvatar: widget.searchController != null,
             updatedAtLabel: _formatUpdatedAt(conversation.updatedAt, now),
             onTap: () => widget.onOpenConversation(conversation.id),
             trailing: widget.onConversationAction == null

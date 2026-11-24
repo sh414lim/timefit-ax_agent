@@ -19,6 +19,8 @@ class DemoHomeScreen extends StatefulWidget {
     this.draftController,
     this.draftFocusNode,
     this.onPreviewAction,
+    this.onSend,
+    this.sendEnabled = true,
     super.key,
   });
 
@@ -30,6 +32,8 @@ class DemoHomeScreen extends StatefulWidget {
   final TextEditingController? draftController;
   final FocusNode? draftFocusNode;
   final ValueChanged<DemoHomeAction>? onPreviewAction;
+  final VoidCallback? onSend;
+  final bool sendEnabled;
 
   @override
   State<DemoHomeScreen> createState() => _DemoHomeScreenState();
@@ -66,6 +70,13 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
   }
 
   void _select(DemoHomeAction action) {
+    if (widget.onSend != null) {
+      _draft.value = TextEditingValue(
+        text: action.label,
+        selection: TextSelection.collapsed(offset: action.label.length),
+      );
+      return;
+    }
     setState(() => _preview = action);
     widget.onPreviewAction?.call(action);
   }
@@ -100,6 +111,8 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
                           draftController: _draft,
                           draftFocusNode: _draftFocus,
                           composerKey: _composerKey,
+                          onSend: widget.onSend,
+                          sendEnabled: widget.sendEnabled,
                         )
                       : _MobileHome(
                           onOpenConversationList: widget.onOpenConversationList,
@@ -107,6 +120,8 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
                           draftController: _draft,
                           draftFocusNode: _draftFocus,
                           composerKey: _composerKey,
+                          onSend: widget.onSend,
+                          sendEnabled: widget.sendEnabled,
                         );
                 },
               ),
@@ -129,6 +144,8 @@ class _MobileHome extends StatelessWidget {
     required this.draftController,
     required this.draftFocusNode,
     required this.composerKey,
+    this.onSend,
+    this.sendEnabled = true,
   });
 
   final VoidCallback onOpenConversationList;
@@ -136,6 +153,8 @@ class _MobileHome extends StatelessWidget {
   final TextEditingController draftController;
   final FocusNode draftFocusNode;
   final Key composerKey;
+  final VoidCallback? onSend;
+  final bool sendEnabled;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -168,6 +187,8 @@ class _MobileHome extends StatelessWidget {
                   key: composerKey,
                   controller: draftController,
                   focusNode: draftFocusNode,
+                  onSend: onSend,
+                  sendEnabled: sendEnabled,
                 ),
               ),
             ),
@@ -285,6 +306,8 @@ class _ExpandedHome extends StatelessWidget {
     required this.draftController,
     required this.draftFocusNode,
     required this.composerKey,
+    this.onSend,
+    this.sendEnabled = true,
   });
 
   final ConversationListState recent;
@@ -296,6 +319,8 @@ class _ExpandedHome extends StatelessWidget {
   final TextEditingController draftController;
   final FocusNode draftFocusNode;
   final Key composerKey;
+  final VoidCallback? onSend;
+  final bool sendEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -385,6 +410,8 @@ class _ExpandedHome extends StatelessWidget {
                           key: composerKey,
                           controller: draftController,
                           focusNode: draftFocusNode,
+                          onSend: onSend,
+                          sendEnabled: sendEnabled,
                         ),
                       ],
                     ),

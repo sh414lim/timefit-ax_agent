@@ -20,6 +20,7 @@ class TimeFitApp extends StatefulWidget {
     this.devPreviewPdfRenderer,
     this.devAttachmentObservability,
     this.devDisposalObserver,
+    this.devChatExperienceEnabled = true,
     super.key,
   });
 
@@ -31,6 +32,7 @@ class TimeFitApp extends StatefulWidget {
   final DevLocalFileRenderer? devPreviewPdfRenderer;
   final DevLocalAttachmentObservability? devAttachmentObservability;
   final DevChatDisposalObserver? devDisposalObserver;
+  final bool devChatExperienceEnabled;
 
   @override
   State<TimeFitApp> createState() => _TimeFitAppState();
@@ -65,6 +67,7 @@ class _TimeFitAppState extends State<TimeFitApp> {
         themeMode: ThemeMode.system,
         title: widget.environment.displayName,
         home: DevChatShell(
+          chatExperienceEnabled: widget.devChatExperienceEnabled,
           databaseFactory: widget.devDatabaseFactory,
           attachmentRootFactory: widget.devAttachmentRootFactory,
           attachmentPicker: widget.devAttachmentPicker,

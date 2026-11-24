@@ -5,6 +5,7 @@ import '../application/composer_controller.dart';
 import '../application/history_controller.dart';
 import '../domain/chat_message.dart';
 import '../domain/repositories/message_repository.dart';
+import 'widgets/ax_thinking_bubble.dart';
 import 'widgets/chat_composer.dart';
 import 'widgets/connection_banner.dart';
 import 'widgets/message_list.dart';
@@ -28,6 +29,8 @@ class ChatScreen extends StatefulWidget {
     this.compactKeyboardLayout = false,
     this.savesLocallyOnly = false,
     this.connectionController,
+    this.requestProgress,
+    this.axBranding = false,
     super.key,
   }) : repository = null;
 
@@ -47,6 +50,8 @@ class ChatScreen extends StatefulWidget {
     this.compactKeyboardLayout = false,
     this.savesLocallyOnly = false,
     this.connectionController,
+    this.requestProgress,
+    this.axBranding = false,
     super.key,
   }) : messages = null;
 
@@ -66,6 +71,8 @@ class ChatScreen extends StatefulWidget {
   final bool compactKeyboardLayout;
   final bool savesLocallyOnly;
   final ChatConnectionController? connectionController;
+  final AxRequestProgress? requestProgress;
+  final bool axBranding;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -264,16 +271,35 @@ class _ChatScreenState extends State<ChatScreen> {
                 message: '이 대화의 첫 메시지를 기다리고 있습니다.',
               );
             }
-            return MessageList(
+            final progress = widget.requestProgress;
+            final list = MessageList(
               key: ValueKey<String>(
                 'message-list-${widget.conversationId ?? 'direct'}',
               ),
               messages: ordered,
+              axBranding: widget.axBranding,
               scrollController: widget.scrollController,
               onRetry: _matchingComposer?.retry,
               historyState: _matchingHistory?.state,
               onTopDistance: _matchingHistory?.onTopDistance,
               onHistoryRetry: _matchingHistory?.retry,
+            );
+            final isThinking =
+                progress != null &&
+                progress.conversationId == widget.conversationId &&
+                progress.stage == AxRequestStage.providerStarted &&
+                ordered.any(
+                  (message) =>
+                      message.isMine &&
+                      message.clientMessageId == progress.requestId,
+                );
+            if (!widget.axBranding && progress == null) return list;
+            return Column(
+              children: <Widget>[
+                Expanded(child: list),
+                if (isThinking)
+                  AxThinkingBubble(key: ValueKey(progress.requestId)),
+              ],
             );
           },
     );

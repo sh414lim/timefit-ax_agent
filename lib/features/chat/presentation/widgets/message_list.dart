@@ -13,10 +13,12 @@ class MessageList extends StatefulWidget {
     this.historyState,
     this.onTopDistance,
     this.onHistoryRetry,
+    this.axBranding = false,
     super.key,
   });
 
   final List<ChatMessage> messages;
+  final bool axBranding;
   final ScrollController? scrollController;
   final Future<bool> Function(String clientMessageId)? onRetry;
   final HistoryState? historyState;
@@ -218,7 +220,11 @@ class _MessageListState extends State<MessageList> with WidgetsBindingObserver {
                 ),
                 children: <Widget>[
                   if (showDate) _DateDivider(date: message.displayedAt),
-                  MessageBubble(message: message, onRetry: widget.onRetry),
+                  MessageBubble(
+                    message: message,
+                    onRetry: widget.onRetry,
+                    axBranding: widget.axBranding,
+                  ),
                 ],
               );
             },

@@ -12,6 +12,8 @@ class DemoQuickComposer extends StatelessWidget {
     this.placeholder = 'TimeFit에게 물어보세요',
     this.variant = DemoComposerVariant.home,
     this.inputMaxHeight,
+    this.onSend,
+    this.sendEnabled = true,
     super.key,
   });
 
@@ -19,6 +21,8 @@ class DemoQuickComposer extends StatelessWidget {
   final FocusNode focusNode;
   final String placeholder;
   final DemoComposerVariant variant;
+  final VoidCallback? onSend;
+  final bool sendEnabled;
 
   /// A viewport bound, not a line or text-length limit. Return, selection and
   /// composing text keep the same TextField state when the keyboard changes.
@@ -92,8 +96,8 @@ class DemoQuickComposer extends StatelessWidget {
       padding: const EdgeInsets.all(5),
       child: IconButton(
         key: const Key('demo-composer-send'),
-        tooltip: '샘플 미리보기',
-        onPressed: () {},
+        tooltip: onSend == null ? '샘플 미리보기' : '메시지 보내기',
+        onPressed: sendEnabled ? onSend ?? () {} : null,
         style: IconButton.styleFrom(
           backgroundColor: unfilledSend ? Colors.transparent : sendBackground,
           foregroundColor: sendForeground,
@@ -107,7 +111,7 @@ class DemoQuickComposer extends StatelessWidget {
     );
     return Semantics(
       container: true,
-      label: '데모 입력, 실제 업무 시스템에 연결되지 않음',
+      label: onSend == null ? '데모 입력, 실제 업무 시스템에 연결되지 않음' : '메시지 입력',
       child: Material(
         color: separated ? Colors.transparent : tokens.surface,
         elevation: separated ? 0 : 2,

@@ -73,6 +73,7 @@ void main() {
       await tester.pumpWidget(
         TimeFitApp(
           environment: AppEnvironment.dev,
+          devChatExperienceEnabled: false,
           devDatabaseFactory: () async => database,
           devAttachmentRootFactory: () async => attachmentRoot,
         ),
@@ -163,6 +164,7 @@ void main() {
         await tester.pumpWidget(
           TimeFitApp(
             environment: AppEnvironment.dev,
+            devChatExperienceEnabled: false,
             devDatabaseFactory: openDatabase,
             devAttachmentRootFactory: () =>
                 Directory('${sandbox.path}/attachments').create(),
@@ -228,6 +230,7 @@ void main() {
         await tester.pumpWidget(
           TimeFitApp(
             environment: AppEnvironment.dev,
+            devChatExperienceEnabled: false,
             devDatabaseFactory: openDatabase,
             devAttachmentRootFactory: () =>
                 Directory('${sandbox.path}/attachments').create(),
@@ -290,6 +293,7 @@ void main() {
         await tester.pumpWidget(
           TimeFitApp(
             environment: AppEnvironment.dev,
+            devChatExperienceEnabled: false,
             devDatabaseFactory: openDatabase,
             devAttachmentRootFactory: () =>
                 Directory('${sandbox.path}/attachments').create(),
@@ -410,6 +414,7 @@ void main() {
         await tester.pumpWidget(
           TimeFitApp(
             environment: AppEnvironment.dev,
+            devChatExperienceEnabled: false,
             devDatabaseFactory: openDatabase,
             devAttachmentRootFactory: () => attachmentRoot.create(),
             devAttachmentPicker: picker,
@@ -593,6 +598,7 @@ void main() {
       await tester.pumpWidget(
         TimeFitApp(
           environment: AppEnvironment.dev,
+          devChatExperienceEnabled: false,
           devDatabaseFactory: () async =>
               AppDatabase(NativeDatabase(databaseFile)),
           devAttachmentRootFactory: () => attachmentRoot.create(),
