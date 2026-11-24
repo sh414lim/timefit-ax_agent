@@ -73,16 +73,218 @@ final class PersonalChatHttpClient implements PersonalChatApi {
     required String pairing,
     required String clientMessageId,
     required String bodyText,
-  }) => _request(
-    'POST',
-    '/personal/v1/messages',
-    pairing,
-    body: <String, Object>{
-      'schemaVersion': 1,
-      'clientRequestId': clientMessageId,
-      'bodyText': bodyText,
-    },
+  }) => _sendOverProductionLikeSocket(
+    pairing: pairing,
+    clientMessageId: clientMessageId,
+    bodyText: bodyText,
   );
+
+  Future<PersonalChatSnapshot> _sendOverProductionLikeSocket({
+    required String pairing,
+    required String clientMessageId,
+    required String bodyText,
+  }) async {
+    if (!_pairingPattern.hasMatch(pairing)) {
+      throw const PersonalChatFailure('invalid_pairing');
+    }
+    final ticket = await _issueTicket(pairing);
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 3)
+      ..findProxy = ((_) => 'DIRECT');
+    WebSocket? socket;
+    StreamIterator<dynamic>? frames;
+    PersonalChatSnapshot? accepted;
+    var commandSent = false;
+    try {
+      socket = await WebSocket.connect(
+        'ws://127.0.0.1:8790/v1/chat/ws',
+        headers: <String, String>{
+          HttpHeaders.authorizationHeader: 'Bearer $ticket',
+        },
+        compression: CompressionOptions.compressionOff,
+        customClient: client,
+      ).timeout(const Duration(seconds: 5));
+      frames = StreamIterator<dynamic>(socket);
+      var expectedSequence = 1;
+      final ready = await _nextSocketEvent(frames);
+      _validateSocketEnvelope(ready, expectedSequence++);
+      final readyPayload = ready['payload'];
+      if (ready['type'] != 'connection.ready' ||
+          readyPayload is! Map<String, dynamic> ||
+          readyPayload['authentication'] != 'test-ticket-local-only' ||
+          readyPayload['persistence'] != 'private-sqlite') {
+        throw const FormatException('Invalid ready event');
+      }
+      socket.add(
+        jsonEncode(<String, Object>{
+          'protocolVersion': 1,
+          'type': 'chat.send',
+          'requestId': clientMessageId,
+          'sessionId': 'personal-loopback',
+          'message': bodyText,
+        }),
+      );
+      commandSent = true;
+
+      while (true) {
+        final event = await _nextSocketEvent(frames);
+        _validateSocketEnvelope(event, expectedSequence++);
+        final type = event['type'];
+        if (type == 'connection.heartbeat') {
+          final payload = event['payload'];
+          final heartbeatId = payload is Map<String, dynamic>
+              ? payload['heartbeatId']
+              : null;
+          if (heartbeatId is! String || heartbeatId.isEmpty) {
+            throw const FormatException('Invalid heartbeat event');
+          }
+          socket.add(
+            jsonEncode(<String, Object>{
+              'protocolVersion': 1,
+              'type': 'connection.pong',
+              'heartbeatId': heartbeatId,
+            }),
+          );
+          continue;
+        }
+        if (event['requestId'] != clientMessageId ||
+            event['sessionId'] != 'personal-loopback') {
+          throw const FormatException('Mismatched socket identity');
+        }
+        if (type == 'error') {
+          throw const PersonalChatFailure('message_rejected');
+        }
+        if (type != 'chat.accepted' &&
+            type != 'chat.completed' &&
+            type != 'chat.dispatch_unknown') {
+          throw const FormatException('Invalid chat event');
+        }
+        final snapshot = _socketSnapshot(event);
+        final turn = snapshot.turn(clientMessageId);
+        if (turn == null || turn.bodyText != bodyText.trim()) {
+          throw const FormatException('Mismatched socket snapshot');
+        }
+        if (type == 'chat.accepted') {
+          if (snapshot.acceptedClientMessageId != clientMessageId) {
+            throw const FormatException('Invalid durable acceptance');
+          }
+          accepted = snapshot;
+          if (turn.state != 'pending') return snapshot;
+          continue;
+        }
+        final acceptedTurn = accepted?.turn(clientMessageId);
+        if (acceptedTurn == null ||
+            acceptedTurn.sequence != turn.sequence ||
+            acceptedTurn.assistantMessageId != turn.assistantMessageId ||
+            (type == 'chat.completed' && turn.state != 'complete') ||
+            (type == 'chat.dispatch_unknown' &&
+                turn.state != 'dispatch_unknown')) {
+          throw const FormatException('Socket identity changed');
+        }
+        return snapshot;
+      }
+    } on PersonalChatFailure {
+      rethrow;
+    } on SocketException {
+      if (accepted != null) return accepted;
+      throw PersonalChatFailure(
+        'server_unreachable',
+        postOutcomeUnknown: commandSent,
+      );
+    } on WebSocketException {
+      if (accepted != null) return accepted;
+      throw PersonalChatFailure(
+        'websocket_failed',
+        postOutcomeUnknown: commandSent,
+      );
+    } on TimeoutException {
+      if (accepted != null) return accepted;
+      throw PersonalChatFailure(
+        'request_timeout',
+        postOutcomeUnknown: commandSent,
+      );
+    } on FormatException {
+      if (accepted != null) return accepted;
+      throw PersonalChatFailure(
+        'invalid_response',
+        postOutcomeUnknown: commandSent,
+      );
+    } finally {
+      try {
+        await socket?.close().timeout(const Duration(seconds: 1));
+      } on Object {
+        // Cleanup cannot change the durable result already returned above.
+      }
+      try {
+        await frames?.cancel().timeout(const Duration(seconds: 1));
+      } on Object {
+        // The next request always uses a fresh socket and single-use ticket.
+      }
+      client.close(force: true);
+    }
+  }
+
+  Future<String> _issueTicket(String pairing) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 3)
+      ..findProxy = ((_) => 'DIRECT');
+    try {
+      final request = await client
+          .postUrl(
+            Uri(
+              scheme: 'http',
+              host: '127.0.0.1',
+              port: 8790,
+              path: '/v1/test/ws-tickets',
+            ),
+          )
+          .timeout(const Duration(seconds: 5));
+      request.followRedirects = false;
+      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $pairing');
+      request.headers.contentType = ContentType.json;
+      request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      request.add(
+        utf8.encode(
+          jsonEncode(<String, Object>{
+            'requestedTenantId': 'personal-loopback',
+          }),
+        ),
+      );
+      final response = await request.close().timeout(
+        const Duration(seconds: 10),
+      );
+      final raw = await _readBounded(response, 4096);
+      if (response.statusCode != HttpStatus.ok) {
+        throw PersonalChatFailure(_decodeErrorCode(raw));
+      }
+      final value = jsonDecode(utf8.decode(raw, allowMalformed: false));
+      if (value is! Map<String, dynamic> ||
+          value.length != 3 ||
+          value['testOnly'] != true ||
+          value['expiresInSeconds'] is! int ||
+          (value['expiresInSeconds']! as int) < 1 ||
+          (value['expiresInSeconds']! as int) > 60 ||
+          value['ticket'] is! String ||
+          !RegExp(
+            r'^[A-Za-z0-9_-]{32,256}$',
+          ).hasMatch(value['ticket']! as String)) {
+        throw const FormatException('Invalid ticket response');
+      }
+      return value['ticket']! as String;
+    } on PersonalChatFailure {
+      rethrow;
+    } on SocketException {
+      throw const PersonalChatFailure('server_unreachable');
+    } on HttpException {
+      throw const PersonalChatFailure('http_failed');
+    } on TimeoutException {
+      throw const PersonalChatFailure('request_timeout');
+    } on FormatException {
+      throw const PersonalChatFailure('invalid_response');
+    } finally {
+      client.close(force: true);
+    }
+  }
 
   Future<PersonalChatSnapshot> _request(
     String method,
@@ -113,14 +315,7 @@ final class PersonalChatHttpClient implements PersonalChatApi {
       final response = await request.close().timeout(
         const Duration(seconds: 10),
       );
-      final bytes = BytesBuilder(copy: false);
-      await for (final chunk in response.timeout(const Duration(seconds: 10))) {
-        if (bytes.length + chunk.length > 65536) {
-          throw const PersonalChatFailure('response_too_large');
-        }
-        bytes.add(chunk);
-      }
-      final raw = bytes.takeBytes();
+      final raw = await _readBounded(response, 65536);
       if (response.statusCode != (body == null ? 200 : 202)) {
         throw PersonalChatFailure(_decodeErrorCode(raw));
       }
@@ -156,6 +351,58 @@ final class PersonalChatHttpClient implements PersonalChatApi {
       client.close(force: true);
     }
   }
+}
+
+Future<Uint8List> _readBounded(HttpClientResponse response, int maximum) async {
+  final bytes = BytesBuilder(copy: false);
+  await for (final chunk in response.timeout(const Duration(seconds: 10))) {
+    if (bytes.length + chunk.length > maximum) {
+      throw const PersonalChatFailure('response_too_large');
+    }
+    bytes.add(chunk);
+  }
+  return bytes.takeBytes();
+}
+
+Future<Map<String, dynamic>> _nextSocketEvent(
+  StreamIterator<dynamic> frames,
+) async {
+  final hasNext = await frames.moveNext().timeout(const Duration(seconds: 15));
+  if (!hasNext || frames.current is! String) {
+    throw const WebSocketException('Socket closed before a text event');
+  }
+  final raw = frames.current! as String;
+  if (utf8.encode(raw).length > 65536) {
+    throw const PersonalChatFailure('response_too_large');
+  }
+  final value = jsonDecode(raw);
+  if (value is! Map<String, dynamic>) {
+    throw const FormatException('Invalid socket event');
+  }
+  return value;
+}
+
+void _validateSocketEnvelope(Map<String, dynamic> event, int sequence) {
+  final sentAt = event['sentAt'];
+  if (event['protocolVersion'] != 1 ||
+      event['type'] is! String ||
+      event['eventSequence'] != sequence ||
+      event['eventId'] is! String ||
+      !_isUuid(event['eventId']! as String) ||
+      sentAt is! String ||
+      DateTime.tryParse(sentAt)?.isUtc != true ||
+      event['payload'] is! Map<String, dynamic>) {
+    throw const FormatException('Invalid socket envelope');
+  }
+}
+
+PersonalChatSnapshot _socketSnapshot(Map<String, dynamic> event) {
+  final payload = event['payload'];
+  final snapshot = payload is Map<String, dynamic> ? payload['snapshot'] : null;
+  if (snapshot is! Map<String, dynamic>) {
+    throw const FormatException('Missing socket snapshot');
+  }
+  return decodePersonalChatSnapshot(utf8.encode(jsonEncode(snapshot)));
 }
 
 String _decodeErrorCode(Uint8List raw) {
