@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/native.dart';
+import 'package:flutter/cupertino.dart' show CupertinoRouteTransitionMixin;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -10,6 +11,7 @@ import '../core/database/app_database.dart';
 import '../core/database/local_repository_session.dart';
 import '../dev/personal_chat_client.dart';
 import '../dev/personal_chat_outbox_executor.dart';
+import '../features/account/presentation/account_preview.dart';
 import '../features/attachments/application/attachment_picker.dart';
 import '../features/attachments/application/dev_local_attachment_observability.dart';
 import '../features/attachments/application/dev_local_attachment_preview_controller.dart';
@@ -33,6 +35,9 @@ import '../features/conversations/presentation/archived_conversation_screen.dart
 import '../features/conversations/presentation/conversation_list_screen.dart';
 import '../features/conversations/presentation/conversation_menu.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/home/presentation/widgets/brand_asset_slot.dart';
+import '../features/home/presentation/widgets/demo_quick_composer.dart';
+import '../features/home/presentation/widgets/timefit_loading_mark.dart';
 
 typedef DevChatDatabaseFactory = Future<AppDatabase> Function();
 typedef DevAttachmentRootFactory = Future<Directory> Function();
@@ -108,6 +113,7 @@ class DevChatShell extends StatefulWidget {
     this.disposalObserver,
     this.personalChatOptIn = false,
     this.personalChatApi,
+    this.chatExperienceEnabled = false,
     super.key,
   });
 
@@ -120,6 +126,7 @@ class DevChatShell extends StatefulWidget {
   final DevChatDisposalObserver? disposalObserver;
   final bool personalChatOptIn;
   final PersonalChatApi? personalChatApi;
+  final bool chatExperienceEnabled;
 
   @override
   State<DevChatShell> createState() => _DevChatShellState();
@@ -141,6 +148,32 @@ class _DevChatShellState extends State<DevChatShell>
   final Map<String, String> _draftClientMessageIds = <String, String>{};
   final TextEditingController _homeDraftController = TextEditingController();
   final FocusNode _homeDraftFocusNode = FocusNode();
+  final TextEditingController _newDraftController = TextEditingController();
+  final FocusNode _newDraftFocusNode = FocusNode();
+  final TextEditingController _listSearchController = TextEditingController();
+  final PageStorageBucket _listStorage = PageStorageBucket();
+  final Map<String, String> _roomTextDrafts = <String, String>{};
+  final _axNavigator = GlobalKey<NavigatorState>();
+  bool _showingNewChat = false;
+  bool _quietHomeSend = false;
+  bool _axPopPending = false;
+  bool _sendingFirst = false;
+  int _firstDraftRevision = 0;
+  String _lastHomeDraft = '';
+  String _lastNewDraft = '';
+
+  bool get _newExperience =>
+      widget.chatExperienceEnabled && !widget.personalChatOptIn;
+
+  void _trackDraftChange() {
+    final home = _homeDraftController.text;
+    final newChat = _newDraftController.text;
+    if (home == _lastHomeDraft && newChat == _lastNewDraft) return;
+    _lastHomeDraft = home;
+    _lastNewDraft = newChat;
+    _firstDraftRevision += 1;
+  }
+
   AttachmentCancellation? _attachmentCancellation;
   OutboxWorker? _personalChatWorker;
   Timer? _personalChatTimer;
@@ -160,6 +193,8 @@ class _DevChatShellState extends State<DevChatShell>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _homeDraftController.addListener(_trackDraftChange);
+    _newDraftController.addListener(_trackDraftChange);
     unawaited(_initialize());
   }
 
@@ -280,6 +315,84 @@ class _DevChatShellState extends State<DevChatShell>
     );
   }
 
+  void _beginConversation() {
+    if (_axPopPending) return;
+    if (!_newExperience) {
+      unawaited(_createConversation());
+      return;
+    }
+    if (_selectedConversationId != null) _closeConversation();
+    _conversationGeneration += 1;
+    setState(() => _showingNewChat = true);
+  }
+
+  void _closeNewChat() {
+    _conversationGeneration += 1;
+    _newDraftFocusNode.unfocus();
+    setState(() => _showingNewChat = false);
+  }
+
+  Future<void> _sendFirst(TextEditingController controller) async {
+    final body = controller.text;
+    final database = _database;
+    final session = _session;
+    if (_sendingFirst ||
+        database == null ||
+        session == null ||
+        body.trim().isEmpty ||
+        ComposerController.characterCountOf(body) >
+            ComposerController.maximumLength) {
+      return;
+    }
+    final admission = ChatSessionOwnedSurfaces.admit(context);
+    final generation = _conversationGeneration;
+    final revision = _firstDraftRevision;
+    bool current() =>
+        mounted &&
+        !_disposed &&
+        admission.isAllowed &&
+        generation == _conversationGeneration;
+    if (!current()) return;
+    setState(() => _sendingFirst = true);
+    try {
+      final command = await SendMessage(
+        database: database,
+        session: session,
+        clock: DateTime.now,
+      ).startConversation(bodyText: body, stillAdmitted: current);
+      if (!current()) return;
+      // A user edit during the save belongs to the newly opened room.
+      if (revision == _firstDraftRevision) {
+        controller.clear();
+      } else {
+        if (controller.text.isNotEmpty) {
+          _roomTextDrafts[command.conversationId] = controller.text;
+        }
+        controller.clear();
+      }
+      FocusManager.instance.primaryFocus?.unfocus();
+      // Promote the existing composer page instead of pushing another route.
+      _quietHomeSend = controller == _homeDraftController;
+      _openConversation(command.conversationId, fresh: true);
+    } on Object {
+      if (current()) _showLocalNotice('메시지를 저장하지 못했습니다. 다시 시도해 주세요.');
+    } finally {
+      if (mounted && !_disposed) setState(() => _sendingFirst = false);
+    }
+  }
+
+  void _rememberCurrentDraft() {
+    final id = _selectedConversationId;
+    final composer = _composer;
+    if (!_newExperience || id == null || composer == null) return;
+    final draft = composer.draftForNavigation;
+    if (draft.isEmpty) {
+      _roomTextDrafts.remove(id);
+    } else {
+      _roomTextDrafts[id] = draft;
+    }
+  }
+
   Future<void> _createConversation() async {
     if (_creatingConversation) return;
     final ChatSessionOwnedSurfaceAdmission admission =
@@ -300,11 +413,16 @@ class _DevChatShellState extends State<DevChatShell>
     }
   }
 
-  void _openConversation(String conversationId) {
-    unawaited(_prepareConversation(conversationId));
+  void _openConversation(String conversationId, {bool fresh = false}) {
+    if (_axPopPending || _selectedConversationId == conversationId) return;
+    unawaited(_prepareConversation(conversationId, fresh: fresh));
   }
 
-  Future<void> _prepareConversation(String conversationId) async {
+  Future<void> _prepareConversation(
+    String conversationId, {
+    required bool fresh,
+  }) async {
+    _rememberCurrentDraft();
     final int generation = ++_conversationGeneration;
     _attachmentCancellation?.cancel();
     _composer?.dispose();
@@ -318,7 +436,9 @@ class _DevChatShellState extends State<DevChatShell>
     final DevLocalAttachmentDrafts drafts = _attachmentDrafts!;
     final String clientMessageId =
         _draftClientMessageIds[conversationId] ??
-        await drafts.findDraftClientMessageId(conversationId) ??
+        (fresh
+            ? null
+            : await drafts.findDraftClientMessageId(conversationId)) ??
         drafts.newDraftClientMessageId();
     if (!mounted ||
         generation != _conversationGeneration ||
@@ -344,11 +464,12 @@ class _DevChatShellState extends State<DevChatShell>
           session: session,
         ),
         mutationAdmission: () => admission.isAllowed,
-      );
+      )..updateDraft(_roomTextDrafts[conversationId] ?? '');
     });
   }
 
   void _closeConversation() {
+    _rememberCurrentDraft();
     _conversationGeneration += 1;
     _attachmentCancellation?.cancel();
     _attachmentCancellation = null;
@@ -357,6 +478,8 @@ class _DevChatShellState extends State<DevChatShell>
       _creatingConversation = false;
       _composer = null;
       _selectedConversationId = null;
+      _showingNewChat = false;
+      _quietHomeSend = false;
       _selectingAttachments = false;
     });
   }
@@ -617,6 +740,9 @@ class _DevChatShellState extends State<DevChatShell>
     _composer?.dispose();
     _homeDraftController.dispose();
     _homeDraftFocusNode.dispose();
+    _newDraftFocusNode.dispose();
+    _newDraftController.dispose();
+    _listSearchController.dispose();
     _conversationActions?.removeListener(_handleActionsState);
     _conversationActions?.dispose();
     final controller = _listController;
@@ -634,19 +760,28 @@ class _DevChatShellState extends State<DevChatShell>
 
   @override
   Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final size = MediaQuery.sizeOf(context);
     final bool compactKeyboardLayout =
-        MediaQuery.orientationOf(context) == Orientation.landscape &&
-        View.of(context).viewInsets.bottom > 0;
+        viewInsets.bottom > 0 &&
+        (size.width > size.height || size.height - viewInsets.bottom < 400);
+    if (_newExperience &&
+        _initializationError == null &&
+        _listController != null) {
+      return _buildAxNavigator(compactKeyboardLayout, size.width >= 900);
+    }
     final bool showingSourceHome =
         _initializationError == null &&
         _listController != null &&
         _selectedConversationId == null &&
         !_showingArchive &&
-        !_showingConversationList;
-    return Scaffold(
+        !_showingConversationList &&
+        !_showingNewChat;
+    final showModeBanner = !showingSourceHome || widget.personalChatOptIn;
+    final shell = Scaffold(
       body: Column(
         children: <Widget>[
-          if (!showingSourceHome || widget.personalChatOptIn)
+          if (showModeBanner)
             _DevLocalModeBanner(
               compact: compactKeyboardLayout,
               includesWaitingStatus:
@@ -657,11 +792,186 @@ class _DevChatShellState extends State<DevChatShell>
               connectionError: _personalConnectionError,
               onConnect: () => unawaited(_connectPersonalChat()),
             ),
-          Expanded(child: _buildContent(compactKeyboardLayout)),
+          Expanded(
+            // The banner already includes the window's top safe area.
+            child: Builder(
+              builder: (bodyContext) => MediaQuery.removePadding(
+                context: bodyContext,
+                removeTop: showModeBanner,
+                child: _buildContent(compactKeyboardLayout),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return shell;
+  }
+
+  void _requestAxBack() {
+    if (_axPopPending) return;
+    if (View.of(context).viewInsets.bottom > 0) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      return;
+    }
+    unawaited(_axNavigator.currentState?.maybePop<void>());
+  }
+
+  void _removeAxPage(Page<Object?> page) {
+    if (!mounted || _disposed) return;
+    _axPopPending = false;
+    switch (page.name) {
+      case 'ax-compose':
+        if (_selectedConversationId != null) {
+          _closeConversation();
+        } else if (_showingNewChat) {
+          _closeNewChat();
+        }
+      case 'ax-archive':
+        if (_showingArchive) setState(() => _showingArchive = false);
+      case 'ax-list':
+        if (_showingConversationList)
+          setState(() => _showingConversationList = false);
+    }
+  }
+
+  Widget _buildAxNavigator(bool compact, bool wide) {
+    final bool split = wide && _showingConversationList && !_showingArchive;
+    final bool ios = Theme.of(context).platform == TargetPlatform.iOS;
+    final bool reduce = MediaQuery.disableAnimationsOf(context);
+    final bool flow = _selectedConversationId != null || _showingNewChat;
+    final controller = _listController!;
+    Widget list({required bool sidebar}) {
+      return PageStorage(
+        bucket: _listStorage,
+        child: _buildConversationList(
+          controller,
+          onBack: sidebar
+              ? () {
+                  if (_selectedConversationId != null) _closeConversation();
+                  if (_showingNewChat) _closeNewChat();
+                  setState(() => _showingConversationList = false);
+                }
+              : _requestAxBack,
+          activeConversationId: split ? _selectedConversationId : null,
+        ),
+      );
+    }
+
+    Page<void> page(String name, Widget child, {bool quiet = false}) =>
+        _AxShellPage(
+          key: ValueKey<String>(name),
+          name: name,
+          child: child,
+          ios: ios,
+          reduceMotion: reduce || split,
+          quietForward: quiet,
+          onPopInvoked: (popped, _) {
+            // An interactive drag does not invalidate a save unless it commits.
+            if (!popped) return;
+            final stillOwnsPage = switch (name) {
+              'ax-compose' =>
+                _selectedConversationId != null || _showingNewChat,
+              'ax-archive' => _showingArchive,
+              'ax-list' => _showingConversationList,
+              _ => false,
+            };
+            if (!stillOwnsPage) return; // Parent already removed it.
+            _axPopPending = true;
+            if (name == 'ax-compose') _conversationGeneration += 1;
+          },
+        );
+    final navigator = NavigatorPopHandler<void>(
+      onPopWithResult: (_) => _requestAxBack(),
+      child: Navigator(
+        key: _axNavigator,
+        onDidRemovePage: _removeAxPage,
+        pages: [
+          page('ax-home', _buildHome(controller)),
+          if (_showingConversationList)
+            page(
+              'ax-list',
+              split
+                  ? const Scaffold(
+                      body: Center(child: Text('대화를 선택하거나 새 채팅을 시작하세요.')),
+                    )
+                  : _modeSurface(compact, list(sidebar: false)),
+            ),
+          if (_showingArchive)
+            page(
+              'ax-archive',
+              _modeSurface(compact, _buildArchive(_requestAxBack)),
+            ),
+          if (flow)
+            page(
+              'ax-compose',
+              _modeSurface(
+                compact,
+                _selectedConversationId == null
+                    ? _buildDraft(_requestAxBack)
+                    : _buildRoom(
+                        _selectedConversationId!,
+                        compact,
+                        _requestAxBack,
+                      ),
+                includesWaitingStatus:
+                    compact && _selectedConversationId != null,
+              ),
+              quiet: _quietHomeSend,
+            ),
+        ],
+      ),
+    );
+    // Keep the Navigator at the same element position across rotate/resize.
+    // One shell handles the keyboard inset for both panes. Nested Scaffolds
+    // receive the adjusted MediaQuery instead of subtracting it a second time.
+    return Scaffold(
+      body: Row(
+        children: [
+          if (split) ...[
+            SizedBox(
+              width: 336,
+              child: _modeSurface(compact, list(sidebar: true)),
+            ),
+            const VerticalDivider(width: 1),
+          ],
+          Expanded(
+            key: const ValueKey<String>('ax-navigation-pane'),
+            child: navigator,
+          ),
         ],
       ),
     );
   }
+
+  Widget _modeSurface(
+    bool compact,
+    Widget child, {
+    bool includesWaitingStatus = false,
+  }) => Material(
+    child: Column(
+      children: [
+        _DevLocalModeBanner(
+          compact: compact,
+          includesWaitingStatus: includesWaitingStatus,
+          personalChatOptIn: false,
+          personalConnected: false,
+          personalConnecting: false,
+          connectionError: null,
+          onConnect: () {},
+        ),
+        Expanded(
+          child: Builder(
+            builder: (context) => MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: child,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   @override
   void didChangeMetrics() {
@@ -684,77 +994,143 @@ class _DevChatShellState extends State<DevChatShell>
     }
     final controller = _listController;
     if (controller == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: TimeFitLoadingMark(label: '로컬 저장소를 불러오는 중'));
     }
     final conversationId = _selectedConversationId;
     if (conversationId != null) {
-      final ComposerController? composer = _composer;
-      return Column(
-        children: <Widget>[
-          if (!compactKeyboardLayout)
-            Material(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Text(
-                  _personalPairing == null
-                      ? '서버 미연결 · 이 기기에 대기 중'
-                      : 'Mac 개인 서버 연결됨 · Outbox 전송 중',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-          Expanded(
-            child: composer == null
-                ? const Center(child: CircularProgressIndicator())
-                : ChatScreen.repository(
-                    title: '로컬 대화',
-                    repository: _messageRepository!,
-                    conversationId: conversationId,
-                    composerController: composer,
-                    onBack: _closeConversation,
-                    onAddAttachment: _personalPairing == null
-                        ? () => unawaited(_chooseAttachments())
-                        : null,
-                    onRemoveQueuedAttachment: _removeQueuedAttachment,
-                    onOpenAttachment: _openLocalAttachmentPreview,
-                    isSelectingAttachments: _selectingAttachments,
-                    compactKeyboardLayout: compactKeyboardLayout,
-                    savesLocallyOnly: _personalPairing == null,
-                  ),
-          ),
-        ],
+      return _buildRoom(
+        conversationId,
+        compactKeyboardLayout,
+        _closeConversation,
       );
     }
     if (_showingArchive) {
-      return ArchivedConversationScreen(
-        conversations: _conversationRepository!.watchArchivedConversations(),
-        onBack: () => setState(() => _showingArchive = false),
-        onOpenConversation: _openConversation,
-      );
+      return _buildArchive(() => setState(() => _showingArchive = false));
     }
-    if (!_showingConversationList) {
-      return DemoHomeScreen(
-        conversationController: controller,
-        onOpenConversation: _openConversation,
-        onOpenConversationList: () =>
-            setState(() => _showingConversationList = true),
-        onOpenArchive: () => setState(() => _showingArchive = true),
-        onNewConversation: () => unawaited(_createConversation()),
-        draftController: _homeDraftController,
-        draftFocusNode: _homeDraftFocusNode,
-      );
+    if (!_showingConversationList) return _buildHome(controller);
+    return _buildConversationList(
+      controller,
+      onBack: () => setState(() => _showingConversationList = false),
+    );
+  }
+
+  Widget _buildRoom(
+    String conversationId,
+    bool compactKeyboardLayout,
+    VoidCallback onBack,
+  ) {
+    final composer = _composer;
+    return Column(
+      children: <Widget>[
+        if (!compactKeyboardLayout)
+          Material(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                _personalPairing == null
+                    ? '서버 미연결 · 이 기기에 대기 중'
+                    : 'Mac 개인 서버 연결됨 · Outbox 전송 중',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        Expanded(
+          child: composer == null
+              ? const Center(child: TimeFitLoadingMark(label: '대화를 준비하는 중'))
+              : ChatScreen.repository(
+                  title: '로컬 대화',
+                  axBranding: _newExperience,
+                  repository: _messageRepository!,
+                  conversationId: conversationId,
+                  composerController: composer,
+                  onBack: onBack,
+                  onAddAttachment: _personalPairing == null
+                      ? () => unawaited(_chooseAttachments())
+                      : null,
+                  onRemoveQueuedAttachment: _removeQueuedAttachment,
+                  onOpenAttachment: _openLocalAttachmentPreview,
+                  isSelectingAttachments: _selectingAttachments,
+                  compactKeyboardLayout: compactKeyboardLayout,
+                  savesLocallyOnly: _personalPairing == null,
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDraft(VoidCallback onBack) => _NewChatPage(
+    controller: _newDraftController,
+    focusNode: _newDraftFocusNode,
+    onBack: onBack,
+    onSend: () => unawaited(_sendFirst(_newDraftController)),
+    sendEnabled: !_sendingFirst,
+  );
+
+  Widget _buildArchive(VoidCallback onBack) => ArchivedConversationScreen(
+    conversations: _conversationRepository!.watchArchivedConversations(),
+    onBack: onBack,
+    onOpenConversation: _openConversation,
+  );
+
+  void _openConversationList() {
+    if (_axPopPending) return;
+    if (_newExperience) _conversationGeneration += 1;
+    setState(() => _showingConversationList = true);
+  }
+
+  void _openArchive() {
+    if (_axPopPending) return;
+    if (_newExperience) {
+      if (_selectedConversationId != null) _closeConversation();
+      if (_showingNewChat) _closeNewChat();
+      _conversationGeneration += 1;
     }
+    setState(() => _showingArchive = true);
+  }
+
+  Widget _buildHome(ConversationListController controller) {
+    return DemoHomeScreen(
+      conversationController: controller,
+      onOpenConversation: _openConversation,
+      onOpenConversationList: _openConversationList,
+      onOpenArchive: _openArchive,
+      onNewConversation: _beginConversation,
+      onSend: _newExperience
+          ? () => unawaited(_sendFirst(_homeDraftController))
+          : null,
+      sendEnabled: !_sendingFirst,
+      draftController: _homeDraftController,
+      draftFocusNode: _homeDraftFocusNode,
+    );
+  }
+
+  Widget _buildConversationList(
+    ConversationListController controller, {
+    required VoidCallback onBack,
+    String? activeConversationId,
+  }) {
     return ConversationListScreen(
       controller: controller,
+      searchController: _newExperience ? _listSearchController : null,
       loadOnMount: false,
-      onBack: () => setState(() => _showingConversationList = false),
-      onNewConversation: () => unawaited(_createConversation()),
-      onOpenSettings: () => _showLocalNotice('설정은 로컬 개발 모드에서 비활성화되어 있습니다.'),
-      onOpenArchive: () => setState(() => _showingArchive = true),
+      onBack: onBack,
+      selectedConversationId: activeConversationId,
+      onNewConversation: _beginConversation,
+      onOpenSettings: () {
+        if (!_newExperience) {
+          _showLocalNotice('설정은 로컬 개발 모드에서 비활성화되어 있습니다.');
+          return;
+        }
+        unawaited(
+          Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => const AxAccountPreviewPage(),
+            ),
+          ),
+        );
+      },
+      onOpenArchive: _openArchive,
       onOpenConversation: _openConversation,
       onConversationAction: (conversation, action) =>
           unawaited(_handleConversationAction(conversation, action)),
@@ -762,6 +1138,71 @@ class _DevChatShellState extends State<DevChatShell>
           _conversationActions?.state.isBusy(id) ?? false,
     );
   }
+}
+
+/// Stable page identity across a first-send promotion and width changes.
+class _AxShellPage extends Page<void> {
+  const _AxShellPage({
+    required this.child,
+    required this.ios,
+    required this.reduceMotion,
+    required this.quietForward,
+    required super.key,
+    required super.name,
+    super.onPopInvoked,
+  });
+
+  final Widget child;
+  final bool ios;
+  final bool reduceMotion;
+  final bool quietForward;
+
+  @override
+  Route<void> createRoute(BuildContext context) =>
+      ios ? _AxCupertinoRoute(this) : _AxMaterialRoute(this);
+}
+
+class _AxCupertinoRoute extends PageRoute<void>
+    with CupertinoRouteTransitionMixin<void> {
+  _AxCupertinoRoute(_AxShellPage page) : super(settings: page);
+  _AxShellPage get page => settings as _AxShellPage;
+
+  @override
+  String? get title => page.name;
+  @override
+  bool get maintainState => true;
+  @override
+  Duration get transitionDuration => page.reduceMotion || page.quietForward
+      ? Duration.zero
+      : super.transitionDuration;
+  @override
+  Duration get reverseTransitionDuration =>
+      page.reduceMotion ? Duration.zero : super.transitionDuration;
+  @override
+  bool get popGestureEnabled =>
+      page.reduceMotion ? false : super.popGestureEnabled;
+
+  @override
+  Widget buildContent(BuildContext context) => page.child;
+}
+
+class _AxMaterialRoute extends PageRoute<void>
+    with MaterialRouteTransitionMixin<void> {
+  _AxMaterialRoute(_AxShellPage page) : super(settings: page);
+  _AxShellPage get page => settings as _AxShellPage;
+
+  @override
+  bool get maintainState => true;
+  @override
+  Duration get transitionDuration => page.reduceMotion || page.quietForward
+      ? Duration.zero
+      : super.transitionDuration;
+  @override
+  Duration get reverseTransitionDuration =>
+      page.reduceMotion ? Duration.zero : super.reverseTransitionDuration;
+
+  @override
+  Widget buildContent(BuildContext context) => page.child;
 }
 
 String _attachmentFailureMessage(AttachmentFailure failure) =>
@@ -875,4 +1316,125 @@ class _LocalState extends StatelessWidget {
       ),
     );
   }
+}
+
+class _NewChatPage extends StatelessWidget {
+  const _NewChatPage({
+    required this.controller,
+    required this.focusNode,
+    required this.onBack,
+    required this.onSend,
+    required this.sendEnabled,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onBack;
+  final VoidCallback onSend;
+  final bool sendEnabled;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      leading: BackButton(onPressed: onBack),
+      title: const Row(
+        children: <Widget>[
+          TimeFitAssetSlot(
+            kind: TimeFitAssetKind.squareLogo,
+            width: 28,
+            height: 28,
+          ),
+          SizedBox(width: 10),
+          Text('새 채팅'),
+        ],
+      ),
+    ),
+    body: SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final viewport = DemoQuickComposer.minimumInputViewportHeight(
+            context,
+          );
+          final inputHeight = (constraints.maxHeight * .34)
+              .clamp(viewport, viewport > 130 ? viewport : 130)
+              .toDouble();
+          return Column(
+            children: <Widget>[
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const TimeFitAssetSlot(
+                          kind: TimeFitAssetKind.mobileRobot,
+                          width: 122,
+                          height: 122,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '무엇을 도와드릴까요?',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          alignment: WrapAlignment.center,
+                          children: <Widget>[
+                            for (final label in [
+                              '오늘 매장 현황',
+                              '이번 주 근무표',
+                              '비용 분석',
+                              '직원 공지 작성',
+                            ])
+                              ActionChip(
+                                label: Text(label),
+                                onPressed: () =>
+                                    controller.value = TextEditingValue(
+                                      text: label,
+                                      selection: TextSelection.collapsed(
+                                        offset: label.length,
+                                      ),
+                                    ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: (constraints.maxHeight - 14).clamp(
+                      0,
+                      double.infinity,
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    primary: false,
+                    child: DemoQuickComposer(
+                      key: const Key('new-chat-composer'),
+                      controller: controller,
+                      focusNode: focusNode,
+                      onSend: onSend,
+                      sendEnabled: sendEnabled,
+                      inputMaxHeight: inputHeight,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    ),
+  );
 }

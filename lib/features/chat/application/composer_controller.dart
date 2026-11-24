@@ -71,6 +71,7 @@ final class ComposerController extends ChangeNotifier {
 
   String _draft = '';
   int _draftVersion = 0;
+  int? _submittingVersion;
   Future<void>? _activeSubmit;
   final Map<String, Future<bool>> _activeRetries = <String, Future<bool>>{};
   Object? _lastError;
@@ -80,6 +81,11 @@ final class ComposerController extends ChangeNotifier {
   List<ComposerAttachment> _attachments = const <ComposerAttachment>[];
 
   String get draft => _draft;
+
+  /// In-flight text already belongs to a request, not a new editable draft.
+  /// An edit made after it was snapshotted is still an unsubmitted draft.
+  String get draftForNavigation =>
+      _submittingVersion == _draftVersion ? '' : _draft;
   static int characterCountOf(String value) => normalizedLocalTextLength(value);
   static String truncateDraft(String value) =>
       truncateLocalTextBody(value, maximumLength);
@@ -137,6 +143,7 @@ final class ComposerController extends ChangeNotifier {
 
     final String submittedDraft = _draft;
     final int submittedVersion = _draftVersion;
+    _submittingVersion = submittedVersion;
     bool submittedWithAttachments = false;
     _lastError = null;
 
@@ -178,7 +185,10 @@ final class ComposerController extends ChangeNotifier {
               },
             )
             .whenComplete(() {
-              if (identical(_activeSubmit, operation)) _activeSubmit = null;
+              if (identical(_activeSubmit, operation)) {
+                _activeSubmit = null;
+                _submittingVersion = null;
+              }
               _notify();
             });
     _activeSubmit = operation;

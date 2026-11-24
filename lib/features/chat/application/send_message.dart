@@ -230,10 +230,51 @@ final class SendMessage
     return command;
   });
 
+  @override
   Future<LocalTextCommand> submit({
     required String conversationId,
     required String bodyText,
+  }) => _session.write(
+    _database,
+    () => _insertText(conversationId, bodyText, _clock()),
+  );
+
+  /// Start a room and persist its first message under one repository-owned
+  /// transaction. A cancelled or failed write leaves no empty room.
+  Future<LocalTextCommand> startConversation({
+    required String bodyText,
+    bool Function()? stillAdmitted,
   }) => _session.write(_database, () async {
+    if (stillAdmitted?.call() == false) {
+      throw StateError('First message no longer admitted');
+    }
+    final id = const Uuid().v4();
+    final now = _clock().toUtc();
+    await _database
+        .into(_database.localConversations)
+        .insert(
+          LocalConversationsCompanion.insert(
+            id: id,
+            serverCreatedAt: now,
+            serverUpdatedAt: now,
+            lastSyncedAt: now,
+            syncState: const Value('stale'),
+          ),
+        );
+    final result = await _insertText(id, bodyText, now);
+    if (stillAdmitted?.call() == false) {
+      throw StateError('First message no longer admitted');
+    }
+    return result;
+  });
+
+  // No nested transactions. Both public entrypoints own the same session and
+  // commit the message with its matching outbox command.
+  Future<LocalTextCommand> _insertText(
+    String conversationId,
+    String bodyText,
+    DateTime now,
+  ) async {
     final normalized = normalizeLocalTextBody(bodyText);
     if (conversationId.isEmpty ||
         normalized.trim().isEmpty ||
@@ -245,30 +286,35 @@ final class SendMessage
       conversationId: conversationId,
       bodyText: normalized,
     );
-    final now = _clock();
-    await _database.outboxDao.enqueueMessage(
-      LocalMessagesCompanion.insert(
-        localId: command.id,
-        conversationId: conversationId,
-        clientMessageId: command.id,
-        senderKind: 'user',
-        bodyText: Value(normalized),
-        messageKind: 'text',
-        clientCreatedAt: now,
-      ),
-      OutboxCommandsCompanion.insert(
-        id: command.id,
-        commandType: 'local_send_text_v1',
-        aggregateId: conversationId,
-        clientRequestId: command.id,
-        payloadJson: command.encode(),
-        nextAttemptAt: now,
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
+    await _database
+        .into(_database.localMessages)
+        .insert(
+          LocalMessagesCompanion.insert(
+            localId: command.id,
+            conversationId: conversationId,
+            clientMessageId: command.id,
+            senderKind: 'user',
+            bodyText: Value(normalized),
+            messageKind: 'text',
+            clientCreatedAt: now,
+          ),
+        );
+    await _database
+        .into(_database.outboxCommands)
+        .insert(
+          OutboxCommandsCompanion.insert(
+            id: command.id,
+            commandType: 'local_send_text_v1',
+            aggregateId: conversationId,
+            clientRequestId: command.id,
+            payloadJson: command.encode(),
+            nextAttemptAt: now,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
     return command;
-  });
+  }
 
   /// Requeues the stored command without replacing its identity or payload.
   Future<bool> retry(String commandId) => _session.write(_database, () async {

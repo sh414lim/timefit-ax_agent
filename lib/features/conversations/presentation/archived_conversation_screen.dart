@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../home/presentation/widgets/timefit_loading_mark.dart';
 import '../domain/conversation_summary.dart';
 import 'widgets/conversation_list_row.dart';
 
@@ -37,7 +38,9 @@ class ArchivedConversationScreen extends StatelessWidget {
                   );
                 }
                 if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(
+                    child: TimeFitLoadingMark(label: '보관된 대화를 불러오는 중'),
+                  );
                 }
                 final List<ConversationSummary> items = snapshot.data!;
                 if (items.isEmpty) {

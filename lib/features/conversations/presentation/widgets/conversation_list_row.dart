@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../home/presentation/widgets/brand_asset_slot.dart';
 import '../../domain/conversation_summary.dart';
 
 class ConversationListRow extends StatelessWidget {
@@ -8,6 +9,8 @@ class ConversationListRow extends StatelessWidget {
     required this.updatedAtLabel,
     required this.onTap,
     this.trailing,
+    this.showAvatar = false,
+    this.selected = false,
     super.key,
   });
 
@@ -15,6 +18,8 @@ class ConversationListRow extends StatelessWidget {
   final String updatedAtLabel;
   final VoidCallback onTap;
   final Widget? trailing;
+  final bool showAvatar;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -27,44 +32,58 @@ class ConversationListRow extends StatelessWidget {
     final Widget rowButton = Semantics(
       button: true,
       label: semanticLabel,
+      selected: selected ? true : null,
       excludeSemantics: true,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: trailing == null
-              ? const EdgeInsets.symmetric(horizontal: 16, vertical: 10)
-              : const EdgeInsets.fromLTRB(16, 10, 8, 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      conversation.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    if (conversation.displayPreview.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 4),
+      child: Ink(
+        color: selected
+            ? Theme.of(context).colorScheme.secondaryContainer
+            : null,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: trailing == null
+                ? const EdgeInsets.symmetric(horizontal: 16, vertical: 10)
+                : const EdgeInsets.fromLTRB(16, 10, 8, 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                if (showAvatar) ...<Widget>[
+                  const TimeFitAssetSlot(
+                    kind: TimeFitAssetKind.mobileRobot,
+                    width: 40,
+                    height: 40,
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
                       Text(
-                        conversation.displayPreview,
-                        maxLines: 2,
+                        conversation.title,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
+                      if (conversation.displayPreview.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 4),
+                        Text(
+                          conversation.displayPreview,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                updatedAtLabel,
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
-            ],
+                const SizedBox(width: 8),
+                Text(
+                  updatedAtLabel,
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ],
+            ),
           ),
         ),
       ),

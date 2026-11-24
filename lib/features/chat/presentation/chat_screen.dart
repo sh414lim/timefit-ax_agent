@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../home/presentation/widgets/timefit_loading_mark.dart';
 import '../application/chat_connection_controller.dart';
 import '../application/composer_controller.dart';
 import '../application/history_controller.dart';
 import '../domain/chat_message.dart';
 import '../domain/repositories/message_repository.dart';
+import 'widgets/ax_thinking_bubble.dart';
 import 'widgets/chat_composer.dart';
 import 'widgets/connection_banner.dart';
 import 'widgets/message_list.dart';
@@ -28,6 +30,8 @@ class ChatScreen extends StatefulWidget {
     this.compactKeyboardLayout = false,
     this.savesLocallyOnly = false,
     this.connectionController,
+    this.requestProgress,
+    this.axBranding = false,
     super.key,
   }) : repository = null;
 
@@ -47,6 +51,8 @@ class ChatScreen extends StatefulWidget {
     this.compactKeyboardLayout = false,
     this.savesLocallyOnly = false,
     this.connectionController,
+    this.requestProgress,
+    this.axBranding = false,
     super.key,
   }) : messages = null;
 
@@ -66,6 +72,8 @@ class ChatScreen extends StatefulWidget {
   final bool compactKeyboardLayout;
   final bool savesLocallyOnly;
   final ChatConnectionController? connectionController;
+  final AxRequestProgress? requestProgress;
+  final bool axBranding;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -255,7 +263,9 @@ class _ChatScreenState extends State<ChatScreen> {
               );
             }
             if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(
+                child: TimeFitLoadingMark(label: '메시지를 불러오는 중'),
+              );
             }
             final List<ChatMessage> ordered = _ordered(snapshot.requireData);
             if (ordered.isEmpty) {
@@ -264,16 +274,48 @@ class _ChatScreenState extends State<ChatScreen> {
                 message: '이 대화의 첫 메시지를 기다리고 있습니다.',
               );
             }
-            return MessageList(
+            final progress = widget.requestProgress;
+            final list = MessageList(
               key: ValueKey<String>(
                 'message-list-${widget.conversationId ?? 'direct'}',
               ),
               messages: ordered,
+              axBranding: widget.axBranding,
               scrollController: widget.scrollController,
               onRetry: _matchingComposer?.retry,
               historyState: _matchingHistory?.state,
               onTopDistance: _matchingHistory?.onTopDistance,
               onHistoryRetry: _matchingHistory?.retry,
+            );
+            final scopedProgress =
+                progress != null &&
+                    progress.conversationId == widget.conversationId &&
+                    ordered.any(
+                      (message) =>
+                          message.isMine &&
+                          message.clientMessageId == progress.requestId,
+                    )
+                ? progress
+                : null;
+            if (!widget.axBranding && progress == null) return list;
+            return Column(
+              children: <Widget>[
+                Expanded(child: list),
+                if (scopedProgress case final entry?)
+                  switch (entry.stage) {
+                    AxRequestStage.providerStarted => AxThinkingBubble(
+                      key: ValueKey(entry.requestId),
+                    ),
+                    AxRequestStage.accepted => const AxRequestNotice('답변 대기 중'),
+                    AxRequestStage.uncertain => const AxRequestNotice(
+                      '연결이 끊겼어요 · 상태 확인 중',
+                    ),
+                    AxRequestStage.failed => const AxRequestNotice(
+                      '답변을 받지 못했어요',
+                    ),
+                    AxRequestStage.completed => const SizedBox.shrink(),
+                  },
+              ],
             );
           },
     );

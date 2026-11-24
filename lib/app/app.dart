@@ -9,6 +9,7 @@ import '../src/app_environment.dart';
 import 'dev_chat_shell.dart';
 import 'router.dart';
 import 'theme/app_theme.dart';
+import 'widgets/timefit_launch_gate.dart';
 
 class TimeFitApp extends StatefulWidget {
   const TimeFitApp({
@@ -20,6 +21,9 @@ class TimeFitApp extends StatefulWidget {
     this.devPreviewPdfRenderer,
     this.devAttachmentObservability,
     this.devDisposalObserver,
+    this.devChatExperienceEnabled = true,
+    this.showLaunchSplash = false,
+    this.launchFirstFrameRasterized,
     super.key,
   });
 
@@ -31,6 +35,9 @@ class TimeFitApp extends StatefulWidget {
   final DevLocalFileRenderer? devPreviewPdfRenderer;
   final DevLocalAttachmentObservability? devAttachmentObservability;
   final DevChatDisposalObserver? devDisposalObserver;
+  final bool devChatExperienceEnabled;
+  final bool showLaunchSplash;
+  final Future<void>? launchFirstFrameRasterized;
 
   @override
   State<TimeFitApp> createState() => _TimeFitAppState();
@@ -64,7 +71,9 @@ class _TimeFitAppState extends State<TimeFitApp> {
         darkTheme: AppTheme.dark(),
         themeMode: ThemeMode.system,
         title: widget.environment.displayName,
+        builder: widget.showLaunchSplash ? _coverLaunch : null,
         home: DevChatShell(
+          chatExperienceEnabled: widget.devChatExperienceEnabled,
           databaseFactory: widget.devDatabaseFactory,
           attachmentRootFactory: widget.devAttachmentRootFactory,
           attachmentPicker: widget.devAttachmentPicker,
@@ -80,12 +89,18 @@ class _TimeFitAppState extends State<TimeFitApp> {
     return MaterialApp.router(
       debugShowCheckedModeBanner: widget.environment == AppEnvironment.dev,
       routerConfig: _router!,
+      builder: widget.showLaunchSplash ? _coverLaunch : null,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
       title: widget.environment.displayName,
     );
   }
+
+  Widget _coverLaunch(BuildContext context, Widget? child) => TimeFitLaunchGate(
+    firstFrameRasterized: widget.launchFirstFrameRasterized,
+    child: child ?? const SizedBox.shrink(),
+  );
 }
 
 DevLocalAttachmentObservability _createDefaultAttachmentObservability() {

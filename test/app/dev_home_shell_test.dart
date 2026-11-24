@@ -44,14 +44,14 @@ Future<void> _unmount(WidgetTester tester, bool Function() disposed) async {
 }
 
 void main() {
-  testWidgets('preview hit target cannot create a local conversation', (
+  testWidgets('empty home send cannot create a local conversation', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 700);
     addTearDown(tester.view.reset);
     final (database, disposed) = await _mount(tester);
-    final preview = find.byTooltip('샘플 미리보기');
+    final preview = find.byTooltip('메시지 보내기');
 
     expect(preview.hitTestable(), findsOneWidget);
     await tester.tap(preview);
@@ -67,8 +67,10 @@ void main() {
     await tester.enterText(find.byType(TextField), 'HOME MEMORY QA');
     await tester.tap(find.byTooltip('메뉴 샘플'));
     await _settle(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(BackButton));
     await _settle(tester);
+    await tester.pumpAndSettle();
 
     expect(find.byType(DemoHomeScreen), findsOneWidget);
     expect(
@@ -118,8 +120,8 @@ void main() {
           await tester.pump();
 
           expect(tester.takeException(), isNull);
-          expect(find.byTooltip('샘플 첨부 자리'), findsOneWidget);
-          expect(find.byTooltip('샘플 미리보기'), findsOneWidget);
+          expect(find.byTooltip('첨부 안내'), findsOneWidget);
+          expect(find.byTooltip('메시지 보내기'), findsOneWidget);
           await _unmount(tester, disposed);
         },
       );
