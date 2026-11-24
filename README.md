@@ -18,10 +18,10 @@ TimeFit Flutter 네이티브 iOS/Android 앱의 실제 소스 저장소입니다
 
 ## 현재 상태
 
-Flutter 3.38.5와 Dart 3.10.4로 생성한 iOS/Android 최소 bootstrap이 있습니다. 앱 기능, 외부 서비스 연결, production identity, signing, store upload는 아직 구성하지 않았습니다.
+Flutter 3.38.5와 Dart 3.10.4의 iOS/Android dev·staging 빌드에서 로컬 채팅 UI를 검증할 수 있습니다. 외부 서비스 연결, production identity, signing, store upload는 아직 구성하지 않았습니다.
 
 - `dev`: `lib/main.dart`, 명시적인 dev bundle/application ID 사용
-- `staging`: `lib/main_staging.dart`, 명시적인 staging bundle/application ID 사용
+- `staging`: `lib/main_staging.dart`, 명시적인 staging bundle/application ID 사용. 채팅 UI·로컬 저장·재실행 복원을 검증하며, 앱 데이터는 별도 `staging-local-chat-v1` 경로에 저장합니다. 로그인, 개인 AX 연결, 운영 서버 전송, 원격 배포는 사용하지 않습니다.
 - `production`: 승인된 identity와 signing이 없어 실행 및 빌드 대상에서 제외
 
 네이티브 flavor와 Dart entrypoint가 일치하지 않으면 Android Gradle 또는 iOS Xcode build가 실패합니다.

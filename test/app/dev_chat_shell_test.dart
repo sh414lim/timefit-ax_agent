@@ -4,11 +4,14 @@ import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/app/app.dart';
+import 'package:timefit_native/app/dev_chat_shell.dart';
 import 'package:timefit_native/core/database/app_database.dart';
 import 'package:timefit_native/features/attachments/application/attachment_picker.dart';
 import 'package:timefit_native/features/attachments/domain/attachment_policy.dart';
+import 'package:timefit_native/features/chat/presentation/chat_screen.dart';
 import 'package:timefit_native/features/conversations/presentation/widgets/conversation_list_row.dart';
 import 'package:timefit_native/src/app_environment.dart';
 
@@ -30,25 +33,113 @@ Future<void> _createConversationFromHome(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('staging keeps placeholder and never opens the dev database', (
-    WidgetTester tester,
-  ) async {
-    var opens = 0;
-    await tester.pumpWidget(
-      TimeFitApp(
-        environment: AppEnvironment.staging,
-        devDatabaseFactory: () async {
-          opens += 1;
-          throw StateError('must_not_open_dev_database');
-        },
-      ),
-    );
-    await tester.pump();
+  testWidgets(
+    'staging uses distinct file storage, never enables personal AX, reopens same room',
+    (WidgetTester tester) async {
+      final root = (await tester.runAsync(
+        () => Directory.systemTemp.createTemp('timefit-staging-'),
+      ))!;
+      addTearDown(() => root.delete(recursive: true));
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+      messenger.setMockMethodCallHandler(pathProvider, (_) async => root.path);
+      addTearDown(() => messenger.setMockMethodCallHandler(pathProvider, null));
+      var devFactoryOpens = 0;
+      var disposed = false;
 
-    expect(find.text('TimeFit Staging'), findsOneWidget);
-    expect(find.text('개발용 로컬 모드 · 로그인/서버 연결 없음'), findsNothing);
-    expect(opens, 0);
-  });
+      Future<void> mount() async {
+        disposed = false;
+        await tester.pumpWidget(
+          TimeFitApp(
+            environment: AppEnvironment.staging,
+            devDatabaseFactory: () async {
+              devFactoryOpens += 1;
+              throw StateError('must_not_open_dev_database');
+            },
+            stagingDisposalObserver: (future) {
+              future.whenComplete(() => disposed = true);
+            },
+          ),
+        );
+        await _pumpUntilFinder(tester, find.byTooltip('메뉴 샘플'));
+        final shell = tester.widget<DevChatShell>(find.byType(DevChatShell));
+        expect(shell.personalChatOptIn, isFalse);
+        expect(shell.personalChatApi, isNull);
+        expect(find.textContaining('Mac 서버 연결'), findsNothing);
+        expect(find.text('스테이징 로컬 모드 · 로그인/서버 연결 없음'), findsOneWidget);
+      }
+
+      Future<void> close() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _pumpUntil(tester, () => disposed);
+      }
+
+      await mount();
+      const question = 'synthetic staging local chat';
+      await tester.enterText(find.byType(TextField), question);
+      await tester.tap(find.byTooltip('메시지 보내기'));
+      final transcript = find.descendant(
+        of: find.byType(ChatScreen),
+        matching: find.text(question),
+      );
+      await _pumpUntilFinder(tester, transcript);
+      expect(find.text('서버 미연결 · 이 기기에 대기 중'), findsOneWidget);
+      expect(find.textContaining('Mac 서버 연결'), findsNothing);
+      await close();
+
+      final dataRoot = Directory('${root.path}/timefit-native');
+      final chatFile = File(
+        '${dataRoot.path}/staging-local-chat-v1/chat.sqlite',
+      );
+      expect(await tester.runAsync(chatFile.exists), isTrue);
+      expect(
+        await tester.runAsync(
+          Directory('${dataRoot.path}/dev-local-chat-v1').exists,
+        ),
+        isFalse,
+      );
+      expect(
+        await tester.runAsync(
+          Directory(
+            '${dataRoot.path}/staging-local-chat-v1/attachments',
+          ).exists,
+        ),
+        isTrue,
+      );
+      await tester.runAsync(() async {
+        final reopened = AppDatabase(NativeDatabase(chatFile));
+        try {
+          final rooms = await reopened.conversationDao.getAll();
+          final commands = await reopened.outboxDao.getAll();
+          expect(rooms, hasLength(1));
+          expect(commands, hasLength(1));
+          expect(commands.single.state, 'queued');
+          expect(commands.single.attemptCount, 0);
+          expect(
+            (await reopened.messageDao.readTimeline(
+              rooms.single.id,
+            )).single.bodyText,
+            question,
+          );
+        } finally {
+          await reopened.close();
+        }
+      });
+
+      await mount();
+      await tester.tap(find.byTooltip('메뉴 샘플'));
+      await _settleFileIo(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(ConversationListRow));
+      await _pumpUntilFinder(tester, transcript);
+      await tester.pumpAndSettle();
+      expect(transcript, findsOneWidget);
+      expect(find.textContaining('Mac 서버 연결'), findsNothing);
+      expect(devFactoryOpens, 0);
+      await close();
+    },
+  );
 
   testWidgets(
     'full dev chrome keeps long draft actions above landscape keyboard',

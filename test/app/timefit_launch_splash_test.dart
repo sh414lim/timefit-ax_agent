@@ -130,7 +130,10 @@ void main() {
       (failure.home! as BootstrapFailureScreen).onRetry();
       await tester.pumpWidget(runs.last);
       expect(find.byKey(splash), findsNothing);
-      expect(find.text('TimeFit Staging'), findsOneWidget);
+      expect(
+        tester.widget<MaterialApp>(find.byType(MaterialApp)).title,
+        'TimeFit Staging',
+      );
     } finally {
       ErrorWidget.builder = previousBuilder;
     }

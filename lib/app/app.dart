@@ -21,6 +21,7 @@ class TimeFitApp extends StatefulWidget {
     this.devPreviewPdfRenderer,
     this.devAttachmentObservability,
     this.devDisposalObserver,
+    this.stagingDisposalObserver,
     this.devChatExperienceEnabled = true,
     this.showLaunchSplash = false,
     this.launchFirstFrameRasterized,
@@ -35,6 +36,7 @@ class TimeFitApp extends StatefulWidget {
   final DevLocalFileRenderer? devPreviewPdfRenderer;
   final DevLocalAttachmentObservability? devAttachmentObservability;
   final DevChatDisposalObserver? devDisposalObserver;
+  final DevChatDisposalObserver? stagingDisposalObserver;
   final bool devChatExperienceEnabled;
   final bool showLaunchSplash;
   final Future<void>? launchFirstFrameRasterized;
@@ -51,7 +53,7 @@ class _TimeFitAppState extends State<TimeFitApp> {
   @override
   void initState() {
     super.initState();
-    if (widget.environment != AppEnvironment.dev) {
+    if (widget.environment == AppEnvironment.production) {
       _router = createTimeFitRouter(widget.environment);
     }
   }
@@ -64,26 +66,34 @@ class _TimeFitAppState extends State<TimeFitApp> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.environment == AppEnvironment.dev) {
+    if (widget.environment == AppEnvironment.dev ||
+        widget.environment == AppEnvironment.staging) {
+      final isDev = widget.environment == AppEnvironment.dev;
       return MaterialApp(
-        debugShowCheckedModeBanner: true,
+        debugShowCheckedModeBanner: isDev,
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
         themeMode: ThemeMode.system,
         title: widget.environment.displayName,
         builder: widget.showLaunchSplash ? _coverLaunch : null,
-        home: DevChatShell(
-          chatExperienceEnabled: widget.devChatExperienceEnabled,
-          databaseFactory: widget.devDatabaseFactory,
-          attachmentRootFactory: widget.devAttachmentRootFactory,
-          attachmentPicker: widget.devAttachmentPicker,
-          previewImageRenderer: widget.devPreviewImageRenderer,
-          previewPdfRenderer: widget.devPreviewPdfRenderer,
-          attachmentObservability:
-              widget.devAttachmentObservability ??
-              _defaultAttachmentObservability,
-          disposalObserver: widget.devDisposalObserver,
-        ),
+        home: isDev
+            ? DevChatShell(
+                key: const ValueKey(AppEnvironment.dev),
+                chatExperienceEnabled: widget.devChatExperienceEnabled,
+                databaseFactory: widget.devDatabaseFactory,
+                attachmentRootFactory: widget.devAttachmentRootFactory,
+                attachmentPicker: widget.devAttachmentPicker,
+                previewImageRenderer: widget.devPreviewImageRenderer,
+                previewPdfRenderer: widget.devPreviewPdfRenderer,
+                attachmentObservability:
+                    widget.devAttachmentObservability ??
+                    _defaultAttachmentObservability,
+                disposalObserver: widget.devDisposalObserver,
+              )
+            : DevChatShell.staging(
+                key: const ValueKey(AppEnvironment.staging),
+                disposalObserver: widget.stagingDisposalObserver,
+              ),
       );
     }
     return MaterialApp.router(

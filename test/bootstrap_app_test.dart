@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:drift/native.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/core/database/app_database.dart';
@@ -38,15 +39,36 @@ void main() {
     await tester.runAsync(() => attachmentRoot.delete(recursive: true));
   });
 
-  testWidgets('staging bootstrap renders an explicit environment label', (
+  testWidgets('staging bootstrap renders its local chat surface', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(
-      const TimeFitBootstrapApp(environment: AppEnvironment.staging),
-    );
-    await tester.pumpAndSettle();
+    final root = (await tester.runAsync(
+      () => Directory.systemTemp.createTemp('timefit-staging-bootstrap-'),
+    ))!;
+    addTearDown(() => root.delete(recursive: true));
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+    messenger.setMockMethodCallHandler(pathProvider, (_) async => root.path);
+    addTearDown(() => messenger.setMockMethodCallHandler(pathProvider, null));
 
-    expect(find.text('TimeFit Staging'), findsOneWidget);
+    var disposed = false;
+    await tester.pumpWidget(
+      TimeFitBootstrapApp(
+        environment: AppEnvironment.staging,
+        stagingDisposalObserver: (future) {
+          future.whenComplete(() => disposed = true);
+        },
+      ),
+    );
+    final label = find.text('스테이징 로컬 모드 · 로그인/서버 연결 없음');
+    final home = find.text('무엇을 도와드릴까요?');
+    await _pumpUntil(tester, () => home.evaluate().isNotEmpty);
+    expect(label, findsOneWidget);
+    expect(home, findsOneWidget);
+    expect(find.textContaining('Mac 서버 연결'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pumpUntil(tester, () => disposed);
   });
 
   test('production bootstrap fails closed', () {

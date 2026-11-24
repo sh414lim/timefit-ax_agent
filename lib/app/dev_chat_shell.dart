@@ -75,33 +75,40 @@ Future<String?> showPersonalChatPairingDialog(BuildContext context) {
   );
 }
 
-Future<AppDatabase> openDevChatDatabase() async {
+Future<AppDatabase> openDevChatDatabase() =>
+    _openLocalChatDatabase('dev-local-chat-v1');
+
+Future<AppDatabase> openStagingChatDatabase() =>
+    _openLocalChatDatabase('staging-local-chat-v1');
+
+Future<Directory> openDevAttachmentRoot() =>
+    _openLocalAttachmentRoot('dev-local-chat-v1');
+
+Future<Directory> openStagingAttachmentRoot() =>
+    _openLocalAttachmentRoot('staging-local-chat-v1');
+
+Future<Directory> _openLocalNamespace(String name) async {
   final support = await getApplicationSupportDirectory();
-  final namespace = Directory(
-    path.join(support.path, 'timefit-native', 'dev-local-chat-v1'),
-  );
-  await namespace.create(recursive: true);
+  final namespace = Directory(path.join(support.path, 'timefit-native', name));
+  return namespace.create(recursive: true);
+}
+
+Future<AppDatabase> _openLocalChatDatabase(String name) async {
+  final namespace = await _openLocalNamespace(name);
   return AppDatabase(
     NativeDatabase(File(path.join(namespace.path, 'chat.sqlite'))),
   );
 }
 
-Future<Directory> openDevAttachmentRoot() async {
-  final Directory support = await getApplicationSupportDirectory();
-  final Directory root = Directory(
-    path.join(
-      support.path,
-      'timefit-native',
-      'dev-local-chat-v1',
-      'attachments',
-    ),
-  );
-  await root.create(recursive: true);
-  return root;
+Future<Directory> _openLocalAttachmentRoot(String name) async {
+  final namespace = await _openLocalNamespace(name);
+  return Directory(
+    path.join(namespace.path, 'attachments'),
+  ).create(recursive: true);
 }
 
-/// Local development composition root. It owns one database and one local
-/// repository session and deliberately starts no worker or remote adapter.
+/// Non-production local chat composition root. Staging has a separate data
+/// namespace and no opt-in, credential or adapter input for personal chat.
 class DevChatShell extends StatefulWidget {
   const DevChatShell({
     this.databaseFactory = openDevChatDatabase,
@@ -115,8 +122,21 @@ class DevChatShell extends StatefulWidget {
     this.personalChatApi,
     this.chatExperienceEnabled = false,
     super.key,
-  });
+  }) : _staging = false;
 
+  const DevChatShell.staging({this.disposalObserver, super.key})
+    : databaseFactory = openStagingChatDatabase,
+      attachmentRootFactory = openStagingAttachmentRoot,
+      attachmentPicker = null,
+      previewImageRenderer = null,
+      previewPdfRenderer = null,
+      attachmentObservability = null,
+      _staging = true,
+      personalChatOptIn = false,
+      personalChatApi = null,
+      chatExperienceEnabled = true;
+
+  final bool _staging;
   final DevChatDatabaseFactory databaseFactory;
   final DevAttachmentRootFactory attachmentRootFactory;
   final AttachmentPicker? attachmentPicker;
@@ -783,6 +803,7 @@ class _DevChatShellState extends State<DevChatShell>
         children: <Widget>[
           if (showModeBanner)
             _DevLocalModeBanner(
+              staging: widget._staging,
               compact: compactKeyboardLayout,
               includesWaitingStatus:
                   compactKeyboardLayout && _selectedConversationId != null,
@@ -887,7 +908,12 @@ class _DevChatShellState extends State<DevChatShell>
         key: _axNavigator,
         onDidRemovePage: _removeAxPage,
         pages: [
-          page('ax-home', _buildHome(controller)),
+          page(
+            'ax-home',
+            widget._staging
+                ? _modeSurface(compact, _buildHome(controller))
+                : _buildHome(controller),
+          ),
           if (_showingConversationList)
             page(
               'ax-list',
@@ -952,6 +978,7 @@ class _DevChatShellState extends State<DevChatShell>
     child: Column(
       children: [
         _DevLocalModeBanner(
+          staging: widget._staging,
           compact: compact,
           includesWaitingStatus: includesWaitingStatus,
           personalChatOptIn: false,
@@ -1218,6 +1245,7 @@ String _attachmentFailureMessage(AttachmentFailure failure) =>
 
 class _DevLocalModeBanner extends StatelessWidget {
   const _DevLocalModeBanner({
+    required this.staging,
     required this.compact,
     required this.includesWaitingStatus,
     required this.personalChatOptIn,
@@ -1227,6 +1255,7 @@ class _DevLocalModeBanner extends StatelessWidget {
     required this.onConnect,
   });
 
+  final bool staging;
   final bool compact;
   final bool includesWaitingStatus;
   final bool personalChatOptIn;
@@ -1278,7 +1307,11 @@ class _DevLocalModeBanner extends StatelessWidget {
                     ],
                   )
                 : Text(
-                    includesWaitingStatus
+                    staging
+                        ? includesWaitingStatus
+                              ? '스테이징 로컬 · 이 기기에 대기 중'
+                              : '스테이징 로컬 모드 · 로그인/서버 연결 없음'
+                        : includesWaitingStatus
                         ? '개발 로컬 · 로그인/서버 없음 · 이 기기에 대기 중'
                         : '개발용 로컬 모드 · 로그인/서버 연결 없음',
                     textAlign: TextAlign.center,
