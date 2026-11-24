@@ -8,6 +8,7 @@ class ConversationStatePanel extends StatelessWidget {
     required this.onAction,
     this.secondaryActionLabel,
     this.onSecondaryAction,
+    this.compact = false,
     super.key,
   });
 
@@ -17,6 +18,7 @@ class ConversationStatePanel extends StatelessWidget {
   final VoidCallback onAction;
   final String? secondaryActionLabel;
   final VoidCallback? onSecondaryAction;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -26,21 +28,33 @@ class ConversationStatePanel extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
+            constraints: BoxConstraints(
+              minHeight: (constraints.maxHeight - 48).clamp(0, double.infinity),
+            ),
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
+                    if (compact) ...[
+                      Icon(
+                        Icons.forum_outlined,
+                        size: 28,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     Text(
                       title,
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall,
+                      style: compact
+                          ? Theme.of(context).textTheme.titleMedium
+                          : Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 8),
                     Text(message, textAlign: TextAlign.center),
-                    const SizedBox(height: 24),
+                    SizedBox(height: compact ? 16 : 24),
                     FilledButton(onPressed: onAction, child: Text(actionLabel)),
                     if (secondaryActionLabel
                         case final String label) ...<Widget>[

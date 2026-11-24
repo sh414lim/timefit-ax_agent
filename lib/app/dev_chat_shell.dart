@@ -39,6 +39,8 @@ import '../features/home/presentation/widgets/brand_asset_slot.dart';
 import '../features/home/presentation/widgets/demo_quick_composer.dart';
 import '../features/home/presentation/widgets/timefit_loading_mark.dart';
 
+import 'theme/timefit_ax_visual_tokens.dart';
+
 typedef DevChatDatabaseFactory = Future<AppDatabase> Function();
 typedef DevAttachmentRootFactory = Future<Directory> Function();
 typedef DevChatDisposalObserver = void Function(Future<void> disposal);
@@ -829,11 +831,11 @@ class _DevChatShellState extends State<DevChatShell>
     return shell;
   }
 
-  void _requestAxBack() {
+  void _requestAxBack({bool dismissKeyboardFirst = false}) {
     if (_axPopPending) return;
     if (View.of(context).viewInsets.bottom > 0) {
       FocusManager.instance.primaryFocus?.unfocus();
-      return;
+      if (dismissKeyboardFirst) return;
     }
     unawaited(_axNavigator.currentState?.maybePop<void>());
   }
@@ -903,7 +905,7 @@ class _DevChatShellState extends State<DevChatShell>
           },
         );
     final navigator = NavigatorPopHandler<void>(
-      onPopWithResult: (_) => _requestAxBack(),
+      onPopWithResult: (_) => _requestAxBack(dismissKeyboardFirst: true),
       child: Navigator(
         key: _axNavigator,
         onDidRemovePage: _removeAxPage,
@@ -1049,38 +1051,28 @@ class _DevChatShellState extends State<DevChatShell>
     final composer = _composer;
     return Column(
       children: <Widget>[
-        if (!compactKeyboardLayout)
-          Material(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                _personalPairing == null
-                    ? '서버 미연결 · 이 기기에 대기 중'
-                    : 'Mac 개인 서버 연결됨 · Outbox 전송 중',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
         Expanded(
-          child: composer == null
-              ? const Center(child: TimeFitLoadingMark(label: '대화를 준비하는 중'))
-              : ChatScreen.repository(
-                  title: '로컬 대화',
-                  axBranding: _newExperience,
-                  repository: _messageRepository!,
-                  conversationId: conversationId,
-                  composerController: composer,
-                  onBack: onBack,
-                  onAddAttachment: _personalPairing == null
-                      ? () => unawaited(_chooseAttachments())
-                      : null,
-                  onRemoveQueuedAttachment: _removeQueuedAttachment,
-                  onOpenAttachment: _openLocalAttachmentPreview,
-                  isSelectingAttachments: _selectingAttachments,
-                  compactKeyboardLayout: compactKeyboardLayout,
-                  savesLocallyOnly: _personalPairing == null,
-                ),
+          child: ChatScreen.repository(
+            title: '로컬 대화',
+            axBranding: _newExperience,
+            repository: _messageRepository!,
+            conversationId: conversationId,
+            composerController: composer,
+            onBack: onBack,
+            localModeLabel: !compactKeyboardLayout
+                ? _personalPairing == null
+                      ? '서버 미연결 · 이 기기에 대기 중'
+                      : 'Mac 개인 서버 연결됨 · Outbox 전송 중'
+                : null,
+            onAddAttachment: _personalPairing == null
+                ? () => unawaited(_chooseAttachments())
+                : null,
+            onRemoveQueuedAttachment: _removeQueuedAttachment,
+            onOpenAttachment: _openLocalAttachmentPreview,
+            isSelectingAttachments: _selectingAttachments,
+            compactKeyboardLayout: compactKeyboardLayout,
+            savesLocallyOnly: _personalPairing == null,
+          ),
         ),
       ],
     );
@@ -1267,7 +1259,9 @@ class _DevLocalModeBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Theme.of(context).colorScheme.tertiaryContainer,
+      color: personalChatOptIn
+          ? Theme.of(context).colorScheme.tertiaryContainer
+          : TimeFitAxVisualTokens.chatChromeOf(context),
       child: SafeArea(
         bottom: false,
         child: SizedBox(
@@ -1314,7 +1308,10 @@ class _DevLocalModeBanner extends StatelessWidget {
                         : includesWaitingStatus
                         ? '개발 로컬 · 로그인/서버 없음 · 이 기기에 대기 중'
                         : '개발용 로컬 모드 · 로그인/서버 연결 없음',
-                    textAlign: TextAlign.center,
+                    textAlign: TextAlign.start,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: TimeFitAxVisualTokens.of(context).secondaryText,
+                    ),
                     maxLines: compact ? 1 : null,
                     overflow: compact
                         ? TextOverflow.ellipsis
@@ -1368,7 +1365,11 @@ class _NewChatPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    backgroundColor: TimeFitAxVisualTokens.chatSurfaceOf(context),
     appBar: AppBar(
+      backgroundColor: TimeFitAxVisualTokens.chatChromeOf(context),
+      surfaceTintColor: Colors.transparent,
+      titleSpacing: 4,
       leading: BackButton(onPressed: onBack),
       title: const Row(
         children: <Widget>[
@@ -1404,38 +1405,79 @@ class _NewChatPage extends StatelessWidget {
                       children: <Widget>[
                         const TimeFitAssetSlot(
                           kind: TimeFitAssetKind.mobileRobot,
-                          width: 122,
-                          height: 122,
+                          width: 78,
+                          height: 78,
                         ),
                         const SizedBox(height: 12),
                         Text(
                           '무엇을 도와드릴까요?',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          alignment: WrapAlignment.center,
-                          children: <Widget>[
-                            for (final label in [
-                              '오늘 매장 현황',
-                              '이번 주 근무표',
-                              '비용 분석',
-                              '직원 공지 작성',
-                            ])
-                              ActionChip(
-                                label: Text(label),
-                                onPressed: () =>
-                                    controller.value = TextEditingValue(
-                                      text: label,
-                                      selection: TextSelection.collapsed(
-                                        offset: label.length,
+                        LayoutBuilder(
+                          builder: (context, cards) {
+                            final tokens = TimeFitAxVisualTokens.of(context);
+                            final scaled = MediaQuery.textScalerOf(
+                              context,
+                            ).scale(14);
+                            final twoColumns =
+                                cards.maxWidth >= 270 && scaled < 23;
+                            final cardWidth = twoColumns
+                                ? (cards.maxWidth.clamp(0.0, 400.0) - 8) / 2
+                                : cards.maxWidth.clamp(0.0, 400.0).toDouble();
+                            return Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              alignment: WrapAlignment.center,
+                              children: [
+                                for (final (label, icon) in const [
+                                  ('오늘 매장 현황', Icons.insights_outlined),
+                                  ('이번 주 근무표', Icons.calendar_today_outlined),
+                                  ('비용 분석', Icons.receipt_long_outlined),
+                                  ('직원 공지 작성', Icons.campaign_outlined),
+                                ])
+                                  SizedBox(
+                                    width: cardWidth,
+                                    child: TextButton(
+                                      style: TextButton.styleFrom(
+                                        minimumSize: const Size(0, 48),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 8,
+                                        ),
+                                        backgroundColor: tokens.surface,
+                                        foregroundColor: tokens.deepText,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          controller.value = TextEditingValue(
+                                            text: label,
+                                            selection: TextSelection.collapsed(
+                                              offset: label.length,
+                                            ),
+                                          ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            icon,
+                                            size: 18,
+                                            color: tokens.primary,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(child: Text(label)),
+                                        ],
                                       ),
                                     ),
-                              ),
-                          ],
+                                  ),
+                              ],
+                            );
+                          },
                         ),
                       ],
                     ),

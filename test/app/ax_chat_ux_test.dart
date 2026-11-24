@@ -12,6 +12,7 @@ import 'package:timefit_native/features/chat/domain/chat_message.dart';
 import 'package:timefit_native/features/chat/presentation/chat_screen.dart';
 import 'package:timefit_native/features/chat/presentation/widgets/ax_thinking_bubble.dart';
 import 'package:timefit_native/features/conversations/presentation/widgets/conversation_list_row.dart';
+import 'package:timefit_native/features/home/presentation/widgets/timefit_loading_mark.dart';
 import 'package:timefit_native/src/app_environment.dart';
 
 Future<void> _settle(WidgetTester tester) async {
@@ -283,6 +284,42 @@ void main() {
       expect(find.text('유지하는 iOS 초안'), findsOneWidget);
       expect(await tester.runAsync(db.outboxDao.getAll), hasLength(1));
       expect(tester.takeException(), isNull);
+      await close();
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
+    'one explicit Back with keyboard up reveals ready list without loading',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.reset);
+      final db = AppDatabase(NativeDatabase.memory());
+      final close = await _mount(tester, db);
+      await _tap(tester, find.byTooltip('메뉴 샘플'));
+      await _tap(tester, find.byTooltip('새 채팅'));
+      await tester.enterText(find.byType(TextField), 'Back continuity fixture');
+      await _tap(tester, find.byTooltip('메시지 보내기'));
+      expect(find.text('Back continuity fixture'), findsOneWidget);
+      await _tap(tester, find.byType(BackButton));
+      final search = find.byType(TextField);
+      await tester.enterText(search, 'continuity');
+      await _settle(tester);
+      await _tap(tester, find.byType(ConversationListRow));
+      await tester.enterText(find.byType(TextField), '한 번만 뒤로 가기');
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+      await tester.tap(find.byType(BackButton));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(find.byType(ConversationListRow), findsOneWidget);
+      expect(find.byType(TimeFitLoadingMark), findsNothing);
+      tester.view.viewInsets = const FakeViewPadding();
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(search).controller?.text, 'continuity');
+      await _tap(tester, find.byType(ConversationListRow));
+      expect(find.text('한 번만 뒤로 가기'), findsOneWidget);
       await close();
     },
     variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),

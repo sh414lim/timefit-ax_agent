@@ -90,6 +90,39 @@ void main() {
     expect(find.text('로컬 전송 중'), findsNothing);
   });
 
+  testWidgets('switching rooms never paints a previous room snapshot', (
+    WidgetTester tester,
+  ) async {
+    final roomA = StreamController<List<ChatMessage>>();
+    final roomB = StreamController<List<ChatMessage>>();
+    addTearDown(roomA.close);
+    addTearDown(roomB.close);
+    Future<void> showRoom(String id, Stream<List<ChatMessage>> messages) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: ChatScreen(
+              title: '로컬 대화',
+              conversationId: id,
+              messages: messages,
+              axBranding: true,
+            ),
+          ),
+        );
+
+    await showRoom('room-a', roomA.stream);
+    roomA.add([_message(1, body: 'A 전용 내용')]);
+    await tester.pumpAndSettle();
+    expect(find.text('A 전용 내용'), findsOneWidget);
+
+    await showRoom('room-b', roomB.stream);
+    expect(find.text('A 전용 내용'), findsNothing);
+    expect(find.byType(TimeFitLoadingMark), findsOneWidget);
+    roomB.add([_message(1, body: 'B 전용 내용')]);
+    await tester.pumpAndSettle();
+    expect(find.byType(TimeFitLoadingMark), findsNothing);
+    expect(find.text('B 전용 내용'), findsOneWidget);
+  });
+
   testWidgets('pending retains stream order without timestamp sorting', (
     WidgetTester tester,
   ) async {

@@ -29,7 +29,9 @@ class MessageBubble extends StatelessWidget {
     final tokens = TimeFitAxVisualTokens.of(context);
     final brandedMine = axBranding && message.isMine;
     final Color background = message.isMine
-        ? (brandedMine ? tokens.mobileHomePrimary : colors.primaryContainer)
+        ? (brandedMine ? tokens.paleBlue : colors.primaryContainer)
+        : axBranding
+        ? tokens.surface
         : colors.surfaceContainerHighest;
     final bubble = Container(
       constraints: const BoxConstraints(maxWidth: 320, minHeight: 44),
@@ -42,13 +44,13 @@ class MessageBubble extends StatelessWidget {
       child: Theme(
         data: Theme.of(context).copyWith(
           textTheme: Theme.of(context).textTheme.apply(
-            bodyColor: brandedMine ? Colors.white : null,
-            displayColor: brandedMine ? Colors.white : null,
+            bodyColor: brandedMine ? tokens.deepText : null,
+            displayColor: brandedMine ? tokens.deepText : null,
           ),
           colorScheme: brandedMine
               ? colors.copyWith(
-                  primary: Colors.white,
-                  onSurfaceVariant: Colors.white,
+                  primary: tokens.primary,
+                  onSurfaceVariant: tokens.secondaryText,
                 )
               : colors,
         ),
@@ -58,12 +60,14 @@ class MessageBubble extends StatelessWidget {
           children: <Widget>[
             Text(
               message.body,
-              style: brandedMine ? const TextStyle(color: Colors.white) : null,
+              style: brandedMine ? TextStyle(color: tokens.deepText) : null,
             ),
-            const SizedBox(height: 4),
-            ExcludeSemantics(
-              child: DeliveryBadge(state: message.deliveryState),
-            ),
+            if (!axBranding) ...[
+              const SizedBox(height: 4),
+              ExcludeSemantics(
+                child: DeliveryBadge(state: message.deliveryState),
+              ),
+            ],
             if (canRetry)
               TextButton(
                 onPressed: () => unawaited(
@@ -77,6 +81,24 @@ class MessageBubble extends StatelessWidget {
         ),
       ),
     );
+    final content =
+        axBranding && message.deliveryState != MessageDeliveryState.sent
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: message.isMine
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            children: [
+              bubble,
+              Padding(
+                padding: const EdgeInsets.only(right: 4, bottom: 4),
+                child: ExcludeSemantics(
+                  child: DeliveryBadge(state: message.deliveryState),
+                ),
+              ),
+            ],
+          )
+        : bubble;
     return Semantics(
       container: true,
       liveRegion: message.deliveryState != MessageDeliveryState.sent,
@@ -90,7 +112,7 @@ class MessageBubble extends StatelessWidget {
               alignment: message.isMine
                   ? Alignment.centerRight
                   : Alignment.centerLeft,
-              child: bubble,
+              child: content,
             )
           : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,7 +125,7 @@ class MessageBubble extends StatelessWidget {
                     height: 30,
                   ),
                 ),
-                Flexible(child: bubble),
+                Flexible(child: content),
               ],
             ),
     );

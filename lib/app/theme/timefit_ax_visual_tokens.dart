@@ -81,6 +81,19 @@ final class TimeFitAxVisualTokens
   Color get analysisExpandedPrimary => const Color(0xFF207CFC);
   Color get scheduleExpandedPrimary => const Color(0xFF1D7AFD);
 
+  /// Neutral chat surfaces; preserve the original Home/marketing palette.
+  static Color chatSurfaceOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark
+      ? dark.sidebar
+      : const Color(0xFFF2F4F6);
+
+  static Color chatChromeOf(BuildContext context) => of(context).surface;
+
+  static InputBorder get chatFieldBorder => OutlineInputBorder(
+    borderRadius: BorderRadius.circular(24),
+    borderSide: BorderSide.none,
+  );
+
   static TimeFitAxVisualTokens of(BuildContext context) =>
       Theme.of(context).extension<TimeFitAxVisualTokens>() ??
       (Theme.of(context).brightness == Brightness.dark ? dark : light);
