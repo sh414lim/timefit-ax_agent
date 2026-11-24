@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../home/presentation/widgets/timefit_loading_mark.dart';
 import '../application/conversation_list_controller.dart';
 import '../domain/conversation_summary.dart';
 import 'conversation_menu.dart';
@@ -143,11 +144,8 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
 
   Widget _buildBody([String query = '']) {
     return switch (_state.phase) {
-      ConversationListPhase.loading => Center(
-        child: Semantics(
-          label: '대화 목록을 불러오는 중',
-          child: const CircularProgressIndicator(),
-        ),
+      ConversationListPhase.loading => const Center(
+        child: TimeFitLoadingMark(label: '대화 목록을 불러오는 중'),
       ),
       ConversationListPhase.empty => RefreshIndicator(
         onRefresh: widget.controller.refresh,

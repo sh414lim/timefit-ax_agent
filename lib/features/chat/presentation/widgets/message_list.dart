@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 
+import '../../../home/presentation/widgets/timefit_loading_mark.dart';
 import '../../application/history_controller.dart';
 import '../../domain/chat_message.dart';
 import 'message_bubble.dart';
@@ -268,10 +269,7 @@ class _HistoryStatus extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            SizedBox.square(
-              dimension: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
+            ExcludeSemantics(child: TimeFitLoadingMark(size: 16)),
             SizedBox(width: 8),
             Text('이전 메시지를 불러오는 중'),
           ],

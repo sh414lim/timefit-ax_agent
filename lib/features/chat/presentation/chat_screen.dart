@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../home/presentation/widgets/timefit_loading_mark.dart';
 import '../application/chat_connection_controller.dart';
 import '../application/composer_controller.dart';
 import '../application/history_controller.dart';
@@ -262,7 +263,9 @@ class _ChatScreenState extends State<ChatScreen> {
               );
             }
             if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(
+                child: TimeFitLoadingMark(label: '메시지를 불러오는 중'),
+              );
             }
             final List<ChatMessage> ordered = _ordered(snapshot.requireData);
             if (ordered.isEmpty) {

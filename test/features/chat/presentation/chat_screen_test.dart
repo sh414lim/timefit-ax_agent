@@ -16,6 +16,7 @@ import 'package:timefit_native/features/chat/domain/chat_message.dart';
 import 'package:timefit_native/features/chat/presentation/chat_screen.dart';
 import 'package:timefit_native/features/chat/presentation/widgets/message_bubble.dart';
 import 'package:timefit_native/features/chat/presentation/widgets/message_list.dart';
+import 'package:timefit_native/features/home/presentation/widgets/timefit_loading_mark.dart';
 
 void main() {
   setUpAll(() async {
@@ -55,12 +56,13 @@ void main() {
         StreamController<List<ChatMessage>>();
     addTearDown(stream.close);
     await _pump(tester, stream.stream);
+    expect(find.byType(TimeFitLoadingMark), findsOneWidget);
     stream.add(<ChatMessage>[
       _message(1),
       _message(null, clientMessageId: 'stable', body: '로컬 전송 중'),
       _message(3),
     ]);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(
       tester
           .widgetList<MessageBubble>(find.byType(MessageBubble))
@@ -579,8 +581,9 @@ void main() {
       addTearDown(oldStream.close);
       addTearDown(newStream.close);
       await _pump(tester, oldStream.stream);
+      expect(find.byType(TimeFitLoadingMark), findsOneWidget);
       oldStream.add(<ChatMessage>[_message(1, body: '이전 스트림')]);
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.text('이전 스트림'), findsOneWidget);
 
       await _pump(tester, newStream.stream);
@@ -604,8 +607,9 @@ void main() {
         StreamController<List<ChatMessage>>();
     addTearDown(stream.close);
     await _pump(tester, stream.stream);
+    expect(find.byType(TimeFitLoadingMark), findsOneWidget);
     stream.add(<ChatMessage>[_message(1, body: '민감한 기존 메시지')]);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('민감한 기존 메시지'), findsOneWidget);
 
     await _pump(tester, stream.stream, status: ChatScreenStatus.accessRevoked);

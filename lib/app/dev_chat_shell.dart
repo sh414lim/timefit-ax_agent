@@ -36,6 +36,7 @@ import '../features/conversations/presentation/conversation_menu.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/home/presentation/widgets/brand_asset_slot.dart';
 import '../features/home/presentation/widgets/demo_quick_composer.dart';
+import '../features/home/presentation/widgets/timefit_loading_mark.dart';
 
 typedef DevChatDatabaseFactory = Future<AppDatabase> Function();
 typedef DevAttachmentRootFactory = Future<Directory> Function();
@@ -816,7 +817,7 @@ class _DevChatShellState extends State<DevChatShell>
     }
     final controller = _listController;
     if (controller == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: TimeFitLoadingMark(label: '로컬 저장소를 불러오는 중'));
     }
     final conversationId = _selectedConversationId;
     if (conversationId != null) {
@@ -841,7 +842,7 @@ class _DevChatShellState extends State<DevChatShell>
             ),
           Expanded(
             child: composer == null
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: TimeFitLoadingMark(label: '대화를 준비하는 중'))
                 : ChatScreen.repository(
                     title: '로컬 대화',
                     axBranding: _newExperience,

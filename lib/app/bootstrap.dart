@@ -11,7 +11,22 @@ void runTimeFitApp(
   AppEnvironment environment, {
   TimeFitAppRunner appRunner = runApp,
 }) {
-  void retry() => runTimeFitApp(environment, appRunner: appRunner);
+  void mount({required bool coldStart}) => appRunner(
+    TimeFitErrorBoundary(
+      onRetry: () => mount(coldStart: false),
+      child: TimeFitApp(
+        key: UniqueKey(),
+        environment: environment,
+        showLaunchSplash: coldStart,
+        launchFirstFrameRasterized: coldStart
+            ? WidgetsFlutterBinding.ensureInitialized()
+                  .waitUntilFirstFrameRasterized
+            : null,
+      ),
+    ),
+  );
+
+  void retry() => mount(coldStart: false);
 
   ErrorWidget.builder = (FlutterErrorDetails details) {
     return MaterialApp(
@@ -22,12 +37,7 @@ void runTimeFitApp(
       home: BootstrapFailureScreen(onRetry: retry),
     );
   };
-  appRunner(
-    TimeFitErrorBoundary(
-      onRetry: retry,
-      child: TimeFitApp(key: UniqueKey(), environment: environment),
-    ),
-  );
+  mount(coldStart: true);
 }
 
 class TimeFitErrorBoundary extends StatelessWidget {
