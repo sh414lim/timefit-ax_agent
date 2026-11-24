@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/timefit_ax_visual_tokens.dart';
+
 import '../../home/presentation/widgets/timefit_loading_mark.dart';
 import '../application/conversation_list_controller.dart';
 import '../domain/conversation_summary.dart';
@@ -82,8 +84,17 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final branded = widget.searchController != null;
+    final tokens = TimeFitAxVisualTokens.of(context);
     return Scaffold(
+      backgroundColor: branded
+          ? TimeFitAxVisualTokens.chatSurfaceOf(context)
+          : null,
       appBar: AppBar(
+        backgroundColor: branded
+            ? TimeFitAxVisualTokens.chatChromeOf(context)
+            : null,
+        surfaceTintColor: branded ? Colors.transparent : null,
         leading: widget.onBack == null
             ? null
             : BackButton(onPressed: widget.onBack),
@@ -99,10 +110,16 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
             button: true,
             label: '설정 열기',
             excludeSemantics: true,
-            child: TextButton(
-              onPressed: widget.onOpenSettings,
-              child: const Text('설정'),
-            ),
+            child: branded
+                ? IconButton(
+                    onPressed: widget.onOpenSettings,
+                    tooltip: '설정 열기',
+                    icon: const Icon(Icons.settings_outlined),
+                  )
+                : TextButton(
+                    onPressed: widget.onOpenSettings,
+                    child: const Text('설정'),
+                  ),
           ),
         ],
       ),
@@ -120,14 +137,21 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
             : Column(
                 children: <Widget>[
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
                     child: TextField(
                       controller: widget.searchController,
                       textInputAction: TextInputAction.search,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search_rounded),
                         hintText: '대화 제목 또는 메시지 검색',
-                        border: OutlineInputBorder(),
+                        filled: true,
+                        fillColor: tokens.surface,
+                        border: TimeFitAxVisualTokens.chatFieldBorder,
+                        enabledBorder: TimeFitAxVisualTokens.chatFieldBorder,
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide(color: tokens.primary),
+                        ),
                         isDense: true,
                       ),
                     ),
@@ -153,6 +177,7 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
         onRefresh: widget.controller.refresh,
         child: ConversationStatePanel(
           title: '아직 대화가 없습니다',
+          compact: widget.searchController != null,
           message: '새 대화를 시작하면 이곳에서 다시 확인할 수 있습니다.',
           actionLabel: '새 대화 시작',
           onAction: widget.onNewConversation,

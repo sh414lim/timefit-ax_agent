@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../app/theme/timefit_ax_visual_tokens.dart';
 import '../../application/composer_controller.dart';
 import 'attachment_chip.dart';
 
@@ -15,6 +16,7 @@ class ChatComposer extends StatefulWidget {
     this.isSelectingAttachments = false,
     this.compactKeyboardLayout = false,
     this.savesLocallyOnly = false,
+    this.axBranding = false,
     super.key,
   });
 
@@ -25,6 +27,7 @@ class ChatComposer extends StatefulWidget {
   final bool isSelectingAttachments;
   final bool compactKeyboardLayout;
   final bool savesLocallyOnly;
+  final bool axBranding;
 
   @override
   State<ChatComposer> createState() => _ChatComposerState();
@@ -154,7 +157,9 @@ class _ChatComposerState extends State<ChatComposer> {
     return SafeArea(
       top: false,
       child: Material(
-        color: Theme.of(context).colorScheme.surface,
+        color: widget.axBranding
+            ? TimeFitAxVisualTokens.chatSurfaceOf(context)
+            : Theme.of(context).colorScheme.surface,
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             12,
@@ -162,152 +167,178 @@ class _ChatComposerState extends State<ChatComposer> {
             8,
             useCompactInput ? 4 : 8,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              if (widget.onRemoveQueuedAttachment != null &&
-                  controller.attachments.any(
-                    (ComposerAttachment attachment) =>
-                        attachment.state == ComposerAttachmentState.queued,
-                  )) ...<Widget>[
-                const Text(
-                  '이 기기에 저장됨 · 서버 미업로드',
-                  key: ValueKey<String>('local-attachment-status'),
-                ),
-                const SizedBox(height: 6),
-              ],
-              if (controller.attachments.isNotEmpty) ...<Widget>[
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: <Widget>[
-                      for (final attachment in visibleAttachments)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ComposerAttachmentChip(
-                            attachment: attachment,
-                            onOpen: widget.onOpenAttachment == null
-                                ? null
-                                : () => widget.onOpenAttachment!(
-                                    attachment.localId,
-                                  ),
-                            onRemoveFailed: () => unawaited(
-                              _removeFailedAttachment(attachment.localId),
+          child: Material(
+            color: widget.axBranding
+                ? TimeFitAxVisualTokens.chatChromeOf(context)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(widget.axBranding ? 24 : 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                if (widget.onRemoveQueuedAttachment != null &&
+                    controller.attachments.any(
+                      (ComposerAttachment attachment) =>
+                          attachment.state == ComposerAttachmentState.queued,
+                    )) ...<Widget>[
+                  const Text(
+                    '이 기기에 저장됨 · 서버 미업로드',
+                    key: ValueKey<String>('local-attachment-status'),
+                  ),
+                  const SizedBox(height: 6),
+                ],
+                if (controller.attachments.isNotEmpty) ...<Widget>[
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: <Widget>[
+                        for (final attachment in visibleAttachments)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ComposerAttachmentChip(
+                              attachment: attachment,
+                              onOpen: widget.onOpenAttachment == null
+                                  ? null
+                                  : () => widget.onOpenAttachment!(
+                                      attachment.localId,
+                                    ),
+                              onRemoveFailed: () => unawaited(
+                                _removeFailedAttachment(attachment.localId),
+                              ),
+                              onRemoveQueued:
+                                  widget.onRemoveQueuedAttachment == null ||
+                                      controller.isAttachmentDraftMutating
+                                  ? null
+                                  : () => unawaited(
+                                      _removeQueuedAttachment(
+                                        attachment.localId,
+                                      ),
+                                    ),
                             ),
-                            onRemoveQueued:
-                                widget.onRemoveQueuedAttachment == null ||
-                                    controller.isAttachmentDraftMutating
-                                ? null
-                                : () => unawaited(
-                                    _removeQueuedAttachment(attachment.localId),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                Row(
+                  key: const ValueKey<String>('composer-input-row'),
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: <Widget>[
+                    if (widget.onAddAttachment != null) ...<Widget>[
+                      Semantics(
+                        button: true,
+                        label: widget.isSelectingAttachments
+                            ? '첨부 선택 중'
+                            : '첨부 추가',
+                        child: IconButton.outlined(
+                          style: widget.axBranding
+                              ? IconButton.styleFrom(side: BorderSide.none)
+                              : null,
+                          tooltip: '첨부 추가',
+                          constraints: const BoxConstraints.tightFor(
+                            width: 48,
+                            height: 48,
+                          ),
+                          onPressed: widget.isSelectingAttachments
+                              ? null
+                              : widget.onAddAttachment,
+                          icon: widget.isSelectingAttachments
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
                                   ),
+                                )
+                              : const Icon(Icons.attach_file),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: useCompactInput ? compactInputHeight : 144,
+                        ),
+                        child: TextField(
+                          controller: _textController,
+                          focusNode: _focusNode,
+                          minLines: 1,
+                          maxLines: useCompactInput ? null : 5,
+                          inputFormatters: const <TextInputFormatter>[
+                            _RuneLengthLimitingFormatter(
+                              ComposerController.maximumLength,
+                            ),
+                          ],
+                          textCapitalization: TextCapitalization.sentences,
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.newline,
+                          onChanged: controller.updateDraft,
+                          decoration: InputDecoration(
+                            isDense: useCompactInput,
+                            contentPadding: useCompactInput
+                                ? const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  )
+                                : null,
+                            hintText: '메시지 입력',
+                            border: widget.axBranding
+                                ? TimeFitAxVisualTokens.chatFieldBorder
+                                : const OutlineInputBorder(),
+                            enabledBorder: widget.axBranding
+                                ? TimeFitAxVisualTokens.chatFieldBorder
+                                : null,
+                            focusedBorder: widget.axBranding
+                                ? TimeFitAxVisualTokens.chatFieldBorder
+                                : null,
+                            counterText: controller.showCounter
+                                ? '${controller.characterCount}/${ComposerController.maximumLength}'
+                                : '',
+                            errorText: controller.lastError == null
+                                ? null
+                                : '메시지를 저장하지 못했습니다. 다시 시도해 주세요.',
                           ),
                         ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-              Row(
-                key: const ValueKey<String>('composer-input-row'),
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: <Widget>[
-                  if (widget.onAddAttachment != null) ...<Widget>[
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Semantics(
                       button: true,
-                      label: widget.isSelectingAttachments
-                          ? '첨부 선택 중'
-                          : '첨부 추가',
-                      child: IconButton.outlined(
-                        tooltip: '첨부 추가',
+                      label: controller.isSubmitting
+                          ? '메시지 저장 중'
+                          : widget.savesLocallyOnly
+                          ? '메시지 저장'
+                          : '메시지 보내기',
+                      child: IconButton.filled(
+                        tooltip: widget.savesLocallyOnly ? '메시지 저장' : '메시지 보내기',
                         constraints: const BoxConstraints.tightFor(
                           width: 48,
                           height: 48,
                         ),
-                        onPressed: widget.isSelectingAttachments
-                            ? null
-                            : widget.onAddAttachment,
-                        icon: widget.isSelectingAttachments
+                        onPressed:
+                            controller.canSubmit &&
+                                !widget.isSelectingAttachments
+                            ? _submit
+                            : null,
+                        icon: controller.isSubmitting
                             ? const SizedBox.square(
                                 dimension: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Icon(Icons.attach_file),
+                            : Icon(
+                                widget.axBranding
+                                    ? Icons.arrow_upward_rounded
+                                    : Icons.send,
+                              ),
                       ),
                     ),
-                    const SizedBox(width: 8),
                   ],
-                  Expanded(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: useCompactInput ? compactInputHeight : 144,
-                      ),
-                      child: TextField(
-                        controller: _textController,
-                        focusNode: _focusNode,
-                        minLines: 1,
-                        maxLines: useCompactInput ? null : 5,
-                        inputFormatters: const <TextInputFormatter>[
-                          _RuneLengthLimitingFormatter(
-                            ComposerController.maximumLength,
-                          ),
-                        ],
-                        textCapitalization: TextCapitalization.sentences,
-                        keyboardType: TextInputType.multiline,
-                        textInputAction: TextInputAction.newline,
-                        onChanged: controller.updateDraft,
-                        decoration: InputDecoration(
-                          isDense: useCompactInput,
-                          contentPadding: useCompactInput
-                              ? const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                )
-                              : null,
-                          hintText: '메시지 입력',
-                          border: const OutlineInputBorder(),
-                          counterText: controller.showCounter
-                              ? '${controller.characterCount}/${ComposerController.maximumLength}'
-                              : '',
-                          errorText: controller.lastError == null
-                              ? null
-                              : '메시지를 저장하지 못했습니다. 다시 시도해 주세요.',
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Semantics(
-                    button: true,
-                    label: controller.isSubmitting
-                        ? '메시지 저장 중'
-                        : widget.savesLocallyOnly
-                        ? '메시지 저장'
-                        : '메시지 보내기',
-                    child: IconButton.filled(
-                      tooltip: widget.savesLocallyOnly ? '메시지 저장' : '메시지 보내기',
-                      constraints: const BoxConstraints.tightFor(
-                        width: 48,
-                        height: 48,
-                      ),
-                      onPressed:
-                          controller.canSubmit && !widget.isSelectingAttachments
-                          ? _submit
-                          : null,
-                      icon: controller.isSubmitting
-                          ? const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.send),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

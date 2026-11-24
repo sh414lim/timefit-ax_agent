@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/timefit_ax_visual_tokens.dart';
+
 import '../../home/presentation/widgets/timefit_loading_mark.dart';
 import '../application/chat_connection_controller.dart';
 import '../application/composer_controller.dart';
@@ -32,6 +34,7 @@ class ChatScreen extends StatefulWidget {
     this.connectionController,
     this.requestProgress,
     this.axBranding = false,
+    this.localModeLabel,
     super.key,
   }) : repository = null;
 
@@ -53,6 +56,7 @@ class ChatScreen extends StatefulWidget {
     this.connectionController,
     this.requestProgress,
     this.axBranding = false,
+    this.localModeLabel,
     super.key,
   }) : messages = null;
 
@@ -74,6 +78,7 @@ class ChatScreen extends StatefulWidget {
   final ChatConnectionController? connectionController;
   final AxRequestProgress? requestProgress;
   final bool axBranding;
+  final String? localModeLabel;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -153,7 +158,14 @@ class _ChatScreenState extends State<ChatScreen> {
         widget.compactKeyboardLayout ||
         (hasVisibleConnectionBanner && mediaQuery.viewInsets.bottom > 0);
     return Scaffold(
+      backgroundColor: widget.axBranding
+          ? TimeFitAxVisualTokens.chatSurfaceOf(context)
+          : null,
       appBar: AppBar(
+        backgroundColor: widget.axBranding
+            ? TimeFitAxVisualTokens.chatChromeOf(context)
+            : null,
+        surfaceTintColor: widget.axBranding ? Colors.transparent : null,
         toolbarHeight: constrainedKeyboardLayout ? 48 : null,
         leading: widget.onBack == null
             ? null
@@ -180,6 +192,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }) => Column(
     children: <Widget>[
       _buildConnectionBanner(),
+      if (widget.localModeLabel case final label?) _LocalModeChip(label: label),
       Expanded(child: _buildStableBody()),
       if (widget.status == ChatScreenStatus.ready && composer != null)
         _buildComposer(composer, compactKeyboardLayout),
@@ -233,6 +246,7 @@ class _ChatScreenState extends State<ChatScreen> {
       isSelectingAttachments: widget.isSelectingAttachments,
       compactKeyboardLayout: compactKeyboardLayout,
       savesLocallyOnly: widget.savesLocallyOnly,
+      axBranding: widget.axBranding,
     ),
   );
 
@@ -253,6 +267,9 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
     return StreamBuilder<List<ChatMessage>>(
+      // Never paint the previous room's stream snapshot while the next room
+      // subscribes on the same split-pane ChatScreen.
+      key: ValueKey(widget.conversationId),
       stream: _messages,
       builder:
           (BuildContext context, AsyncSnapshot<List<ChatMessage>> snapshot) {
@@ -361,6 +378,40 @@ List<ChatMessage> _ordered(List<ChatMessage> source) {
     ...canonical,
     ...pending,
   ]);
+}
+
+class _LocalModeChip extends StatelessWidget {
+  const _LocalModeChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TimeFitAxVisualTokens.of(context);
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: tokens.surface,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(color: tokens.secondaryText),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ChatState extends StatelessWidget {

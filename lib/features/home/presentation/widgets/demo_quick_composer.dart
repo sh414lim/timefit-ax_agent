@@ -111,6 +111,55 @@ class DemoQuickComposer extends StatelessWidget {
         ),
       ),
     );
+    if (onSend != null) {
+      return Material(
+        color: TimeFitAxVisualTokens.chatChromeOf(context),
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              IconButton(
+                tooltip: '첨부 안내',
+                onPressed: () {
+                  showDialog<void>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('첫 메시지를 먼저 보내 주세요'),
+                      content: const Text('대화가 열린 뒤 사진이나 파일을 첨부할 수 있어요.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          child: const Text('확인'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.attach_file_rounded),
+              ),
+              Expanded(
+                child: KeyedSubtree(
+                  key: const Key('demo-composer-input-field'),
+                  child: input,
+                ),
+              ),
+              IconButton.filled(
+                key: const Key('demo-composer-send'),
+                tooltip: '메시지 보내기',
+                onPressed: sendEnabled ? onSend : null,
+                constraints: const BoxConstraints.tightFor(
+                  width: 48,
+                  height: 48,
+                ),
+                icon: const Icon(Icons.arrow_upward_rounded),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Semantics(
       container: true,
       label: onSend == null ? '데모 입력, 실제 업무 시스템에 연결되지 않음' : '메시지 입력',
@@ -129,32 +178,11 @@ class DemoQuickComposer extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               IconButton(
-                tooltip: onSend != null
-                    ? '첨부 안내'
-                    : leadingPlus
-                    ? '샘플 추가 자리'
-                    : '샘플 첨부 자리',
-                onPressed: onSend == null
-                    ? () {}
-                    : () {
-                        showDialog<void>(
-                          context: context,
-                          builder: (dialogContext) => AlertDialog(
-                            title: const Text('첫 메시지를 먼저 보내 주세요'),
-                            content: const Text('대화가 열린 뒤 사진이나 파일을 첨부할 수 있어요.'),
-                            actions: <Widget>[
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(dialogContext).pop(),
-                                child: const Text('확인'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                constraints: BoxConstraints.tightFor(
-                  width: onSend == null ? AppTouchTarget.minimum : 48,
-                  height: onSend == null ? AppTouchTarget.minimum : 48,
+                tooltip: leadingPlus ? '샘플 추가 자리' : '샘플 첨부 자리',
+                onPressed: () {},
+                constraints: const BoxConstraints.tightFor(
+                  width: AppTouchTarget.minimum,
+                  height: AppTouchTarget.minimum,
                 ),
                 icon: CustomPaint(
                   size: const Size.square(22),

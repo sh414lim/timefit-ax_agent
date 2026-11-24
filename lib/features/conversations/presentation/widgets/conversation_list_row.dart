@@ -50,8 +50,8 @@ class ConversationListRow extends StatelessWidget {
                 if (showAvatar) ...<Widget>[
                   const TimeFitAssetSlot(
                     kind: TimeFitAssetKind.mobileRobot,
-                    width: 40,
-                    height: 40,
+                    width: 34,
+                    height: 34,
                   ),
                   const SizedBox(width: 10),
                 ],
@@ -63,15 +63,24 @@ class ConversationListRow extends StatelessWidget {
                         conversation.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium,
+                        style: showAvatar
+                            ? Theme.of(context).textTheme.titleSmall
+                            : Theme.of(context).textTheme.titleMedium,
                       ),
                       if (conversation.displayPreview.isNotEmpty) ...<Widget>[
                         const SizedBox(height: 4),
                         Text(
                           conversation.displayPreview,
-                          maxLines: 2,
+                          maxLines: showAvatar ? 1 : 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: showAvatar
+                                    ? Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant
+                                    : null,
+                              ),
                         ),
                       ],
                     ],
