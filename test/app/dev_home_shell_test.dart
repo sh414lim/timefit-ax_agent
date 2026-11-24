@@ -67,8 +67,10 @@ void main() {
     await tester.enterText(find.byType(TextField), 'HOME MEMORY QA');
     await tester.tap(find.byTooltip('메뉴 샘플'));
     await _settle(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(BackButton));
     await _settle(tester);
+    await tester.pumpAndSettle();
 
     expect(find.byType(DemoHomeScreen), findsOneWidget);
     expect(

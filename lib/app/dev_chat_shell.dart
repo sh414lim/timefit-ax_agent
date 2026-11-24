@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/native.dart';
+import 'package:flutter/cupertino.dart' show CupertinoRouteTransitionMixin;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -152,7 +153,10 @@ class _DevChatShellState extends State<DevChatShell>
   final TextEditingController _listSearchController = TextEditingController();
   final PageStorageBucket _listStorage = PageStorageBucket();
   final Map<String, String> _roomTextDrafts = <String, String>{};
+  final _axNavigator = GlobalKey<NavigatorState>();
   bool _showingNewChat = false;
+  bool _quietHomeSend = false;
+  bool _axPopPending = false;
   bool _sendingFirst = false;
   int _firstDraftRevision = 0;
   String _lastHomeDraft = '';
@@ -312,10 +316,12 @@ class _DevChatShellState extends State<DevChatShell>
   }
 
   void _beginConversation() {
+    if (_axPopPending) return;
     if (!_newExperience) {
       unawaited(_createConversation());
       return;
     }
+    if (_selectedConversationId != null) _closeConversation();
     _conversationGeneration += 1;
     setState(() => _showingNewChat = true);
   }
@@ -365,8 +371,9 @@ class _DevChatShellState extends State<DevChatShell>
         controller.clear();
       }
       FocusManager.instance.primaryFocus?.unfocus();
-      setState(() => _showingNewChat = false);
-      _openConversation(command.conversationId);
+      // Promote the existing composer page instead of pushing another route.
+      _quietHomeSend = controller == _homeDraftController;
+      _openConversation(command.conversationId, fresh: true);
     } on Object {
       if (current()) _showLocalNotice('메시지를 저장하지 못했습니다. 다시 시도해 주세요.');
     } finally {
@@ -406,11 +413,15 @@ class _DevChatShellState extends State<DevChatShell>
     }
   }
 
-  void _openConversation(String conversationId) {
-    unawaited(_prepareConversation(conversationId));
+  void _openConversation(String conversationId, {bool fresh = false}) {
+    if (_axPopPending || _selectedConversationId == conversationId) return;
+    unawaited(_prepareConversation(conversationId, fresh: fresh));
   }
 
-  Future<void> _prepareConversation(String conversationId) async {
+  Future<void> _prepareConversation(
+    String conversationId, {
+    required bool fresh,
+  }) async {
     _rememberCurrentDraft();
     final int generation = ++_conversationGeneration;
     _attachmentCancellation?.cancel();
@@ -425,7 +436,9 @@ class _DevChatShellState extends State<DevChatShell>
     final DevLocalAttachmentDrafts drafts = _attachmentDrafts!;
     final String clientMessageId =
         _draftClientMessageIds[conversationId] ??
-        await drafts.findDraftClientMessageId(conversationId) ??
+        (fresh
+            ? null
+            : await drafts.findDraftClientMessageId(conversationId)) ??
         drafts.newDraftClientMessageId();
     if (!mounted ||
         generation != _conversationGeneration ||
@@ -465,6 +478,8 @@ class _DevChatShellState extends State<DevChatShell>
       _creatingConversation = false;
       _composer = null;
       _selectedConversationId = null;
+      _showingNewChat = false;
+      _quietHomeSend = false;
       _selectingAttachments = false;
     });
   }
@@ -749,7 +764,12 @@ class _DevChatShellState extends State<DevChatShell>
     final size = MediaQuery.sizeOf(context);
     final bool compactKeyboardLayout =
         viewInsets.bottom > 0 &&
-        (size.width > size.height || size.height - viewInsets.bottom < 340);
+        (size.width > size.height || size.height - viewInsets.bottom < 400);
+    if (_newExperience &&
+        _initializationError == null &&
+        _listController != null) {
+      return _buildAxNavigator(compactKeyboardLayout, size.width >= 900);
+    }
     final bool showingSourceHome =
         _initializationError == null &&
         _listController != null &&
@@ -785,28 +805,173 @@ class _DevChatShellState extends State<DevChatShell>
         ],
       ),
     );
-    if (!_newExperience) return shell;
-    return PopScope<Object?>(
-      canPop:
-          _selectedConversationId == null &&
-          !_showingNewChat &&
-          !_showingConversationList &&
-          !_showingArchive,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
+    return shell;
+  }
+
+  void _requestAxBack() {
+    if (_axPopPending) return;
+    if (View.of(context).viewInsets.bottom > 0) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      return;
+    }
+    unawaited(_axNavigator.currentState?.maybePop<void>());
+  }
+
+  void _removeAxPage(Page<Object?> page) {
+    if (!mounted || _disposed) return;
+    _axPopPending = false;
+    switch (page.name) {
+      case 'ax-compose':
         if (_selectedConversationId != null) {
           _closeConversation();
         } else if (_showingNewChat) {
           _closeNewChat();
-        } else if (_showingArchive) {
-          setState(() => _showingArchive = false);
-        } else if (_showingConversationList) {
-          setState(() => _showingConversationList = false);
         }
-      },
-      child: shell,
+      case 'ax-archive':
+        if (_showingArchive) setState(() => _showingArchive = false);
+      case 'ax-list':
+        if (_showingConversationList)
+          setState(() => _showingConversationList = false);
+    }
+  }
+
+  Widget _buildAxNavigator(bool compact, bool wide) {
+    final bool split = wide && _showingConversationList && !_showingArchive;
+    final bool ios = Theme.of(context).platform == TargetPlatform.iOS;
+    final bool reduce = MediaQuery.disableAnimationsOf(context);
+    final bool flow = _selectedConversationId != null || _showingNewChat;
+    final controller = _listController!;
+    Widget list({required bool sidebar}) {
+      return PageStorage(
+        bucket: _listStorage,
+        child: _buildConversationList(
+          controller,
+          onBack: sidebar
+              ? () {
+                  if (_selectedConversationId != null) _closeConversation();
+                  if (_showingNewChat) _closeNewChat();
+                  setState(() => _showingConversationList = false);
+                }
+              : _requestAxBack,
+          activeConversationId: split ? _selectedConversationId : null,
+        ),
+      );
+    }
+
+    Page<void> page(String name, Widget child, {bool quiet = false}) =>
+        _AxShellPage(
+          key: ValueKey<String>(name),
+          name: name,
+          child: child,
+          ios: ios,
+          reduceMotion: reduce || split,
+          quietForward: quiet,
+          onPopInvoked: (popped, _) {
+            // An interactive drag does not invalidate a save unless it commits.
+            if (!popped) return;
+            final stillOwnsPage = switch (name) {
+              'ax-compose' =>
+                _selectedConversationId != null || _showingNewChat,
+              'ax-archive' => _showingArchive,
+              'ax-list' => _showingConversationList,
+              _ => false,
+            };
+            if (!stillOwnsPage) return; // Parent already removed it.
+            _axPopPending = true;
+            if (name == 'ax-compose') _conversationGeneration += 1;
+          },
+        );
+    final navigator = NavigatorPopHandler<void>(
+      onPopWithResult: (_) => _requestAxBack(),
+      child: Navigator(
+        key: _axNavigator,
+        onDidRemovePage: _removeAxPage,
+        pages: [
+          page('ax-home', _buildHome(controller)),
+          if (_showingConversationList)
+            page(
+              'ax-list',
+              split
+                  ? const Scaffold(
+                      body: Center(child: Text('대화를 선택하거나 새 채팅을 시작하세요.')),
+                    )
+                  : _modeSurface(compact, list(sidebar: false)),
+            ),
+          if (_showingArchive)
+            page(
+              'ax-archive',
+              _modeSurface(compact, _buildArchive(_requestAxBack)),
+            ),
+          if (flow)
+            page(
+              'ax-compose',
+              _modeSurface(
+                compact,
+                _selectedConversationId == null
+                    ? _buildDraft(_requestAxBack)
+                    : _buildRoom(
+                        _selectedConversationId!,
+                        compact,
+                        _requestAxBack,
+                      ),
+                includesWaitingStatus:
+                    compact && _selectedConversationId != null,
+              ),
+              quiet: _quietHomeSend,
+            ),
+        ],
+      ),
+    );
+    // Keep the Navigator at the same element position across rotate/resize.
+    // One shell handles the keyboard inset for both panes. Nested Scaffolds
+    // receive the adjusted MediaQuery instead of subtracting it a second time.
+    return Scaffold(
+      body: Row(
+        children: [
+          if (split) ...[
+            SizedBox(
+              width: 336,
+              child: _modeSurface(compact, list(sidebar: true)),
+            ),
+            const VerticalDivider(width: 1),
+          ],
+          Expanded(
+            key: const ValueKey<String>('ax-navigation-pane'),
+            child: navigator,
+          ),
+        ],
+      ),
     );
   }
+
+  Widget _modeSurface(
+    bool compact,
+    Widget child, {
+    bool includesWaitingStatus = false,
+  }) => Material(
+    child: Column(
+      children: [
+        _DevLocalModeBanner(
+          compact: compact,
+          includesWaitingStatus: includesWaitingStatus,
+          personalChatOptIn: false,
+          personalConnected: false,
+          personalConnecting: false,
+          connectionError: null,
+          onConnect: () {},
+        ),
+        Expanded(
+          child: Builder(
+            builder: (context) => MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: child,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   @override
   void didChangeMetrics() {
@@ -833,85 +998,124 @@ class _DevChatShellState extends State<DevChatShell>
     }
     final conversationId = _selectedConversationId;
     if (conversationId != null) {
-      final ComposerController? composer = _composer;
-      return Column(
-        children: <Widget>[
-          if (!compactKeyboardLayout)
-            Material(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Text(
-                  _personalPairing == null
-                      ? '서버 미연결 · 이 기기에 대기 중'
-                      : 'Mac 개인 서버 연결됨 · Outbox 전송 중',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-          Expanded(
-            child: composer == null
-                ? const Center(child: TimeFitLoadingMark(label: '대화를 준비하는 중'))
-                : ChatScreen.repository(
-                    title: '로컬 대화',
-                    axBranding: _newExperience,
-                    repository: _messageRepository!,
-                    conversationId: conversationId,
-                    composerController: composer,
-                    onBack: _closeConversation,
-                    onAddAttachment: _personalPairing == null
-                        ? () => unawaited(_chooseAttachments())
-                        : null,
-                    onRemoveQueuedAttachment: _removeQueuedAttachment,
-                    onOpenAttachment: _openLocalAttachmentPreview,
-                    isSelectingAttachments: _selectingAttachments,
-                    compactKeyboardLayout: compactKeyboardLayout,
-                    savesLocallyOnly: _personalPairing == null,
-                  ),
-          ),
-        ],
-      );
-    }
-    if (_showingNewChat) {
-      return _NewChatPage(
-        controller: _newDraftController,
-        focusNode: _newDraftFocusNode,
-        onBack: _closeNewChat,
-        onSend: () => unawaited(_sendFirst(_newDraftController)),
-        sendEnabled: !_sendingFirst,
+      return _buildRoom(
+        conversationId,
+        compactKeyboardLayout,
+        _closeConversation,
       );
     }
     if (_showingArchive) {
-      return ArchivedConversationScreen(
-        conversations: _conversationRepository!.watchArchivedConversations(),
-        onBack: () => setState(() => _showingArchive = false),
-        onOpenConversation: _openConversation,
-      );
+      return _buildArchive(() => setState(() => _showingArchive = false));
     }
-    if (!_showingConversationList) {
-      return DemoHomeScreen(
-        conversationController: controller,
-        onOpenConversation: _openConversation,
-        onOpenConversationList: () =>
-            setState(() => _showingConversationList = true),
-        onOpenArchive: () => setState(() => _showingArchive = true),
-        onNewConversation: _beginConversation,
-        onSend: _newExperience
-            ? () => unawaited(_sendFirst(_homeDraftController))
-            : null,
-        sendEnabled: !_sendingFirst,
-        draftController: _homeDraftController,
-        draftFocusNode: _homeDraftFocusNode,
-      );
+    if (!_showingConversationList) return _buildHome(controller);
+    return _buildConversationList(
+      controller,
+      onBack: () => setState(() => _showingConversationList = false),
+    );
+  }
+
+  Widget _buildRoom(
+    String conversationId,
+    bool compactKeyboardLayout,
+    VoidCallback onBack,
+  ) {
+    final composer = _composer;
+    return Column(
+      children: <Widget>[
+        if (!compactKeyboardLayout)
+          Material(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                _personalPairing == null
+                    ? '서버 미연결 · 이 기기에 대기 중'
+                    : 'Mac 개인 서버 연결됨 · Outbox 전송 중',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        Expanded(
+          child: composer == null
+              ? const Center(child: TimeFitLoadingMark(label: '대화를 준비하는 중'))
+              : ChatScreen.repository(
+                  title: '로컬 대화',
+                  axBranding: _newExperience,
+                  repository: _messageRepository!,
+                  conversationId: conversationId,
+                  composerController: composer,
+                  onBack: onBack,
+                  onAddAttachment: _personalPairing == null
+                      ? () => unawaited(_chooseAttachments())
+                      : null,
+                  onRemoveQueuedAttachment: _removeQueuedAttachment,
+                  onOpenAttachment: _openLocalAttachmentPreview,
+                  isSelectingAttachments: _selectingAttachments,
+                  compactKeyboardLayout: compactKeyboardLayout,
+                  savesLocallyOnly: _personalPairing == null,
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDraft(VoidCallback onBack) => _NewChatPage(
+    controller: _newDraftController,
+    focusNode: _newDraftFocusNode,
+    onBack: onBack,
+    onSend: () => unawaited(_sendFirst(_newDraftController)),
+    sendEnabled: !_sendingFirst,
+  );
+
+  Widget _buildArchive(VoidCallback onBack) => ArchivedConversationScreen(
+    conversations: _conversationRepository!.watchArchivedConversations(),
+    onBack: onBack,
+    onOpenConversation: _openConversation,
+  );
+
+  void _openConversationList() {
+    if (_axPopPending) return;
+    if (_newExperience) _conversationGeneration += 1;
+    setState(() => _showingConversationList = true);
+  }
+
+  void _openArchive() {
+    if (_axPopPending) return;
+    if (_newExperience) {
+      if (_selectedConversationId != null) _closeConversation();
+      if (_showingNewChat) _closeNewChat();
+      _conversationGeneration += 1;
     }
-    final list = ConversationListScreen(
+    setState(() => _showingArchive = true);
+  }
+
+  Widget _buildHome(ConversationListController controller) {
+    return DemoHomeScreen(
+      conversationController: controller,
+      onOpenConversation: _openConversation,
+      onOpenConversationList: _openConversationList,
+      onOpenArchive: _openArchive,
+      onNewConversation: _beginConversation,
+      onSend: _newExperience
+          ? () => unawaited(_sendFirst(_homeDraftController))
+          : null,
+      sendEnabled: !_sendingFirst,
+      draftController: _homeDraftController,
+      draftFocusNode: _homeDraftFocusNode,
+    );
+  }
+
+  Widget _buildConversationList(
+    ConversationListController controller, {
+    required VoidCallback onBack,
+    String? activeConversationId,
+  }) {
+    return ConversationListScreen(
       controller: controller,
       searchController: _newExperience ? _listSearchController : null,
       loadOnMount: false,
-      onBack: () => setState(() => _showingConversationList = false),
+      onBack: onBack,
+      selectedConversationId: activeConversationId,
       onNewConversation: _beginConversation,
       onOpenSettings: () {
         if (!_newExperience) {
@@ -926,17 +1130,79 @@ class _DevChatShellState extends State<DevChatShell>
           ),
         );
       },
-      onOpenArchive: () => setState(() => _showingArchive = true),
+      onOpenArchive: _openArchive,
       onOpenConversation: _openConversation,
       onConversationAction: (conversation, action) =>
           unawaited(_handleConversationAction(conversation, action)),
       isConversationBusy: (String id) =>
           _conversationActions?.state.isBusy(id) ?? false,
     );
-    return _newExperience
-        ? PageStorage(bucket: _listStorage, child: list)
-        : list;
   }
+}
+
+/// Stable page identity across a first-send promotion and width changes.
+class _AxShellPage extends Page<void> {
+  const _AxShellPage({
+    required this.child,
+    required this.ios,
+    required this.reduceMotion,
+    required this.quietForward,
+    required super.key,
+    required super.name,
+    super.onPopInvoked,
+  });
+
+  final Widget child;
+  final bool ios;
+  final bool reduceMotion;
+  final bool quietForward;
+
+  @override
+  Route<void> createRoute(BuildContext context) =>
+      ios ? _AxCupertinoRoute(this) : _AxMaterialRoute(this);
+}
+
+class _AxCupertinoRoute extends PageRoute<void>
+    with CupertinoRouteTransitionMixin<void> {
+  _AxCupertinoRoute(_AxShellPage page) : super(settings: page);
+  _AxShellPage get page => settings as _AxShellPage;
+
+  @override
+  String? get title => page.name;
+  @override
+  bool get maintainState => true;
+  @override
+  Duration get transitionDuration => page.reduceMotion || page.quietForward
+      ? Duration.zero
+      : super.transitionDuration;
+  @override
+  Duration get reverseTransitionDuration =>
+      page.reduceMotion ? Duration.zero : super.transitionDuration;
+  @override
+  bool get popGestureEnabled =>
+      page.reduceMotion ? false : super.popGestureEnabled;
+
+  @override
+  Widget buildContent(BuildContext context) => page.child;
+}
+
+class _AxMaterialRoute extends PageRoute<void>
+    with MaterialRouteTransitionMixin<void> {
+  _AxMaterialRoute(_AxShellPage page) : super(settings: page);
+  _AxShellPage get page => settings as _AxShellPage;
+
+  @override
+  bool get maintainState => true;
+  @override
+  Duration get transitionDuration => page.reduceMotion || page.quietForward
+      ? Duration.zero
+      : super.transitionDuration;
+  @override
+  Duration get reverseTransitionDuration =>
+      page.reduceMotion ? Duration.zero : super.reverseTransitionDuration;
+
+  @override
+  Widget buildContent(BuildContext context) => page.child;
 }
 
 String _attachmentFailureMessage(AttachmentFailure failure) =>

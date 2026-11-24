@@ -19,6 +19,7 @@ class ConversationListScreen extends StatefulWidget {
     this.loadOnMount = true,
     this.currentTime,
     this.searchController,
+    this.selectedConversationId,
     this.onConversationAction,
     this.isConversationBusy,
     super.key,
@@ -33,6 +34,7 @@ class ConversationListScreen extends StatefulWidget {
   final bool loadOnMount;
   final DateTime Function()? currentTime;
   final TextEditingController? searchController;
+  final String? selectedConversationId;
   final void Function(ConversationSummary, ConversationMenuAction)?
   onConversationAction;
   final bool Function(String conversationId)? isConversationBusy;
@@ -221,6 +223,7 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
               conversations[index - conversationOffset];
           return ConversationListRow(
             conversation: conversation,
+            selected: conversation.id == widget.selectedConversationId,
             showAvatar: widget.searchController != null,
             updatedAtLabel: _formatUpdatedAt(conversation.updatedAt, now),
             onTap: () => widget.onOpenConversation(conversation.id),

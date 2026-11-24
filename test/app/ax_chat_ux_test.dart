@@ -27,6 +27,7 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.tap(finder);
   await _settle(tester);
+  await tester.pumpAndSettle();
 }
 
 Future<Future<void> Function()> _mount(
@@ -218,8 +219,17 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text(draft), findsOneWidget);
       await tester.enterText(find.byType(TextField), '재입장할 때 남는 초안');
+      tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+      await _settle(tester);
       await tester.binding.handlePopRoute();
       await _settle(tester);
+      expect(find.text('재입장할 때 남는 초안'), findsOneWidget);
+      expect(find.byType(ConversationListRow), findsNothing);
+      tester.view.resetViewInsets();
+      await _settle(tester);
+      await tester.binding.handlePopRoute();
+      await _settle(tester);
+      await tester.pumpAndSettle();
       expect(find.byType(ConversationListRow), findsOneWidget);
       await _tap(tester, find.byType(ConversationListRow));
       expect(find.text('재입장할 때 남는 초안'), findsOneWidget);
@@ -229,6 +239,128 @@ void main() {
     },
   );
 
+  testWidgets(
+    'iOS edge drag cancels without losing draft; completed drag returns to search',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.reset);
+      final db = AppDatabase(NativeDatabase.memory());
+      final close = await _mount(tester, db);
+      await _tap(tester, find.byTooltip('메뉴 샘플'));
+      await _tap(tester, find.byTooltip('새 채팅'));
+      await tester.enterText(find.byType(TextField), 'iOS swipe fixture');
+      await _tap(tester, find.byTooltip('메시지 보내기'));
+      await tester.pumpAndSettle();
+      expect(find.text('iOS swipe fixture'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), '유지하는 iOS 초안');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+
+      final title = find.text('로컬 대화');
+      final double originalX = tester.getTopLeft(title).dx;
+      final gesture = await tester.startGesture(const Offset(1, 350));
+      await gesture.moveBy(const Offset(30, 0));
+      await gesture.moveBy(const Offset(45, 0));
+      await tester.pump(const Duration(milliseconds: 180));
+      expect(tester.getTopLeft(title).dx, greaterThan(originalX + 10));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.text('유지하는 iOS 초안'), findsOneWidget);
+      expect(tester.getTopLeft(title).dx, closeTo(originalX, .1));
+      expect(find.byType(ConversationListRow), findsNothing);
+
+      final commit = await tester.startGesture(const Offset(1, 350));
+      await commit.moveBy(const Offset(30, 0));
+      await commit.moveBy(const Offset(270, 0));
+      await tester.pump(const Duration(milliseconds: 180));
+      await commit.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(ConversationListRow), findsOneWidget);
+      expect(find.byKey(const Key('new-chat-composer')), findsNothing);
+      await _tap(tester, find.byType(ConversationListRow));
+      await tester.pumpAndSettle();
+      expect(find.text('유지하는 iOS 초안'), findsOneWidget);
+      expect(await tester.runAsync(db.outboxDao.getAll), hasLength(1));
+      expect(tester.takeException(), isNull);
+      await close();
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
+    'reduce motion keeps explicit back without a slide',
+    (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final db = AppDatabase(NativeDatabase.memory());
+      final close = await _mount(tester, db);
+      await _tap(tester, find.byTooltip('메뉴 샘플'));
+      await _tap(tester, find.byTooltip('새 채팅'));
+      final route =
+          ModalRoute.of(
+                tester.element(find.byKey(const Key('new-chat-composer'))),
+              )!
+              as PageRoute<void>;
+      expect(route.transitionDuration, Duration.zero);
+      expect(route.reverseTransitionDuration, Duration.zero);
+      await _tap(tester, find.byType(BackButton));
+      expect(find.byTooltip('새 채팅'), findsOneWidget);
+      expect(await tester.runAsync(db.conversationDao.getAll), isEmpty);
+      await close();
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets('resize shares room, draft and query across tablet and phone', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.reset);
+    final db = AppDatabase(NativeDatabase.memory());
+    final close = await _mount(tester, db);
+    await _tap(tester, find.byTooltip('메뉴 샘플'));
+    await _tap(tester, find.byTooltip('새 채팅'));
+    await tester.enterText(find.byType(TextField), 'tablet resize fixture');
+    await _tap(tester, find.byTooltip('메시지 보내기'));
+    await tester.pumpAndSettle();
+    await _tap(tester, find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'tablet');
+    await _settle(tester);
+    await _tap(tester, find.byType(ConversationListRow));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '방 전용 초안');
+
+    tester.view.physicalSize = const Size(1040, 810);
+    await _settle(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('방 전용 초안'), findsOneWidget);
+    expect(find.text('tablet'), findsOneWidget);
+    expect(
+      tester
+          .widget<ConversationListRow>(find.byType(ConversationListRow))
+          .selected,
+      isTrue,
+    );
+
+    tester.view.physicalSize = const Size(390, 844);
+    await _settle(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('방 전용 초안'), findsOneWidget);
+    expect(find.byType(ConversationListRow), findsNothing);
+    await tester.binding.handlePopRoute();
+    await _settle(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('tablet'), findsOneWidget);
+    expect(await tester.runAsync(db.outboxDao.getAll), hasLength(1));
+    expect(tester.takeException(), isNull);
+    await close();
+  });
   test('failed outbox rolls back first room and message together', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
