@@ -19,6 +19,7 @@ class TimeFitBootstrapApp extends StatelessWidget {
     this.devDatabaseFactory = openDevChatDatabase,
     this.devAttachmentRootFactory = openDevAttachmentRoot,
     this.devDisposalObserver,
+    this.stagingDisposalObserver,
     super.key,
   });
 
@@ -26,6 +27,7 @@ class TimeFitBootstrapApp extends StatelessWidget {
   final DevChatDatabaseFactory devDatabaseFactory;
   final DevAttachmentRootFactory devAttachmentRootFactory;
   final DevChatDisposalObserver? devDisposalObserver;
+  final DevChatDisposalObserver? stagingDisposalObserver;
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +36,7 @@ class TimeFitBootstrapApp extends StatelessWidget {
       devDatabaseFactory: devDatabaseFactory,
       devAttachmentRootFactory: devAttachmentRootFactory,
       devDisposalObserver: devDisposalObserver,
+      stagingDisposalObserver: stagingDisposalObserver,
     );
   }
 }
