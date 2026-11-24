@@ -287,21 +287,34 @@ class _ChatScreenState extends State<ChatScreen> {
               onTopDistance: _matchingHistory?.onTopDistance,
               onHistoryRetry: _matchingHistory?.retry,
             );
-            final isThinking =
+            final scopedProgress =
                 progress != null &&
-                progress.conversationId == widget.conversationId &&
-                progress.stage == AxRequestStage.providerStarted &&
-                ordered.any(
-                  (message) =>
-                      message.isMine &&
-                      message.clientMessageId == progress.requestId,
-                );
+                    progress.conversationId == widget.conversationId &&
+                    ordered.any(
+                      (message) =>
+                          message.isMine &&
+                          message.clientMessageId == progress.requestId,
+                    )
+                ? progress
+                : null;
             if (!widget.axBranding && progress == null) return list;
             return Column(
               children: <Widget>[
                 Expanded(child: list),
-                if (isThinking)
-                  AxThinkingBubble(key: ValueKey(progress.requestId)),
+                if (scopedProgress case final entry?)
+                  switch (entry.stage) {
+                    AxRequestStage.providerStarted => AxThinkingBubble(
+                      key: ValueKey(entry.requestId),
+                    ),
+                    AxRequestStage.accepted => const AxRequestNotice('답변 대기 중'),
+                    AxRequestStage.uncertain => const AxRequestNotice(
+                      '연결이 끊겼어요 · 상태 확인 중',
+                    ),
+                    AxRequestStage.failed => const AxRequestNotice(
+                      '답변을 받지 못했어요',
+                    ),
+                    AxRequestStage.completed => const SizedBox.shrink(),
+                  },
               ],
             );
           },

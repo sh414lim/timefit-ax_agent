@@ -118,7 +118,7 @@ void main() {
           await tester.pump();
 
           expect(tester.takeException(), isNull);
-          expect(find.byTooltip('샘플 첨부 자리'), findsOneWidget);
+          expect(find.byTooltip('첨부 안내'), findsOneWidget);
           expect(find.byTooltip('메시지 보내기'), findsOneWidget);
           await _unmount(tester, disposed);
         },

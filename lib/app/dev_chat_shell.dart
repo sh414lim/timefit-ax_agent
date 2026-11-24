@@ -745,9 +745,11 @@ class _DevChatShellState extends State<DevChatShell>
 
   @override
   Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final size = MediaQuery.sizeOf(context);
     final bool compactKeyboardLayout =
-        MediaQuery.orientationOf(context) == Orientation.landscape &&
-        View.of(context).viewInsets.bottom > 0;
+        viewInsets.bottom > 0 &&
+        (size.width > size.height || size.height - viewInsets.bottom < 340);
     final bool showingSourceHome =
         _initializationError == null &&
         _listController != null &&
@@ -755,10 +757,11 @@ class _DevChatShellState extends State<DevChatShell>
         !_showingArchive &&
         !_showingConversationList &&
         !_showingNewChat;
+    final showModeBanner = !showingSourceHome || widget.personalChatOptIn;
     final shell = Scaffold(
       body: Column(
         children: <Widget>[
-          if (!showingSourceHome || widget.personalChatOptIn)
+          if (showModeBanner)
             _DevLocalModeBanner(
               compact: compactKeyboardLayout,
               includesWaitingStatus:
@@ -769,7 +772,16 @@ class _DevChatShellState extends State<DevChatShell>
               connectionError: _personalConnectionError,
               onConnect: () => unawaited(_connectPersonalChat()),
             ),
-          Expanded(child: _buildContent(compactKeyboardLayout)),
+          Expanded(
+            // The banner already includes the window's top safe area.
+            child: Builder(
+              builder: (bodyContext) => MediaQuery.removePadding(
+                context: bodyContext,
+                removeTop: showModeBanner,
+                child: _buildContent(compactKeyboardLayout),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1072,66 +1084,90 @@ class _NewChatPage extends StatelessWidget {
       ),
     ),
     body: SafeArea(
-      child: Column(
-        children: <Widget>[
-          Expanded(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const TimeFitAssetSlot(
-                      kind: TimeFitAssetKind.mobileRobot,
-                      width: 122,
-                      height: 122,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      '무엇을 도와드릴까요?',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      alignment: WrapAlignment.center,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final viewport = DemoQuickComposer.minimumInputViewportHeight(
+            context,
+          );
+          final inputHeight = (constraints.maxHeight * .34)
+              .clamp(viewport, viewport > 130 ? viewport : 130)
+              .toDouble();
+          return Column(
+            children: <Widget>[
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        for (final label in [
-                          '오늘 매장 현황',
-                          '이번 주 근무표',
-                          '비용 분석',
-                          '직원 공지 작성',
-                        ])
-                          ActionChip(
-                            label: Text(label),
-                            onPressed: () =>
-                                controller.value = TextEditingValue(
-                                  text: label,
-                                  selection: TextSelection.collapsed(
-                                    offset: label.length,
-                                  ),
-                                ),
-                          ),
+                        const TimeFitAssetSlot(
+                          kind: TimeFitAssetKind.mobileRobot,
+                          width: 122,
+                          height: 122,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '무엇을 도와드릴까요?',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          alignment: WrapAlignment.center,
+                          children: <Widget>[
+                            for (final label in [
+                              '오늘 매장 현황',
+                              '이번 주 근무표',
+                              '비용 분석',
+                              '직원 공지 작성',
+                            ])
+                              ActionChip(
+                                label: Text(label),
+                                onPressed: () =>
+                                    controller.value = TextEditingValue(
+                                      text: label,
+                                      selection: TextSelection.collapsed(
+                                        offset: label.length,
+                                      ),
+                                    ),
+                              ),
+                          ],
+                        ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-            child: DemoQuickComposer(
-              key: const Key('new-chat-composer'),
-              controller: controller,
-              focusNode: focusNode,
-              onSend: onSend,
-              sendEnabled: sendEnabled,
-              inputMaxHeight: 100,
-            ),
-          ),
-        ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: (constraints.maxHeight - 14).clamp(
+                      0,
+                      double.infinity,
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    primary: false,
+                    child: DemoQuickComposer(
+                      key: const Key('new-chat-composer'),
+                      controller: controller,
+                      focusNode: focusNode,
+                      onSend: onSend,
+                      sendEnabled: sendEnabled,
+                      inputMaxHeight: inputHeight,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     ),
   );

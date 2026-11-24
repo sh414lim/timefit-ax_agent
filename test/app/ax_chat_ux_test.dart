@@ -156,6 +156,11 @@ void main() {
       await _tap(tester, find.byTooltip('메뉴 샘플'));
       await _tap(tester, find.byTooltip('새 채팅'));
       expect(find.byTooltip('첨부 추가'), findsNothing);
+      await _tap(tester, find.byTooltip('첨부 안내'));
+      expect(find.text('첫 메시지를 먼저 보내 주세요'), findsOneWidget);
+      expect(picker.calls, 0);
+      expect(await tester.runAsync(db.conversationDao.getAll), isEmpty);
+      await _tap(tester, find.text('확인'));
       await tester.enterText(find.byType(TextField), 'A first question');
       await _tap(tester, find.byTooltip('메시지 보내기'));
       expect(find.text('A first question'), findsOneWidget);
@@ -168,6 +173,58 @@ void main() {
       expect(attachments.single.displayName, 'fixture.pdf');
       expect(attachments.single.uploadState, 'queued');
       expect(await tester.runAsync(db.outboxDao.getAll), hasLength(1));
+      await close();
+    },
+  );
+
+  testWidgets(
+    '320dp large-text new chat stays usable above keyboard; back keeps room draft',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.padding = const FakeViewPadding(top: 24, bottom: 16);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPadding);
+      addTearDown(tester.view.resetViewInsets);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final db = AppDatabase(NativeDatabase.memory());
+      final close = await _mount(tester, db);
+      await _tap(tester, find.byTooltip('메뉴 샘플'));
+      await _tap(tester, find.byTooltip('새 채팅'));
+      final field = find.byType(TextField);
+      final mode = find.text('개발용 로컬 모드 · 로그인/서버 연결 없음');
+      expect(
+        tester.getTopLeft(find.byType(BackButton)).dy -
+            tester.getBottomLeft(mode).dy,
+        lessThan(18),
+        reason: 'the mode banner already consumes the top window safe area',
+      );
+      await tester.enterText(field, '긴 한글 첫 질문을 작성합니다\n' * 10);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+      tester.view.padding = const FakeViewPadding(top: 24);
+      await _settle(tester);
+      expect(tester.takeException(), isNull);
+      final send = find.byTooltip('메시지 보내기');
+      expect(tester.getRect(send).bottom, lessThanOrEqualTo(320));
+      expect(tester.getSize(send).width, greaterThanOrEqualTo(48));
+      final draft = tester.widget<TextField>(field).controller!.text;
+      expect(send.hitTestable(), findsOneWidget);
+      await tester.tap(send);
+      await _settle(tester);
+      tester.view.resetViewInsets();
+      await _settle(tester);
+      expect(tester.takeException(), isNull);
+      expect(find.text(draft), findsOneWidget);
+      await tester.enterText(find.byType(TextField), '재입장할 때 남는 초안');
+      await tester.binding.handlePopRoute();
+      await _settle(tester);
+      expect(find.byType(ConversationListRow), findsOneWidget);
+      await _tap(tester, find.byType(ConversationListRow));
+      expect(find.text('재입장할 때 남는 초안'), findsOneWidget);
+      expect(await tester.runAsync(db.outboxDao.getAll), hasLength(1));
+      expect(tester.takeException(), isNull);
       await close();
     },
   );
@@ -249,11 +306,19 @@ void main() {
 
       await draw(accepted);
       expect(find.byType(AxThinkingBubble), findsNothing);
+      expect(find.text('답변 대기 중'), findsOneWidget);
       await draw(progress('room-b', 2, AxRequestStage.providerStarted));
+      expect(find.text('답변 대기 중'), findsNothing);
       expect(find.byType(AxThinkingBubble), findsNothing);
       await draw(started);
       expect(find.text('생각 중입니다'), findsOneWidget);
       expect(find.text('·'), findsNothing);
+      await draw(progress('room-a', 3, AxRequestStage.uncertain));
+      expect(find.byType(AxThinkingBubble), findsNothing);
+      expect(find.text('연결이 끊겼어요 · 상태 확인 중'), findsOneWidget);
+      await draw(progress('room-a', 4, AxRequestStage.failed));
+      expect(find.text('답변을 받지 못했어요'), findsOneWidget);
+      expect(find.text('저장된 AX 답변'), findsNothing);
       await draw(complete);
       expect(find.byType(AxThinkingBubble), findsNothing);
       expect(find.text('저장된 AX 답변'), findsOneWidget);

@@ -38,6 +38,25 @@ final class AxRequestProgress {
   }
 }
 
+/// Display a known request state without implying the provider has started.
+class AxRequestNotice extends StatelessWidget {
+  const AxRequestNotice(this.label, {super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: true,
+    child: Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+        child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+      ),
+    ),
+  );
+}
+
 class AxThinkingBubble extends StatefulWidget {
   const AxThinkingBubble({super.key});
 

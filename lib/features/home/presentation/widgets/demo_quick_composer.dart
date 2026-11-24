@@ -102,7 +102,9 @@ class DemoQuickComposer extends StatelessWidget {
           backgroundColor: unfilledSend ? Colors.transparent : sendBackground,
           foregroundColor: sendForeground,
         ),
-        constraints: const BoxConstraints.tightFor(width: 46, height: 46),
+        constraints: onSend == null
+            ? const BoxConstraints.tightFor(width: 46, height: 46)
+            : const BoxConstraints.tightFor(width: 48, height: 48),
         icon: CustomPaint(
           size: const Size.square(22),
           painter: _ReconstructedSendPainter(color: sendForeground),
@@ -127,11 +129,32 @@ class DemoQuickComposer extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               IconButton(
-                tooltip: leadingPlus ? '샘플 추가 자리' : '샘플 첨부 자리',
-                onPressed: () {},
-                constraints: const BoxConstraints.tightFor(
-                  width: AppTouchTarget.minimum,
-                  height: AppTouchTarget.minimum,
+                tooltip: onSend != null
+                    ? '첨부 안내'
+                    : leadingPlus
+                    ? '샘플 추가 자리'
+                    : '샘플 첨부 자리',
+                onPressed: onSend == null
+                    ? () {}
+                    : () {
+                        showDialog<void>(
+                          context: context,
+                          builder: (dialogContext) => AlertDialog(
+                            title: const Text('첫 메시지를 먼저 보내 주세요'),
+                            content: const Text('대화가 열린 뒤 사진이나 파일을 첨부할 수 있어요.'),
+                            actions: <Widget>[
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.of(dialogContext).pop(),
+                                child: const Text('확인'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                constraints: BoxConstraints.tightFor(
+                  width: onSend == null ? AppTouchTarget.minimum : 48,
+                  height: onSend == null ? AppTouchTarget.minimum : 48,
                 ),
                 icon: CustomPaint(
                   size: const Size.square(22),
