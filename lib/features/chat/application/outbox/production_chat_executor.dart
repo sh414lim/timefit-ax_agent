@@ -58,7 +58,7 @@ final class ProductionChatExecutor implements CommandExecutor {
         );
       }
       final stored = await _session.read(() => _lease(command));
-      if (stored == null) return _deferred('production_lease_inactive');
+      if (stored == null) return _deferred(_unknown);
       attempted = _blockedMarkers.contains(stored.lastErrorCode);
       if (!isCurrentSession()) return _auth(attempted);
 
@@ -189,12 +189,12 @@ final class ProductionChatExecutor implements CommandExecutor {
               errorCode: 'production_transport_unavailable',
             );
     } on Object {
-      return attempted
-          ? _deferred(_unknown)
-          : const CommandExecutionResult(
-              ExecutionDisposition.authRequired,
-              errorCode: 'production_local_scope_unavailable',
-            );
+      // A failed local read cannot prove that no earlier dispatch marker
+      // existed. Preserve quarantine even when we could not read that marker.
+      return const CommandExecutionResult(
+        ExecutionDisposition.authRequired,
+        errorCode: _unknown,
+      );
     }
   }
 

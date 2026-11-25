@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timefit_native/core/database/app_database.dart';
@@ -200,6 +201,26 @@ void main() {
       await worker().wake();
       expect(api.sends, 2);
       expect(await db.outboxDao.getAll(), hasLength(1));
+    },
+  );
+
+  test(
+    'a closed local session cannot erase an unread dispatch checkpoint',
+    () async {
+      await (db.update(
+        db.outboxCommands,
+      )..where((r) => r.id.equals(requestId))).write(
+        const OutboxCommandsCompanion(
+          lastErrorCode: Value('production_dispatch_started'),
+        ),
+      );
+      await LocalRepositorySession.forDatabase(db).dispose();
+      await worker().wake();
+      expect(
+        (await db.outboxDao.getAll()).single.lastErrorCode,
+        'production_outcome_unknown',
+      );
+      expect(api.sends, 0);
     },
   );
 
