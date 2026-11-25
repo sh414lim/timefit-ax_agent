@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/timefit_ax_visual_tokens.dart';
+import '../../../app/theme/timefit_conversation_visual.dart';
 import '../../../app/theme/tokens.dart';
 import '../../conversations/application/conversation_list_controller.dart';
 import 'business_preview_screen.dart';
@@ -137,9 +138,58 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
   }
 }
 
+/// First-message route uses the same mobile home content and editor, but
+/// owns a different draft/controller and leaves navigation to the chat shell.
+class TimeFitNewChatHome extends StatelessWidget {
+  const TimeFitNewChatHome({
+    required this.controller,
+    required this.focusNode,
+    required this.onBack,
+    required this.onSend,
+    required this.sendEnabled,
+    super.key,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onBack;
+  final VoidCallback onSend;
+  final bool sendEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TimeFitAxVisualTokens.of(context);
+    return Scaffold(
+      backgroundColor: tokens.canvas,
+      appBar: AppBar(
+        backgroundColor: tokens.canvas,
+        surfaceTintColor: Colors.transparent,
+        leading: BackButton(onPressed: onBack),
+        title: Text(
+          '새 채팅',
+          style: TimeFitConversationVisual.of(context).roomTitle,
+        ),
+      ),
+      body: SafeArea(
+        child: _MobileHome(
+          onSelected: (action) => controller.value = TextEditingValue(
+            text: action.label,
+            selection: TextSelection.collapsed(offset: action.label.length),
+          ),
+          draftController: controller,
+          draftFocusNode: focusNode,
+          composerKey: const Key('new-chat-composer'),
+          onSend: onSend,
+          sendEnabled: sendEnabled,
+        ),
+      ),
+    );
+  }
+}
+
 class _MobileHome extends StatelessWidget {
   const _MobileHome({
-    required this.onOpenConversationList,
+    this.onOpenConversationList,
     required this.onSelected,
     required this.draftController,
     required this.draftFocusNode,
@@ -148,7 +198,7 @@ class _MobileHome extends StatelessWidget {
     this.sendEnabled = true,
   });
 
-  final VoidCallback onOpenConversationList;
+  final VoidCallback? onOpenConversationList;
   final ValueChanged<DemoHomeAction> onSelected;
   final TextEditingController draftController;
   final FocusNode draftFocusNode;
@@ -172,6 +222,7 @@ class _MobileHome extends StatelessWidget {
                   availableHeight: constraints.maxHeight,
                   onOpenConversationList: onOpenConversationList,
                   onSelected: onSelected,
+                  nativeType: onSend != null,
                 ),
               ),
             ),
@@ -194,11 +245,12 @@ class _MobileHome extends StatelessWidget {
             ),
           ],
         ),
-        const Positioned(
-          top: 54,
-          right: 16,
-          child: _DemoBadge(key: Key('mobile-home-overlay-demo-badge')),
-        ),
+        if (onOpenConversationList != null)
+          const Positioned(
+            top: 54,
+            right: 16,
+            child: _DemoBadge(key: Key('mobile-home-overlay-demo-badge')),
+          ),
       ],
     ),
   );
@@ -207,54 +259,60 @@ class _MobileHome extends StatelessWidget {
 class _MobileHomeContent extends StatelessWidget {
   const _MobileHomeContent({
     required this.availableHeight,
-    required this.onOpenConversationList,
+    this.onOpenConversationList,
     required this.onSelected,
+    required this.nativeType,
   });
 
   final double availableHeight;
-  final VoidCallback onOpenConversationList;
+  final bool nativeType;
+  final VoidCallback? onOpenConversationList;
   final ValueChanged<DemoHomeAction> onSelected;
 
   @override
   Widget build(BuildContext context) {
     final tokens = TimeFitAxVisualTokens.of(context);
+    final visual = TimeFitConversationVisual.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        SizedBox(
-          height: 52,
-          child: Row(
-            children: <Widget>[
-              const TimeFitAssetSlot(
-                kind: TimeFitAssetKind.squareLogo,
-                width: 40,
-                height: 40,
-                keyName: 'mobile-home-logo-slot',
-              ),
-              const SizedBox(width: AppSpacing.x12),
-              Expanded(
-                child: Text(
-                  'TimeFit AX',
-                  style: TextStyle(
-                    color: tokens.deepText,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
+        if (onOpenConversationList != null)
+          SizedBox(
+            height: 52,
+            child: Row(
+              children: <Widget>[
+                const TimeFitAssetSlot(
+                  kind: TimeFitAssetKind.squareLogo,
+                  width: 40,
+                  height: 40,
+                  keyName: 'mobile-home-logo-slot',
+                ),
+                const SizedBox(width: AppSpacing.x12),
+                Expanded(
+                  child: Text(
+                    'TimeFit AX',
+                    style: nativeType
+                        ? visual.roomTitle
+                        : TextStyle(
+                            color: tokens.deepText,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                          ),
                   ),
                 ),
-              ),
-              _SourceHeaderButton(
-                tooltip: '알림 샘플',
-                onPressed: () {},
-                glyph: _HeaderGlyph.bell,
-              ),
-              _SourceHeaderButton(
-                tooltip: '메뉴 샘플',
-                onPressed: onOpenConversationList,
-                glyph: _HeaderGlyph.more,
-              ),
-            ],
+                _SourceHeaderButton(
+                  tooltip: '알림 샘플',
+                  onPressed: () {},
+                  glyph: _HeaderGlyph.bell,
+                ),
+                _SourceHeaderButton(
+                  tooltip: '메뉴 샘플',
+                  onPressed: onOpenConversationList!,
+                  glyph: _HeaderGlyph.more,
+                ),
+              ],
+            ),
           ),
-        ),
         SizedBox(height: (availableHeight * .035).clamp(24, 34)),
         LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
@@ -274,21 +332,29 @@ class _MobileHomeContent extends StatelessWidget {
         Text(
           '무엇을 도와드릴까요?',
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: tokens.deepText,
-            fontSize: 30,
-            height: 1.12,
-            fontWeight: FontWeight.w800,
-          ),
+          style: nativeType
+              ? visual.hero
+              : TextStyle(
+                  color: tokens.deepText,
+                  fontSize: 30,
+                  height: 1.12,
+                  fontWeight: FontWeight.w800,
+                ),
         ),
         const SizedBox(height: AppSpacing.x12),
         Text(
           '매장 운영부터 근무, 비용, 커뮤니케이션까지\nTimeFit AX가 함께합니다.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: tokens.secondaryText, height: 1.45),
+          style: nativeType
+              ? visual.summary
+              : TextStyle(color: tokens.secondaryText, height: 1.45),
         ),
         SizedBox(height: (availableHeight * .1).clamp(64, 88)),
-        _ActionGrid(expanded: false, onSelected: onSelected),
+        _ActionGrid(
+          expanded: false,
+          onSelected: onSelected,
+          nativeType: nativeType,
+        ),
         const SizedBox(height: AppSpacing.x12),
       ],
     );
@@ -325,6 +391,7 @@ class _ExpandedHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = TimeFitAxVisualTokens.of(context);
+    final visual = TimeFitConversationVisual.of(context);
     final double width = MediaQuery.sizeOf(context).width;
     return Row(
       children: <Widget>[
@@ -380,24 +447,29 @@ class _ExpandedHome extends StatelessWidget {
                                       ],
                                     ),
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: tokens.deepText,
-                                      fontSize: 38,
-                                      height: 1.15,
-                                      fontWeight: FontWeight.w800,
-                                    ),
+                                    style: onSend != null
+                                        ? visual.hero
+                                        : TextStyle(
+                                            color: tokens.deepText,
+                                            fontSize: 38,
+                                            height: 1.15,
+                                            fontWeight: FontWeight.w800,
+                                          ),
                                   ),
                                   const SizedBox(height: AppSpacing.x12),
                                   Text(
                                     '매장 운영부터 근무, 비용, 커뮤니케이션까지',
-                                    style: TextStyle(
-                                      color: tokens.secondaryText,
-                                      fontSize: 18,
-                                    ),
+                                    style: onSend != null
+                                        ? visual.summary
+                                        : TextStyle(
+                                            color: tokens.secondaryText,
+                                            fontSize: 18,
+                                          ),
                                   ),
                                   const SizedBox(height: 34),
                                   _ActionGrid(
                                     expanded: true,
+                                    nativeType: onSend != null,
                                     onSelected: onSelected,
                                   ),
                                   const SizedBox(height: 32),
@@ -557,8 +629,13 @@ class _ExpandedNavigation extends StatelessWidget {
 }
 
 class _ActionGrid extends StatelessWidget {
-  const _ActionGrid({required this.expanded, required this.onSelected});
+  const _ActionGrid({
+    required this.expanded,
+    required this.onSelected,
+    this.nativeType = false,
+  });
   final bool expanded;
+  final bool nativeType;
   final ValueChanged<DemoHomeAction> onSelected;
 
   @override
@@ -583,6 +660,7 @@ class _ActionGrid extends StatelessWidget {
               child: _ActionCard(
                 action: action,
                 expanded: expanded,
+                nativeType: nativeType,
                 largeText: largeText,
                 cardWidth: cardWidth,
                 onTap: () => onSelected(action),
@@ -598,6 +676,7 @@ class _ActionCard extends StatelessWidget {
   const _ActionCard({
     required this.action,
     required this.expanded,
+    required this.nativeType,
     required this.largeText,
     required this.cardWidth,
     required this.onTap,
@@ -605,6 +684,7 @@ class _ActionCard extends StatelessWidget {
 
   final DemoHomeAction action;
   final bool expanded;
+  final bool nativeType;
   final bool largeText;
   final double cardWidth;
   final VoidCallback onTap;
@@ -632,6 +712,7 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = TimeFitAxVisualTokens.of(context);
+    final visual = TimeFitConversationVisual.of(context);
     final Widget content = expanded
         ? Stack(
             children: <Widget>[
@@ -645,7 +726,12 @@ class _ActionCard extends StatelessWidget {
                     square: true,
                   ),
                   const SizedBox(height: AppSpacing.x12),
-                  Text(action.label, style: _titleStyle(tokens)),
+                  Text(
+                    action.label,
+                    style: nativeType
+                        ? visual.text(15, weight: FontWeight.w700)
+                        : _titleStyle(tokens),
+                  ),
                   const SizedBox(height: AppSpacing.x4),
                   Padding(
                     padding: const EdgeInsets.only(right: 34),
@@ -653,11 +739,13 @@ class _ActionCard extends StatelessWidget {
                       action.description,
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: tokens.secondaryText,
-                        fontSize: 10.5,
-                        height: 1.25,
-                      ),
+                      style: nativeType
+                          ? visual.detail
+                          : TextStyle(
+                              color: tokens.secondaryText,
+                              fontSize: 10.5,
+                              height: 1.25,
+                            ),
                     ),
                   ),
                 ],
@@ -691,27 +779,35 @@ class _ActionCard extends StatelessWidget {
                   children: <Widget>[
                     Text(
                       action.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.clip,
-                      style: _titleStyle(tokens),
+                      maxLines: nativeType ? 2 : 1,
+                      overflow: nativeType
+                          ? TextOverflow.ellipsis
+                          : TextOverflow.clip,
+                      style: nativeType
+                          ? visual.text(15, weight: FontWeight.w700)
+                          : _titleStyle(tokens),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       action.description,
                       key: Key('home-action-description-${action.name}'),
-                      maxLines: 3,
-                      overflow: TextOverflow.clip,
-                      style: TextStyle(
-                        color: tokens.secondaryText,
-                        // The source only establishes the two-line ink box,
-                        // not a font family or em size. Keep a readable body
-                        // size and normal tracking inside the measured card
-                        // content width; do not shrink glyphs merely to force
-                        // a particular line count in the Ahem test font.
-                        fontSize: 10.5,
-                        height: 1.2,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      maxLines: nativeType && !largeText ? 2 : 3,
+                      overflow: nativeType
+                          ? TextOverflow.ellipsis
+                          : TextOverflow.clip,
+                      style: nativeType
+                          ? visual.detail
+                          : TextStyle(
+                              color: tokens.secondaryText,
+                              // The source only establishes the two-line ink box,
+                              // not a font family or em size. Keep a readable body
+                              // size and normal tracking inside the measured card
+                              // content width; do not shrink glyphs merely to force
+                              // a particular line count in the Ahem test font.
+                              fontSize: 10.5,
+                              height: 1.2,
+                              fontWeight: FontWeight.w500,
+                            ),
                     ),
                   ],
                 ),
@@ -752,7 +848,8 @@ class _ActionCard extends StatelessWidget {
 
   double get _height {
     if (expanded) return largeText ? 280 : 162;
-    if (largeText) return 170;
+    if (largeText) return nativeType ? 216 : 170;
+    if (nativeType) return 110;
     // At the 432 logical source viewport this resolves to the measured
     // 2.15:1 card aspect. Narrower accessibility adaptations get a small
     // content floor instead of clipping the Korean two-line descriptions.

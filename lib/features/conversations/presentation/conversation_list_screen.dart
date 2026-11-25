@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../app/theme/timefit_ax_visual_tokens.dart';
-
+import '../../../app/theme/timefit_conversation_visual.dart';
 import '../../home/presentation/widgets/timefit_loading_mark.dart';
 import '../application/conversation_list_controller.dart';
 import '../domain/conversation_summary.dart';
@@ -85,26 +84,25 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
   @override
   Widget build(BuildContext context) {
     final branded = widget.searchController != null;
-    final tokens = TimeFitAxVisualTokens.of(context);
+    final visual = TimeFitConversationVisual.of(context);
     return Scaffold(
-      backgroundColor: branded
-          ? TimeFitAxVisualTokens.chatSurfaceOf(context)
-          : null,
+      backgroundColor: branded ? visual.canvas : null,
       appBar: AppBar(
-        backgroundColor: branded
-            ? TimeFitAxVisualTokens.chatChromeOf(context)
-            : null,
+        backgroundColor: branded ? visual.canvas : null,
+        foregroundColor: branded ? visual.ink : null,
         surfaceTintColor: branded ? Colors.transparent : null,
+        titleSpacing: branded ? 20 : null,
+        centerTitle: branded ? false : null,
         leading: widget.onBack == null
             ? null
             : BackButton(onPressed: widget.onBack),
-        title: const Text('대화'),
+        title: Text('대화', style: branded ? visual.pageTitle : null),
         actions: <Widget>[
           if (widget.searchController != null)
             IconButton(
               tooltip: '새 채팅',
               onPressed: widget.onNewConversation,
-              icon: const Icon(Icons.edit_square),
+              icon: const Icon(Icons.edit_outlined),
             ),
           Semantics(
             button: true,
@@ -134,41 +132,63 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
       body: SafeArea(
         child: widget.searchController == null
             ? _buildBody()
-            : Column(
-                children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-                    child: TextField(
-                      controller: widget.searchController,
-                      textInputAction: TextInputAction.search,
-                      decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        hintText: '대화 제목 또는 메시지 검색',
-                        filled: true,
-                        fillColor: tokens.surface,
-                        border: TimeFitAxVisualTokens.chatFieldBorder,
-                        enabledBorder: TimeFitAxVisualTokens.chatFieldBorder,
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide(color: tokens.primary),
+            : ValueListenableBuilder<TextEditingValue>(
+                valueListenable: widget.searchController!,
+                builder: (context, value, _) => Column(
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+                      child: TextField(
+                        controller: widget.searchController,
+                        textInputAction: TextInputAction.search,
+                        cursorColor: visual.accent,
+                        style: visual.editor(),
+                        decoration: InputDecoration(
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            color: visual.muted,
+                          ),
+                          suffixIcon: value.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: '검색어 지우기',
+                                  onPressed: widget.searchController!.clear,
+                                  icon: Icon(
+                                    Icons.cancel_rounded,
+                                    color: visual.muted,
+                                    size: 20,
+                                  ),
+                                ),
+                          hintText: '대화 제목 또는 메시지 검색',
+                          hintStyle: visual.editor(placeholder: true),
+                          hintMaxLines: 1,
+                          filled: true,
+                          fillColor: visual.fill,
+                          border: visual.fieldBorder,
+                          enabledBorder: visual.fieldBorder,
+                          focusedBorder: visual.fieldBorder.copyWith(
+                            borderSide: BorderSide(color: visual.accent),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 13,
+                          ),
+                          isDense: true,
                         ),
-                        isDense: true,
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: widget.searchController!,
-                      builder: (context, value, _) => _buildBody(value.text),
-                    ),
-                  ),
-                ],
+                    Expanded(child: _buildBody(value.text)),
+                  ],
+                ),
               ),
       ),
     );
   }
 
   Widget _buildBody([String query = '']) {
+    if (_state.phase == ConversationListPhase.empty &&
+        query.trim().isNotEmpty) {
+      return _noResults();
+    }
     return switch (_state.phase) {
       ConversationListPhase.loading => const Center(
         child: TimeFitLoadingMark(label: '대화 목록을 불러오는 중'),
@@ -201,6 +221,17 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
     };
   }
 
+  Widget _noResults() => ConversationStatePanel(
+    compact: true,
+    title: '검색 결과가 없습니다',
+    message: '다른 대화 제목이나 메시지를 검색해 보세요.',
+    actionLabel: '검색 초기화',
+    onAction: widget.searchController!.clear,
+    secondaryActionLabel: '보관된 대화',
+    onSecondaryAction: widget.onOpenArchive,
+    icon: Icons.search_rounded,
+  );
+
   Widget _buildConversationList(String query) {
     final String normalized = query.trim().toLowerCase();
     final conversations = _state.conversations
@@ -212,9 +243,11 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
         )
         .toList(growable: false);
     if (conversations.isEmpty && normalized.isNotEmpty) {
-      return const Center(child: Text('검색 결과가 없습니다'));
+      return _noResults();
     }
     final DateTime now = widget.currentTime?.call() ?? DateTime.now();
+    final visual = TimeFitConversationVisual.of(context);
+    final branded = widget.searchController != null;
     final bool hasBanner = _state.phase == ConversationListPhase.stale;
     final int conversationOffset = hasBanner ? 1 : 0;
     return RefreshIndicator(
@@ -225,8 +258,9 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
             : const PageStorageKey<String>('ax-conversations-list'),
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: conversations.length + conversationOffset + 1,
-        separatorBuilder: (BuildContext context, int index) =>
-            const Divider(height: 1),
+        separatorBuilder: (BuildContext context, int index) => branded
+            ? Divider(height: 1, indent: 20, endIndent: 20, color: visual.line)
+            : const Divider(height: 1),
         itemBuilder: (BuildContext context, int index) {
           if (hasBanner && index == 0) {
             return ConversationSyncBanner(state: _state);
@@ -238,7 +272,21 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
               excludeSemantics: true,
               child: ListTile(
                 minTileHeight: 56,
-                title: const Text('보관된 대화'),
+                contentPadding: branded
+                    ? const EdgeInsets.symmetric(horizontal: 20)
+                    : null,
+                leading: branded
+                    ? Icon(Icons.inventory_2_outlined, color: visual.secondary)
+                    : null,
+                trailing: branded
+                    ? Icon(Icons.chevron_right_rounded, color: visual.muted)
+                    : null,
+                title: Text(
+                  '보관된 대화',
+                  style: branded
+                      ? visual.text(15, weight: FontWeight.w600)
+                      : null,
+                ),
                 onTap: widget.onOpenArchive,
               ),
             );
