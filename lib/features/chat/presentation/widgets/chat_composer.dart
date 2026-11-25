@@ -129,12 +129,14 @@ class _ChatComposerState extends State<ChatComposer> {
         widget.compactKeyboardLayout ||
         (mediaQuery.orientation == Orientation.landscape &&
             View.of(context).viewInsets.bottom > 0);
+    final visual = TimeFitConversationVisual.of(context);
     final TextPainter inputLinePainter = TextPainter(
       text: TextSpan(
         text: ' ',
-        style:
-            Theme.of(context).textTheme.titleMedium ??
-            DefaultTextStyle.of(context).style,
+        style: widget.axBranding
+            ? visual.editor()
+            : Theme.of(context).textTheme.titleMedium ??
+                  DefaultTextStyle.of(context).style,
       ),
       textDirection: Directionality.of(context),
       textScaler: mediaQuery.textScaler,
@@ -154,7 +156,6 @@ class _ChatComposerState extends State<ChatComposer> {
         (attachment) => attachment.state != ComposerAttachmentState.failed,
       ),
     ];
-    final visual = TimeFitConversationVisual.of(context);
     return SafeArea(
       top: false,
       child: Material(
@@ -262,7 +263,7 @@ class _ChatComposerState extends State<ChatComposer> {
                         child: TextField(
                           controller: _textController,
                           focusNode: _focusNode,
-                          style: widget.axBranding ? visual.text(16) : null,
+                          style: widget.axBranding ? visual.editor() : null,
                           cursorColor: widget.axBranding ? visual.accent : null,
                           minLines: 1,
                           maxLines: useCompactInput ? null : 5,
@@ -285,7 +286,7 @@ class _ChatComposerState extends State<ChatComposer> {
                                 : null,
                             hintText: '메시지 입력',
                             hintStyle: widget.axBranding
-                                ? visual.text(16, color: visual.muted)
+                                ? visual.editor(placeholder: true)
                                 : null,
                             border: widget.axBranding
                                 ? visual.fieldBorder

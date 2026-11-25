@@ -42,6 +42,17 @@ final class TimeFitConversationVisual {
   static TimeFitConversationVisual of(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark ? dark : light;
 
+  // Keep the OS font resolution, including Hangul fallback, and let
+  // Flutter apply the user's configured text scaler rather than capping it.
+  TextStyle get hero => text(26, weight: FontWeight.w700);
+  TextStyle get pageTitle => text(24, weight: FontWeight.w700);
+  TextStyle get roomTitle => text(20, weight: FontWeight.w700);
+  TextStyle get rowTitle => text(17, weight: FontWeight.w600);
+  TextStyle get summary => text(15, color: secondary);
+  TextStyle get detail => text(13, color: muted);
+  TextStyle editor({bool placeholder = false}) =>
+      text(17, color: placeholder ? muted : null);
+
   TextStyle text(
     double size, {
     FontWeight weight = FontWeight.w400,
@@ -49,8 +60,16 @@ final class TimeFitConversationVisual {
   }) => TextStyle(
     fontSize: size,
     fontWeight: weight,
-    height: 1.4,
-    letterSpacing: -.22,
+    height: size >= 24
+        ? 1.24
+        : size >= 17
+        ? 1.37
+        : 1.42,
+    letterSpacing: size >= 24
+        ? -.55
+        : size >= 17
+        ? -.35
+        : -.15,
     color: color ?? ink,
   );
 

@@ -65,7 +65,7 @@ class MessageBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Text(message.body, style: axBranding ? visual.text(16) : null),
+            Text(message.body, style: axBranding ? visual.text(17) : null),
             if (!axBranding) ...[
               const SizedBox(height: 4),
               ExcludeSemantics(

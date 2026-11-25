@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/timefit_ax_visual_tokens.dart';
+import '../../../../app/theme/timefit_conversation_visual.dart';
 import '../../../../app/theme/tokens.dart';
 
 enum DemoComposerVariant { home, analysis, approval, notice, schedule }
@@ -50,6 +51,7 @@ class DemoQuickComposer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = TimeFitAxVisualTokens.of(context);
+    final visual = TimeFitConversationVisual.of(context);
     final bool expandedSource = MediaQuery.sizeOf(context).width >= 900;
     final Color sourcePrimary = expandedSource
         ? tokens.expandedHomePrimary
@@ -75,12 +77,15 @@ class DemoQuickComposer extends StatelessWidget {
       child: TextField(
         controller: controller,
         focusNode: focusNode,
+        style: onSend != null ? visual.editor() : null,
         minLines: 1,
         maxLines: 5,
         textInputAction: TextInputAction.newline,
         decoration: InputDecoration(
           hintText: placeholder,
-          hintStyle: TextStyle(color: tokens.secondaryText),
+          hintStyle: onSend != null
+              ? visual.editor(placeholder: true)
+              : TextStyle(color: tokens.secondaryText),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,

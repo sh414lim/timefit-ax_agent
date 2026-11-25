@@ -171,9 +171,7 @@ class _ChatScreenState extends State<ChatScreen> {
             : BackButton(onPressed: widget.onBack),
         title: Text(
           widget.title,
-          style: widget.axBranding
-              ? visual.text(20, weight: FontWeight.w700)
-              : null,
+          style: widget.axBranding ? visual.roomTitle : null,
         ),
       ),
       body: SafeArea(

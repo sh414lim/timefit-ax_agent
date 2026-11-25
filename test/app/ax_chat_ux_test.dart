@@ -68,12 +68,28 @@ void main() {
       final close = await _mount(tester, db);
       final hero = find.byKey(const Key('mobile-home-robot-slot'));
       final Size homeHero = tester.getSize(hero);
+      final title = find.text('무엇을 도와드릴까요?');
+      final homeType = tester.widget<Text>(title).style!;
+      final homeInputType = tester
+          .widget<TextField>(find.byType(TextField))
+          .style!;
+      expect(homeType.fontFamily, isNull);
+      expect(homeType.fontFamilyFallback, isNull);
+      expect(homeType.fontSize, 26);
+      expect(homeType.fontWeight, FontWeight.w700);
+      expect(homeInputType.fontFamily, isNull);
+      expect(homeInputType.fontSize, 17);
       expect(find.byType(DemoQuickComposer), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'HOME만 남기는 초안');
       await _tap(tester, find.byTooltip('메뉴 샘플'));
       await _tap(tester, find.byTooltip('새 채팅'));
 
       expect(tester.getSize(hero), homeHero);
+      expect(tester.widget<Text>(title).style, homeType);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).style,
+        homeInputType,
+      );
       expect(find.textContaining('TimeFit AX가 함께합니다.'), findsOneWidget);
       expect(find.byType(DemoQuickComposer), findsOneWidget);
       expect(

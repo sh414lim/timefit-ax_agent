@@ -96,10 +96,7 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
         leading: widget.onBack == null
             ? null
             : BackButton(onPressed: widget.onBack),
-        title: Text(
-          '대화',
-          style: branded ? visual.text(24, weight: FontWeight.w700) : null,
-        ),
+        title: Text('대화', style: branded ? visual.pageTitle : null),
         actions: <Widget>[
           if (widget.searchController != null)
             IconButton(
@@ -145,7 +142,7 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
                         controller: widget.searchController,
                         textInputAction: TextInputAction.search,
                         cursorColor: visual.accent,
-                        style: visual.text(16),
+                        style: visual.editor(),
                         decoration: InputDecoration(
                           prefixIcon: Icon(
                             Icons.search_rounded,
@@ -163,7 +160,7 @@ class _ConversationListScreenState extends State<ConversationListScreen> {
                                   ),
                                 ),
                           hintText: '대화 제목 또는 메시지 검색',
-                          hintStyle: visual.text(16, color: visual.muted),
+                          hintStyle: visual.editor(placeholder: true),
                           hintMaxLines: 1,
                           filled: true,
                           fillColor: visual.fill,

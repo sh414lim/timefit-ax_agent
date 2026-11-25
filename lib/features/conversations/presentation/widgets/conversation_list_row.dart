@@ -80,7 +80,7 @@ class ConversationListRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: showAvatar
-                            ? visual.text(16, weight: FontWeight.w700)
+                            ? visual.rowTitle
                             : Theme.of(context).textTheme.titleMedium,
                       ),
                       if (conversation.displayPreview.isNotEmpty) ...<Widget>[
@@ -90,7 +90,7 @@ class ConversationListRow extends StatelessWidget {
                           maxLines: showAvatar ? 1 : 2,
                           overflow: TextOverflow.ellipsis,
                           style: showAvatar
-                              ? visual.text(14, color: visual.secondary)
+                              ? visual.summary
                               : Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
@@ -104,7 +104,7 @@ class ConversationListRow extends StatelessWidget {
                     updatedAtLabel,
                     textAlign: TextAlign.end,
                     style: showAvatar
-                        ? visual.text(12, color: visual.muted)
+                        ? visual.detail
                         : Theme.of(context).textTheme.labelMedium,
                   ),
                 ),
