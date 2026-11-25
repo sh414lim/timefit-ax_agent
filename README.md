@@ -77,3 +77,25 @@ TIMEFIT_REFERENCE_PATH=/absolute/path/to/time-fit
 ```
 
 `.timefit-reference.local`은 빌드 입력이나 커밋 대상이 아닙니다.
+
+## 운영 채팅 어댑터 준비
+
+`ProductionChatTransport`는 승인된 같은 origin의 HTTPS `/v1/ws-tickets`와 WSS `/v1/chat/ws`를 사용합니다.
+`ProductionChatExecutor`는 기존 Outbox/Drift DAO에 연결되며, 앱 startup이나 현재 UI에서는 활성화하지 않습니다.
+실제 조립에는 로그인 토큰 공급자, exact origin allowlist, 사용자·grant별 DB namespace, 권한 변경 시
+`LocalRepositorySession` dispose와 worker stop이 필요합니다. 모델 키나 Supabase secret은 앱에 전달하지 않습니다.
+
+각 요청은 원래 UUID로 먼저 `chat.lookup`합니다. 전송 직전 기존 Outbox의 `last_error_code`에 checkpoint를
+commit하고, 결과가 불명확한 경우 재시작 뒤에도 lookup만 수행합니다. 조회 결과가 없다는 이유로 checkpoint를
+지우거나 새 UUID를 발급하지 않습니다. 서버 `complete`에는 answer와 `bodySha256`이 있어야 하며, assistant는
+별도 remote UUID와 `production-assistant:<UUID>`로 멱등 저장합니다. 로컬 schema v1의 비사용자 표시 값인
+`system`은 기존 assistant bubble 렌더링에만 사용하며 모델 instruction 권한과 관계없습니다.
+
+```bash
+fvm flutter test test/features/chat/production_chat_executor_test.dart \
+  test/features/chat/production_chat_transport_test.dart
+```
+
+Python 저장소의 `scripts/test_production_chat_mobile.py`를 이 checkout에 연결하면 임시 TLS와 합성
+JWT/JWKS, fake provider로 5턴·결과 불명·재시작 복구를 실제 프로세스 간 검증합니다. 실제 GPT/운영 계정은
+사용하지 않습니다. `production_chat_process_e2e_test.dart`는 이 fixture가 명시적으로 켜졌을 때만 실행됩니다.
