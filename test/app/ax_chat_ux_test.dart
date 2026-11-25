@@ -58,6 +58,71 @@ Future<Future<void> Function()> _mount(
 }
 
 void main() {
+  testWidgets('Galaxy M23 home and new conversation fit above fixed input', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(384, 856);
+    tester.view.padding = const FakeViewPadding(top: 25, bottom: 48);
+    addTearDown(tester.view.reset);
+    final db = AppDatabase(NativeDatabase.memory());
+    final close = await _mount(tester, db);
+    void checkFit() {
+      final viewport = find.byKey(const Key('ax-mobile-home-content-scroll'));
+      final scroll = find.descendant(
+        of: viewport,
+        matching: find.byType(Scrollable),
+      );
+      expect(tester.state<ScrollableState>(scroll).position.maxScrollExtent, 0);
+      Finder card(String label) => find
+          .ancestor(of: find.text(label), matching: find.byType(InkWell))
+          .first;
+      final a = card('오늘 매장 현황');
+      final b = card('이번 주 근무표');
+      expect(tester.getTopLeft(a).dy, closeTo(tester.getTopLeft(b).dy, 3));
+      expect(tester.getTopLeft(a).dx, lessThan(tester.getTopLeft(b).dx));
+      expect(find.text('직원 공지 작성').hitTestable(), findsOneWidget);
+      final button = find.byTooltip('메시지 보내기');
+      expect(tester.getBottomRight(button).dy, lessThan(808));
+    }
+
+    checkFit();
+    await _tap(tester, find.byTooltip('메뉴 샘플'));
+    await _tap(tester, find.byTooltip('새 채팅'));
+    checkFit();
+    await tester.enterText(find.byType(TextField), '키보드 위에 유지');
+    tester.view.viewInsets = const FakeViewPadding(bottom: 370);
+    tester.view.padding = const FakeViewPadding(top: 25);
+    await _settle(tester);
+    expect(find.byTooltip('메시지 보내기').hitTestable(), findsOneWidget);
+    expect(tester.getBottomRight(find.byTooltip('메시지 보내기')).dy, lessThan(486));
+    expect(find.text('키보드 위에 유지'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await close();
+  });
+
+  testWidgets('robot moves in a short pulse and respects reduced motion', (
+    tester,
+  ) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    final close = await _mount(tester, db);
+    final robot = find.byKey(const Key('timefit-robot-pulse'));
+    double y() => tester.widget<Transform>(robot).transform.storage[13];
+    expect(y(), 0);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(y(), lessThan(-1));
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(y(), closeTo(0, .01));
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
+    expect(y(), 0);
+    await close();
+  });
+
   testWidgets(
     'list, home and new chat keep the same hero and separate drafts',
     (tester) async {

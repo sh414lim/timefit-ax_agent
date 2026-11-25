@@ -167,7 +167,7 @@ class _ChatComposerState extends State<ChatComposer> {
             widget.axBranding ? 16 : 12,
             useCompactInput ? 4 : 8,
             widget.axBranding ? 16 : 8,
-            useCompactInput ? 4 : 8,
+            useCompactInput && !widget.axBranding ? 4 : 8,
           ),
           child: Material(
             color: widget.axBranding ? visual.fill : Colors.transparent,

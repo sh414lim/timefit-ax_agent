@@ -1001,11 +1001,6 @@ class _DevChatShellState extends State<DevChatShell>
   );
 
   @override
-  void didChangeMetrics() {
-    if (mounted) setState(() {});
-  }
-
-  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _personalPairing != null) {
       unawaited(_personalChatWorker?.wake());

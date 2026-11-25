@@ -9,6 +9,7 @@ import 'demo_home_action.dart';
 import 'widgets/brand_asset_slot.dart';
 import 'widgets/demo_quick_composer.dart';
 import 'widgets/reconstructed_action_glyph.dart';
+import 'widgets/timefit_robot_motion.dart';
 
 class DemoHomeScreen extends StatefulWidget {
   const DemoHomeScreen({
@@ -214,10 +215,15 @@ class _MobileHome extends StatelessWidget {
           children: <Widget>[
             Expanded(
               child: SingleChildScrollView(
+                key: onSend == null
+                    ? null
+                    : const Key('ax-mobile-home-content-scroll'),
                 primary: false,
                 keyboardDismissBehavior:
                     ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                padding: onSend == null
+                    ? const EdgeInsets.fromLTRB(16, 10, 16, 12)
+                    : const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: _MobileHomeContent(
                   availableHeight: constraints.maxHeight,
                   onOpenConversationList: onOpenConversationList,
@@ -233,13 +239,24 @@ class _MobileHome extends StatelessWidget {
               ),
               child: SingleChildScrollView(
                 primary: false,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: onSend == null
+                    ? const EdgeInsets.symmetric(horizontal: 16)
+                    : const EdgeInsets.fromLTRB(16, 4, 16, 8),
                 child: DemoQuickComposer(
                   key: composerKey,
                   controller: draftController,
                   focusNode: draftFocusNode,
                   onSend: onSend,
                   sendEnabled: sendEnabled,
+                  inputMaxHeight: onSend != null && constraints.maxHeight < 400
+                      ? (constraints.maxHeight * .42).clamp(
+                          DemoQuickComposer.minimumInputViewportHeight(
+                            context,
+                            nativeType: true,
+                          ),
+                          double.infinity,
+                        )
+                      : null,
                 ),
               ),
             ),
@@ -273,6 +290,9 @@ class _MobileHomeContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = TimeFitAxVisualTokens.of(context);
     final visual = TimeFitConversationVisual.of(context);
+    final bool compact =
+        nativeType &&
+        (MediaQuery.sizeOf(context).width < 420 || availableHeight < 710);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -313,22 +333,24 @@ class _MobileHomeContent extends StatelessWidget {
               ],
             ),
           ),
-        SizedBox(height: (availableHeight * .035).clamp(24, 34)),
+        SizedBox(height: compact ? 14 : (availableHeight * .035).clamp(24, 34)),
         LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
-            final double robotWidth = (MediaQuery.sizeOf(context).width * .398)
-                .clamp(136, 176);
+            final double robotWidth = compact
+                ? (availableHeight * .17).clamp(76, 116)
+                : (MediaQuery.sizeOf(context).width * .398).clamp(136, 176);
+            final robot = TimeFitAssetSlot(
+              kind: TimeFitAssetKind.mobileRobot,
+              width: robotWidth,
+              height: robotWidth,
+              keyName: 'mobile-home-robot-slot',
+            );
             return Center(
-              child: TimeFitAssetSlot(
-                kind: TimeFitAssetKind.mobileRobot,
-                width: robotWidth,
-                height: robotWidth,
-                keyName: 'mobile-home-robot-slot',
-              ),
+              child: nativeType ? TimeFitRobotMotion(child: robot) : robot,
             );
           },
         ),
-        const SizedBox(height: AppSpacing.x16),
+        SizedBox(height: compact ? 10 : AppSpacing.x16),
         Text(
           '무엇을 도와드릴까요?',
           textAlign: TextAlign.center,
@@ -341,7 +363,7 @@ class _MobileHomeContent extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
         ),
-        const SizedBox(height: AppSpacing.x12),
+        SizedBox(height: compact ? 8 : AppSpacing.x12),
         Text(
           '매장 운영부터 근무, 비용, 커뮤니케이션까지\nTimeFit AX가 함께합니다.',
           textAlign: TextAlign.center,
@@ -349,11 +371,18 @@ class _MobileHomeContent extends StatelessWidget {
               ? visual.summary
               : TextStyle(color: tokens.secondaryText, height: 1.45),
         ),
-        SizedBox(height: (availableHeight * .1).clamp(64, 88)),
+        SizedBox(
+          height: compact
+              ? 24
+              : nativeType
+              ? (availableHeight * .1).clamp(48, 64)
+              : (availableHeight * .1).clamp(64, 88),
+        ),
         _ActionGrid(
           expanded: false,
           onSelected: onSelected,
           nativeType: nativeType,
+          compact: compact,
         ),
         const SizedBox(height: AppSpacing.x12),
       ],
@@ -633,16 +662,23 @@ class _ActionGrid extends StatelessWidget {
     required this.expanded,
     required this.onSelected,
     this.nativeType = false,
+    this.compact = false,
   });
   final bool expanded;
   final bool nativeType;
+  final bool compact;
   final ValueChanged<DemoHomeAction> onSelected;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (BuildContext context, BoxConstraints constraints) {
-      final bool largeText = MediaQuery.textScalerOf(context).scale(16) >= 24;
-      final int columns = largeText || (!expanded && constraints.maxWidth < 360)
+      final double scaledBody = MediaQuery.textScalerOf(context).scale(16);
+      final bool largeText = scaledBody >= 24;
+      final bool narrowForScale = nativeType && !expanded && scaledBody > 19;
+      final int columns =
+          largeText ||
+              narrowForScale ||
+              (!expanded && constraints.maxWidth < (nativeType ? 320 : 360))
           ? 1
           : expanded
           ? 4
@@ -661,6 +697,7 @@ class _ActionGrid extends StatelessWidget {
                 action: action,
                 expanded: expanded,
                 nativeType: nativeType,
+                compact: compact,
                 largeText: largeText,
                 cardWidth: cardWidth,
                 onTap: () => onSelected(action),
@@ -677,6 +714,7 @@ class _ActionCard extends StatelessWidget {
     required this.action,
     required this.expanded,
     required this.nativeType,
+    required this.compact,
     required this.largeText,
     required this.cardWidth,
     required this.onTap,
@@ -685,6 +723,7 @@ class _ActionCard extends StatelessWidget {
   final DemoHomeAction action;
   final bool expanded;
   final bool nativeType;
+  final bool compact;
   final bool largeText;
   final double cardWidth;
   final VoidCallback onTap;
@@ -769,7 +808,11 @@ class _ActionCard extends StatelessWidget {
                 color: _tint(tokens),
                 glyphColor: _glyphColor(tokens),
                 square: false,
-                size: cardWidth >= 190 ? 48 : 44,
+                size: compact
+                    ? 32
+                    : cardWidth >= 190
+                    ? 48
+                    : 44,
               ),
               SizedBox(width: cardWidth >= 190 ? 8 : 6),
               Expanded(
@@ -784,7 +827,10 @@ class _ActionCard extends StatelessWidget {
                           ? TextOverflow.ellipsis
                           : TextOverflow.clip,
                       style: nativeType
-                          ? visual.text(15, weight: FontWeight.w700)
+                          ? visual.text(
+                              compact ? 14 : 15,
+                              weight: FontWeight.w700,
+                            )
                           : _titleStyle(tokens),
                     ),
                     const SizedBox(height: 3),
@@ -849,6 +895,7 @@ class _ActionCard extends StatelessWidget {
   double get _height {
     if (expanded) return largeText ? 280 : 162;
     if (largeText) return nativeType ? 216 : 170;
+    if (compact) return 112;
     if (nativeType) return 110;
     // At the 432 logical source viewport this resolves to the measured
     // 2.15:1 card aspect. Narrower accessibility adaptations get a small

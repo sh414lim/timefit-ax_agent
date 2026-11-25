@@ -29,12 +29,17 @@ class DemoQuickComposer extends StatelessWidget {
   /// composing text keep the same TextField state when the keyboard changes.
   final double? inputMaxHeight;
 
-  static double minimumInputViewportHeight(BuildContext context) {
+  static double minimumInputViewportHeight(
+    BuildContext context, {
+    bool nativeType = false,
+  }) {
     final theme = Theme.of(context);
     final painter = TextPainter(
       text: TextSpan(
         text: '가Ag',
-        style: theme.useMaterial3
+        style: nativeType
+            ? TimeFitConversationVisual.of(context).editor()
+            : theme.useMaterial3
             ? theme.textTheme.bodyLarge
             : theme.textTheme.titleMedium,
       ),
@@ -118,10 +123,10 @@ class DemoQuickComposer extends StatelessWidget {
     );
     if (onSend != null) {
       return Material(
-        color: TimeFitAxVisualTokens.chatChromeOf(context),
+        color: visual.fill,
         borderRadius: BorderRadius.circular(24),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
