@@ -12,6 +12,7 @@ import 'package:timefit_native/features/chat/domain/chat_message.dart';
 import 'package:timefit_native/features/chat/presentation/chat_screen.dart';
 import 'package:timefit_native/features/chat/presentation/widgets/ax_thinking_bubble.dart';
 import 'package:timefit_native/features/conversations/presentation/widgets/conversation_list_row.dart';
+import 'package:timefit_native/features/home/presentation/widgets/demo_quick_composer.dart';
 import 'package:timefit_native/features/home/presentation/widgets/timefit_loading_mark.dart';
 import 'package:timefit_native/src/app_environment.dart';
 
@@ -57,6 +58,57 @@ Future<Future<void> Function()> _mount(
 }
 
 void main() {
+  testWidgets(
+    'list, home and new chat keep the same hero and separate drafts',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(393, 852);
+      addTearDown(tester.view.reset);
+      final db = AppDatabase(NativeDatabase.memory());
+      final close = await _mount(tester, db);
+      final hero = find.byKey(const Key('mobile-home-robot-slot'));
+      final Size homeHero = tester.getSize(hero);
+      expect(find.byType(DemoQuickComposer), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'HOME만 남기는 초안');
+      await _tap(tester, find.byTooltip('메뉴 샘플'));
+      await _tap(tester, find.byTooltip('새 채팅'));
+
+      expect(tester.getSize(hero), homeHero);
+      expect(find.textContaining('TimeFit AX가 함께합니다.'), findsOneWidget);
+      expect(find.byType(DemoQuickComposer), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '',
+      );
+      await _tap(tester, find.text('비용 분석'));
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '비용 분석',
+      );
+      expect(await tester.runAsync(db.conversationDao.getAll), isEmpty);
+      await _tap(tester, find.byType(BackButton));
+      await _tap(tester, find.byType(BackButton));
+      expect(find.text('HOME만 남기는 초안'), findsOneWidget);
+      await close();
+    },
+  );
+
+  testWidgets('search clear resets an unmatched query without changing data', (
+    tester,
+  ) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    final close = await _mount(tester, db);
+    await _tap(tester, find.byTooltip('메뉴 샘플'));
+    await tester.enterText(find.byType(TextField), '검색어 예시');
+    await _settle(tester);
+    expect(find.text('검색 결과가 없습니다'), findsOneWidget);
+    await _tap(tester, find.byTooltip('검색어 지우기'));
+    expect(find.text('아직 대화가 없습니다'), findsOneWidget);
+    expect(find.text('보관된 대화'), findsOneWidget);
+    expect(await tester.runAsync(db.conversationDao.getAll), isEmpty);
+    await close();
+  });
+
   testWidgets(
     'home card only fills, edited text makes one durable room and outbox',
     (tester) async {

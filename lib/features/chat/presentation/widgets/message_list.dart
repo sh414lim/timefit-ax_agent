@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 
+import '../../../../app/theme/timefit_conversation_visual.dart';
+
 import '../../../home/presentation/widgets/timefit_loading_mark.dart';
 import '../../application/history_controller.dart';
 import '../../domain/chat_message.dart';
@@ -220,7 +222,11 @@ class _MessageListState extends State<MessageList> with WidgetsBindingObserver {
                   GlobalKey.new,
                 ),
                 children: <Widget>[
-                  if (showDate) _DateDivider(date: message.displayedAt),
+                  if (showDate)
+                    _DateDivider(
+                      date: message.displayedAt,
+                      branded: widget.axBranding,
+                    ),
                   MessageBubble(
                     message: message,
                     onRetry: widget.onRetry,
@@ -328,13 +334,32 @@ class _VisibleAnchor {
 }
 
 class _DateDivider extends StatelessWidget {
-  const _DateDivider({required this.date});
+  const _DateDivider({required this.date, required this.branded});
 
   final DateTime date;
+  final bool branded;
 
   @override
   Widget build(BuildContext context) {
     final String label = '${date.year}년 ${date.month}월 ${date.day}일';
+    if (branded) {
+      final visual = TimeFitConversationVisual.of(context);
+      return Semantics(
+        header: true,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: visual.text(
+              13,
+              weight: FontWeight.w500,
+              color: visual.muted,
+            ),
+          ),
+        ),
+      );
+    }
     return Semantics(
       header: true,
       child: Padding(

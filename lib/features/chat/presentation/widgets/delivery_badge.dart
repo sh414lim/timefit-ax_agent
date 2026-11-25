@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/timefit_conversation_visual.dart';
+
 import '../../domain/chat_message.dart';
 
 class DeliveryBadge extends StatelessWidget {
-  const DeliveryBadge({required this.state, super.key});
+  const DeliveryBadge({required this.state, this.branded = false, super.key});
 
   final MessageDeliveryState state;
+  final bool branded;
 
   String get label => switch (state) {
     MessageDeliveryState.pending => '전송 대기 중',
@@ -18,15 +21,18 @@ class DeliveryBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool failed = state == MessageDeliveryState.failed;
+    final visual = TimeFitConversationVisual.of(context);
     return Semantics(
       label: label,
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: failed
-              ? Theme.of(context).colorScheme.error
-              : Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
+        style: branded && !failed
+            ? visual.text(12, color: visual.muted)
+            : Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: failed
+                    ? Theme.of(context).colorScheme.error
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
       ),
     );
   }

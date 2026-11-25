@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../app/theme/timefit_ax_visual_tokens.dart';
+import '../../../../app/theme/timefit_conversation_visual.dart';
 import '../../application/composer_controller.dart';
 import 'attachment_chip.dart';
 
@@ -154,23 +154,22 @@ class _ChatComposerState extends State<ChatComposer> {
         (attachment) => attachment.state != ComposerAttachmentState.failed,
       ),
     ];
+    final visual = TimeFitConversationVisual.of(context);
     return SafeArea(
       top: false,
       child: Material(
         color: widget.axBranding
-            ? TimeFitAxVisualTokens.chatSurfaceOf(context)
+            ? visual.canvas
             : Theme.of(context).colorScheme.surface,
         child: Padding(
           padding: EdgeInsets.fromLTRB(
-            12,
+            widget.axBranding ? 16 : 12,
             useCompactInput ? 4 : 8,
-            8,
+            widget.axBranding ? 16 : 8,
             useCompactInput ? 4 : 8,
           ),
           child: Material(
-            color: widget.axBranding
-                ? TimeFitAxVisualTokens.chatChromeOf(context)
-                : Colors.transparent,
+            color: widget.axBranding ? visual.fill : Colors.transparent,
             borderRadius: BorderRadius.circular(widget.axBranding ? 24 : 0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -263,6 +262,8 @@ class _ChatComposerState extends State<ChatComposer> {
                         child: TextField(
                           controller: _textController,
                           focusNode: _focusNode,
+                          style: widget.axBranding ? visual.text(16) : null,
+                          cursorColor: widget.axBranding ? visual.accent : null,
                           minLines: 1,
                           maxLines: useCompactInput ? null : 5,
                           inputFormatters: const <TextInputFormatter>[
@@ -283,14 +284,17 @@ class _ChatComposerState extends State<ChatComposer> {
                                   )
                                 : null,
                             hintText: '메시지 입력',
+                            hintStyle: widget.axBranding
+                                ? visual.text(16, color: visual.muted)
+                                : null,
                             border: widget.axBranding
-                                ? TimeFitAxVisualTokens.chatFieldBorder
+                                ? visual.fieldBorder
                                 : const OutlineInputBorder(),
                             enabledBorder: widget.axBranding
-                                ? TimeFitAxVisualTokens.chatFieldBorder
+                                ? visual.fieldBorder
                                 : null,
                             focusedBorder: widget.axBranding
-                                ? TimeFitAxVisualTokens.chatFieldBorder
+                                ? visual.fieldBorder
                                 : null,
                             counterText: controller.showCounter
                                 ? '${controller.characterCount}/${ComposerController.maximumLength}'

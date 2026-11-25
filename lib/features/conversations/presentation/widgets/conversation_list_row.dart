@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/timefit_conversation_visual.dart';
+
 import '../../../home/presentation/widgets/brand_asset_slot.dart';
 import '../../domain/conversation_summary.dart';
 
@@ -23,6 +25,7 @@ class ConversationListRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visual = TimeFitConversationVisual.of(context);
     final String semanticLabel = <String>[
       conversation.title,
       if (conversation.displayPreview.isNotEmpty) conversation.displayPreview,
@@ -36,22 +39,35 @@ class ConversationListRow extends StatelessWidget {
       excludeSemantics: true,
       child: Ink(
         color: selected
-            ? Theme.of(context).colorScheme.secondaryContainer
+            ? showAvatar
+                  ? visual.accentFill
+                  : Theme.of(context).colorScheme.secondaryContainer
             : null,
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: trailing == null
+            padding: showAvatar
+                ? const EdgeInsetsDirectional.fromSTEB(20, 14, 8, 14)
+                : trailing == null
                 ? const EdgeInsets.symmetric(horizontal: 16, vertical: 10)
                 : const EdgeInsets.fromLTRB(16, 10, 8, 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 if (showAvatar) ...<Widget>[
-                  const TimeFitAssetSlot(
-                    kind: TimeFitAssetKind.mobileRobot,
-                    width: 34,
-                    height: 34,
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: visual.accentFill,
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: TimeFitAssetSlot(
+                        kind: TimeFitAssetKind.mobileRobot,
+                        width: 28,
+                        height: 28,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 10),
                 ],
@@ -64,7 +80,7 @@ class ConversationListRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: showAvatar
-                            ? Theme.of(context).textTheme.titleSmall
+                            ? visual.text(16, weight: FontWeight.w700)
                             : Theme.of(context).textTheme.titleMedium,
                       ),
                       if (conversation.displayPreview.isNotEmpty) ...<Widget>[
@@ -73,23 +89,24 @@ class ConversationListRow extends StatelessWidget {
                           conversation.displayPreview,
                           maxLines: showAvatar ? 1 : 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: showAvatar
-                                    ? Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant
-                                    : null,
-                              ),
+                          style: showAvatar
+                              ? visual.text(14, color: visual.secondary)
+                              : Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
                     ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  updatedAtLabel,
-                  style: Theme.of(context).textTheme.labelMedium,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 92),
+                  child: Text(
+                    updatedAtLabel,
+                    textAlign: TextAlign.end,
+                    style: showAvatar
+                        ? visual.text(12, color: visual.muted)
+                        : Theme.of(context).textTheme.labelMedium,
+                  ),
                 ),
               ],
             ),

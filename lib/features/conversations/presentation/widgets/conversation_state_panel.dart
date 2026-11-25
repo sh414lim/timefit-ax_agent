@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/timefit_conversation_visual.dart';
+
 class ConversationStatePanel extends StatelessWidget {
   const ConversationStatePanel({
     required this.title,
@@ -9,6 +11,7 @@ class ConversationStatePanel extends StatelessWidget {
     this.secondaryActionLabel,
     this.onSecondaryAction,
     this.compact = false,
+    this.icon = Icons.forum_outlined,
     super.key,
   });
 
@@ -19,9 +22,11 @@ class ConversationStatePanel extends StatelessWidget {
   final String? secondaryActionLabel;
   final VoidCallback? onSecondaryAction;
   final bool compact;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
+    final visual = TimeFitConversationVisual.of(context);
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         return SingleChildScrollView(
@@ -38,10 +43,15 @@ class ConversationStatePanel extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     if (compact) ...[
-                      Icon(
-                        Icons.forum_outlined,
-                        size: 28,
-                        color: Theme.of(context).colorScheme.primary,
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: visual.fill,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Icon(icon, size: 28, color: visual.accent),
+                        ),
                       ),
                       const SizedBox(height: 12),
                     ],
@@ -49,11 +59,17 @@ class ConversationStatePanel extends StatelessWidget {
                       title,
                       textAlign: TextAlign.center,
                       style: compact
-                          ? Theme.of(context).textTheme.titleMedium
+                          ? visual.text(20, weight: FontWeight.w700)
                           : Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 8),
-                    Text(message, textAlign: TextAlign.center),
+                    Text(
+                      message,
+                      textAlign: TextAlign.center,
+                      style: compact
+                          ? visual.text(15, color: visual.secondary)
+                          : null,
+                    ),
                     SizedBox(height: compact ? 16 : 24),
                     FilledButton(onPressed: onAction, child: Text(actionLabel)),
                     if (secondaryActionLabel

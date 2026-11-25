@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../app/theme/timefit_ax_visual_tokens.dart';
+import '../../../app/theme/timefit_conversation_visual.dart';
 
 import '../../home/presentation/widgets/timefit_loading_mark.dart';
 import '../application/chat_connection_controller.dart';
@@ -151,6 +151,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final ComposerController? composer = _matchingComposer;
+    final visual = TimeFitConversationVisual.of(context);
     final MediaQueryData mediaQuery = MediaQuery.of(context);
     final bool hasVisibleConnectionBanner =
         _connectionController?.state.showBanner ?? false;
@@ -158,19 +159,22 @@ class _ChatScreenState extends State<ChatScreen> {
         widget.compactKeyboardLayout ||
         (hasVisibleConnectionBanner && mediaQuery.viewInsets.bottom > 0);
     return Scaffold(
-      backgroundColor: widget.axBranding
-          ? TimeFitAxVisualTokens.chatSurfaceOf(context)
-          : null,
+      backgroundColor: widget.axBranding ? visual.canvas : null,
       appBar: AppBar(
-        backgroundColor: widget.axBranding
-            ? TimeFitAxVisualTokens.chatChromeOf(context)
-            : null,
+        backgroundColor: widget.axBranding ? visual.canvas : null,
+        foregroundColor: widget.axBranding ? visual.ink : null,
+        centerTitle: widget.axBranding ? false : null,
         surfaceTintColor: widget.axBranding ? Colors.transparent : null,
         toolbarHeight: constrainedKeyboardLayout ? 48 : null,
         leading: widget.onBack == null
             ? null
             : BackButton(onPressed: widget.onBack),
-        title: Text(widget.title),
+        title: Text(
+          widget.title,
+          style: widget.axBranding
+              ? visual.text(20, weight: FontWeight.w700)
+              : null,
+        ),
       ),
       body: SafeArea(
         child: hasVisibleConnectionBanner && mediaQuery.viewInsets.bottom > 0
@@ -387,14 +391,14 @@ class _LocalModeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = TimeFitAxVisualTokens.of(context);
+    final visual = TimeFitConversationVisual.of(context);
     return Align(
       alignment: AlignmentDirectional.centerStart,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: tokens.surface,
+            color: visual.fill,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Padding(
@@ -403,9 +407,11 @@ class _LocalModeChip extends StatelessWidget {
               label,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(color: tokens.secondaryText),
+              style: visual.text(
+                12,
+                weight: FontWeight.w600,
+                color: visual.secondary,
+              ),
             ),
           ),
         ),

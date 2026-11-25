@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../../app/theme/timefit_ax_visual_tokens.dart';
+import '../../../../app/theme/timefit_conversation_visual.dart';
 import '../../../home/presentation/widgets/brand_asset_slot.dart';
 import '../../domain/chat_message.dart';
 import 'delivery_badge.dart';
@@ -26,12 +26,12 @@ class MessageBubble extends StatelessWidget {
         message.deliveryState == MessageDeliveryState.failed &&
         onRetry != null;
     final ColorScheme colors = Theme.of(context).colorScheme;
-    final tokens = TimeFitAxVisualTokens.of(context);
+    final visual = TimeFitConversationVisual.of(context);
     final brandedMine = axBranding && message.isMine;
     final Color background = message.isMine
-        ? (brandedMine ? tokens.paleBlue : colors.primaryContainer)
+        ? (brandedMine ? visual.accentFill : colors.primaryContainer)
         : axBranding
-        ? tokens.surface
+        ? visual.fill
         : colors.surfaceContainerHighest;
     final bubble = Container(
       constraints: const BoxConstraints(maxWidth: 320, minHeight: 44),
@@ -39,18 +39,25 @@ class MessageBubble extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: axBranding
+            ? BorderRadiusDirectional.only(
+                topStart: const Radius.circular(18),
+                topEnd: const Radius.circular(18),
+                bottomStart: Radius.circular(message.isMine ? 18 : 6),
+                bottomEnd: Radius.circular(message.isMine ? 6 : 18),
+              )
+            : BorderRadius.circular(18),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(
           textTheme: Theme.of(context).textTheme.apply(
-            bodyColor: brandedMine ? tokens.deepText : null,
-            displayColor: brandedMine ? tokens.deepText : null,
+            bodyColor: brandedMine ? visual.ink : null,
+            displayColor: brandedMine ? visual.ink : null,
           ),
           colorScheme: brandedMine
               ? colors.copyWith(
-                  primary: tokens.primary,
-                  onSurfaceVariant: tokens.secondaryText,
+                  primary: visual.accent,
+                  onSurfaceVariant: visual.secondary,
                 )
               : colors,
         ),
@@ -58,10 +65,7 @@ class MessageBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Text(
-              message.body,
-              style: brandedMine ? TextStyle(color: tokens.deepText) : null,
-            ),
+            Text(message.body, style: axBranding ? visual.text(16) : null),
             if (!axBranding) ...[
               const SizedBox(height: 4),
               ExcludeSemantics(
@@ -93,7 +97,10 @@ class MessageBubble extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(right: 4, bottom: 4),
                 child: ExcludeSemantics(
-                  child: DeliveryBadge(state: message.deliveryState),
+                  child: DeliveryBadge(
+                    state: message.deliveryState,
+                    branded: true,
+                  ),
                 ),
               ),
             ],

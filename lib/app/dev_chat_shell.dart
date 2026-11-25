@@ -35,8 +35,6 @@ import '../features/conversations/presentation/archived_conversation_screen.dart
 import '../features/conversations/presentation/conversation_list_screen.dart';
 import '../features/conversations/presentation/conversation_menu.dart';
 import '../features/home/presentation/home_screen.dart';
-import '../features/home/presentation/widgets/brand_asset_slot.dart';
-import '../features/home/presentation/widgets/demo_quick_composer.dart';
 import '../features/home/presentation/widgets/timefit_loading_mark.dart';
 
 import 'theme/timefit_ax_visual_tokens.dart';
@@ -1078,7 +1076,7 @@ class _DevChatShellState extends State<DevChatShell>
     );
   }
 
-  Widget _buildDraft(VoidCallback onBack) => _NewChatPage(
+  Widget _buildDraft(VoidCallback onBack) => TimeFitNewChatHome(
     controller: _newDraftController,
     focusNode: _newDraftFocusNode,
     onBack: onBack,
@@ -1346,170 +1344,4 @@ class _LocalState extends StatelessWidget {
       ),
     );
   }
-}
-
-class _NewChatPage extends StatelessWidget {
-  const _NewChatPage({
-    required this.controller,
-    required this.focusNode,
-    required this.onBack,
-    required this.onSend,
-    required this.sendEnabled,
-  });
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final VoidCallback onBack;
-  final VoidCallback onSend;
-  final bool sendEnabled;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: TimeFitAxVisualTokens.chatSurfaceOf(context),
-    appBar: AppBar(
-      backgroundColor: TimeFitAxVisualTokens.chatChromeOf(context),
-      surfaceTintColor: Colors.transparent,
-      titleSpacing: 4,
-      leading: BackButton(onPressed: onBack),
-      title: const Row(
-        children: <Widget>[
-          TimeFitAssetSlot(
-            kind: TimeFitAssetKind.squareLogo,
-            width: 28,
-            height: 28,
-          ),
-          SizedBox(width: 10),
-          Text('새 채팅'),
-        ],
-      ),
-    ),
-    body: SafeArea(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final viewport = DemoQuickComposer.minimumInputViewportHeight(
-            context,
-          );
-          final inputHeight = (constraints.maxHeight * .34)
-              .clamp(viewport, viewport > 130 ? viewport : 130)
-              .toDouble();
-          return Column(
-            children: <Widget>[
-              Expanded(
-                child: Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        const TimeFitAssetSlot(
-                          kind: TimeFitAssetKind.mobileRobot,
-                          width: 78,
-                          height: 78,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          '무엇을 도와드릴까요?',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 12),
-                        LayoutBuilder(
-                          builder: (context, cards) {
-                            final tokens = TimeFitAxVisualTokens.of(context);
-                            final scaled = MediaQuery.textScalerOf(
-                              context,
-                            ).scale(14);
-                            final twoColumns =
-                                cards.maxWidth >= 270 && scaled < 23;
-                            final cardWidth = twoColumns
-                                ? (cards.maxWidth.clamp(0.0, 400.0) - 8) / 2
-                                : cards.maxWidth.clamp(0.0, 400.0).toDouble();
-                            return Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              alignment: WrapAlignment.center,
-                              children: [
-                                for (final (label, icon) in const [
-                                  ('오늘 매장 현황', Icons.insights_outlined),
-                                  ('이번 주 근무표', Icons.calendar_today_outlined),
-                                  ('비용 분석', Icons.receipt_long_outlined),
-                                  ('직원 공지 작성', Icons.campaign_outlined),
-                                ])
-                                  SizedBox(
-                                    width: cardWidth,
-                                    child: TextButton(
-                                      style: TextButton.styleFrom(
-                                        minimumSize: const Size(0, 48),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 8,
-                                        ),
-                                        backgroundColor: tokens.surface,
-                                        foregroundColor: tokens.deepText,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                        ),
-                                      ),
-                                      onPressed: () =>
-                                          controller.value = TextEditingValue(
-                                            text: label,
-                                            selection: TextSelection.collapsed(
-                                              offset: label.length,
-                                            ),
-                                          ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            icon,
-                                            size: 18,
-                                            color: tokens.primary,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(child: Text(label)),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: (constraints.maxHeight - 14).clamp(
-                      0,
-                      double.infinity,
-                    ),
-                  ),
-                  child: SingleChildScrollView(
-                    primary: false,
-                    child: DemoQuickComposer(
-                      key: const Key('new-chat-composer'),
-                      controller: controller,
-                      focusNode: focusNode,
-                      onSend: onSend,
-                      sendEnabled: sendEnabled,
-                      inputMaxHeight: inputHeight,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    ),
-  );
 }

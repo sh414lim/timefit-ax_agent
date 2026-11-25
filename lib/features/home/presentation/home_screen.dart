@@ -137,9 +137,55 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
   }
 }
 
+/// First-message route uses the same mobile home content and editor, but
+/// owns a different draft/controller and leaves navigation to the chat shell.
+class TimeFitNewChatHome extends StatelessWidget {
+  const TimeFitNewChatHome({
+    required this.controller,
+    required this.focusNode,
+    required this.onBack,
+    required this.onSend,
+    required this.sendEnabled,
+    super.key,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onBack;
+  final VoidCallback onSend;
+  final bool sendEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TimeFitAxVisualTokens.of(context);
+    return Scaffold(
+      backgroundColor: tokens.canvas,
+      appBar: AppBar(
+        backgroundColor: tokens.canvas,
+        surfaceTintColor: Colors.transparent,
+        leading: BackButton(onPressed: onBack),
+        title: const Text('새 채팅'),
+      ),
+      body: SafeArea(
+        child: _MobileHome(
+          onSelected: (action) => controller.value = TextEditingValue(
+            text: action.label,
+            selection: TextSelection.collapsed(offset: action.label.length),
+          ),
+          draftController: controller,
+          draftFocusNode: focusNode,
+          composerKey: const Key('new-chat-composer'),
+          onSend: onSend,
+          sendEnabled: sendEnabled,
+        ),
+      ),
+    );
+  }
+}
+
 class _MobileHome extends StatelessWidget {
   const _MobileHome({
-    required this.onOpenConversationList,
+    this.onOpenConversationList,
     required this.onSelected,
     required this.draftController,
     required this.draftFocusNode,
@@ -148,7 +194,7 @@ class _MobileHome extends StatelessWidget {
     this.sendEnabled = true,
   });
 
-  final VoidCallback onOpenConversationList;
+  final VoidCallback? onOpenConversationList;
   final ValueChanged<DemoHomeAction> onSelected;
   final TextEditingController draftController;
   final FocusNode draftFocusNode;
@@ -194,11 +240,12 @@ class _MobileHome extends StatelessWidget {
             ),
           ],
         ),
-        const Positioned(
-          top: 54,
-          right: 16,
-          child: _DemoBadge(key: Key('mobile-home-overlay-demo-badge')),
-        ),
+        if (onOpenConversationList != null)
+          const Positioned(
+            top: 54,
+            right: 16,
+            child: _DemoBadge(key: Key('mobile-home-overlay-demo-badge')),
+          ),
       ],
     ),
   );
@@ -207,12 +254,12 @@ class _MobileHome extends StatelessWidget {
 class _MobileHomeContent extends StatelessWidget {
   const _MobileHomeContent({
     required this.availableHeight,
-    required this.onOpenConversationList,
+    this.onOpenConversationList,
     required this.onSelected,
   });
 
   final double availableHeight;
-  final VoidCallback onOpenConversationList;
+  final VoidCallback? onOpenConversationList;
   final ValueChanged<DemoHomeAction> onSelected;
 
   @override
@@ -221,40 +268,41 @@ class _MobileHomeContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        SizedBox(
-          height: 52,
-          child: Row(
-            children: <Widget>[
-              const TimeFitAssetSlot(
-                kind: TimeFitAssetKind.squareLogo,
-                width: 40,
-                height: 40,
-                keyName: 'mobile-home-logo-slot',
-              ),
-              const SizedBox(width: AppSpacing.x12),
-              Expanded(
-                child: Text(
-                  'TimeFit AX',
-                  style: TextStyle(
-                    color: tokens.deepText,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
+        if (onOpenConversationList != null)
+          SizedBox(
+            height: 52,
+            child: Row(
+              children: <Widget>[
+                const TimeFitAssetSlot(
+                  kind: TimeFitAssetKind.squareLogo,
+                  width: 40,
+                  height: 40,
+                  keyName: 'mobile-home-logo-slot',
+                ),
+                const SizedBox(width: AppSpacing.x12),
+                Expanded(
+                  child: Text(
+                    'TimeFit AX',
+                    style: TextStyle(
+                      color: tokens.deepText,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-              ),
-              _SourceHeaderButton(
-                tooltip: '알림 샘플',
-                onPressed: () {},
-                glyph: _HeaderGlyph.bell,
-              ),
-              _SourceHeaderButton(
-                tooltip: '메뉴 샘플',
-                onPressed: onOpenConversationList,
-                glyph: _HeaderGlyph.more,
-              ),
-            ],
+                _SourceHeaderButton(
+                  tooltip: '알림 샘플',
+                  onPressed: () {},
+                  glyph: _HeaderGlyph.bell,
+                ),
+                _SourceHeaderButton(
+                  tooltip: '메뉴 샘플',
+                  onPressed: onOpenConversationList!,
+                  glyph: _HeaderGlyph.more,
+                ),
+              ],
+            ),
           ),
-        ),
         SizedBox(height: (availableHeight * .035).clamp(24, 34)),
         LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
