@@ -21,11 +21,12 @@ if [[ "$actual_target" == "${TIMEFIT_EXPECTED_FLUTTER_TARGET}" ]] ||
   exit 0
 fi
 
-# Personal owner-only SIWC bridges: only exact dev/debug simulator targets.
+# Personal bridges and the local restart fixture: exact dev/debug simulator targets.
 # The non-production boundary remains fail-closed for all other targets.
 for personal_ax_target in \
   'lib/dev/main_personal_ax.dart' \
-  'lib/dev/main_personal_chat.dart'; do
+  'lib/dev/main_personal_chat.dart' \
+  'integration_test/production_chat_restart_test.dart'; do
   personal_ax_absolute_target="${repository_root}/${personal_ax_target}"
   if [[ "${TIMEFIT_ENVIRONMENT}" == 'dev' ]] &&
       [[ "${TIMEFIT_EXPECTED_FLUTTER_TARGET}" == 'lib/main.dart' ]] &&

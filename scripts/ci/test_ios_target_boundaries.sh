@@ -19,6 +19,7 @@ mkdir -p "$ios_project/Flutter" "$project/integration_test" "$project/lib/dev"
 touch "$project/lib/dev/main_personal_ax.dart"
 touch "$project/lib/dev/main_personal_chat.dart"
 touch "$project/integration_test/chat_e2e_test.dart"
+touch "$project/integration_test/production_chat_restart_test.dart"
 project="$(cd "$project" && pwd -P)"
 ios_project="$project/ios"
 
@@ -157,6 +158,37 @@ run_case reject 'personal AX outside-root spoof rejected' \
 
 run_case pass 'CHAT-074 dev debug simulator target' \
   dev lib/main.dart CHAT_E2E_LISTENER Debug-dev \
+  iphonesimulator iphonesimulator18.1
+
+restart_target='integration_test/production_chat_restart_test.dart'
+run_case pass 'local restart fixture dev debug simulator' \
+  dev lib/main.dart "$restart_target" Debug-dev \
+  iphonesimulator iphonesimulator18.1
+run_case pass 'local restart fixture absolute simulator target' \
+  dev lib/main.dart "$project/$restart_target" Debug-dev \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'local restart fixture staging rejected' \
+  staging lib/main_staging.dart "$restart_target" Debug-staging \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'local restart fixture production rejected' \
+  production lib/main.dart "$restart_target" Debug-production \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'local restart fixture device rejected' \
+  dev lib/main.dart "$restart_target" Debug-dev iphoneos iphoneos18.1
+run_case reject 'local restart fixture profile rejected' \
+  dev lib/main.dart "$restart_target" Profile-dev \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'local restart fixture release rejected' \
+  dev lib/main.dart "$restart_target" Release-dev \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'local restart fixture mixed SDK rejected' \
+  dev lib/main.dart "$restart_target" Debug-dev \
+  iphonesimulator iphoneos18.1
+run_case reject 'local restart fixture wrong expected target rejected' \
+  dev lib/main_staging.dart "$restart_target" Debug-dev \
+  iphonesimulator iphonesimulator18.1
+run_case reject 'local restart fixture outside repository rejected' \
+  dev lib/main.dart "$sandbox/outside/$restart_target" Debug-dev \
   iphonesimulator iphonesimulator18.1
 run_case reject 'CHAT-074 staging target' \
   staging lib/main_staging.dart CHAT_E2E_LISTENER \
