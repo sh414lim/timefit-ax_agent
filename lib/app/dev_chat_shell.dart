@@ -779,12 +779,11 @@ class _DevChatShellState extends State<DevChatShell>
   }
 
   @override
-  Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.viewInsetsOf(context);
+  Widget build(BuildContext context) =>
+      _KeyboardLayoutBoundary(builder: _buildShell);
+
+  Widget _buildShell(bool compactKeyboardLayout) {
     final size = MediaQuery.sizeOf(context);
-    final bool compactKeyboardLayout =
-        viewInsets.bottom > 0 &&
-        (size.width > size.height || size.height - viewInsets.bottom < 400);
     if (_newExperience &&
         _initializationError == null &&
         _listController != null) {
@@ -1001,11 +1000,6 @@ class _DevChatShellState extends State<DevChatShell>
   );
 
   @override
-  void didChangeMetrics() {
-    if (mounted) setState(() {});
-  }
-
-  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _personalPairing != null) {
       unawaited(_personalChatWorker?.wake());
@@ -1154,6 +1148,43 @@ class _DevChatShellState extends State<DevChatShell>
       isConversationBusy: (String id) =>
           _conversationActions?.state.isBusy(id) ?? false,
     );
+  }
+}
+
+/// Navigation only uses the compact/not-compact decision. Raw IME animation
+/// values still reach descendant Scaffolds, without rebuilding page configs.
+class _KeyboardLayoutBoundary extends StatefulWidget {
+  const _KeyboardLayoutBoundary({required this.builder});
+
+  final Widget Function(bool compact) builder;
+
+  @override
+  State<_KeyboardLayoutBoundary> createState() =>
+      _KeyboardLayoutBoundaryState();
+}
+
+class _KeyboardLayoutBoundaryState extends State<_KeyboardLayoutBoundary> {
+  bool? _lastCompact;
+  Widget? _cachedShell;
+
+  @override
+  void didUpdateWidget(covariant _KeyboardLayoutBoundary oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A shell state update (navigation, pairing, theme, size) is not an IME
+    // tick, and must refresh the page data even when the policy stays put.
+    _cachedShell = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    final compact =
+        bottom > 0 && (size.width > size.height || size.height - bottom < 400);
+    final cached = _cachedShell;
+    if (cached != null && compact == _lastCompact) return cached;
+    _lastCompact = compact;
+    return _cachedShell = widget.builder(compact);
   }
 }
 

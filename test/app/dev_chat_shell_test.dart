@@ -34,6 +34,105 @@ Future<void> _createConversationFromHome(WidgetTester tester) async {
 
 void main() {
   testWidgets(
+    'staging IME ticks resize composer without recreating navigator pages',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(384, 856);
+      addTearDown(tester.view.reset);
+      final root = (await tester.runAsync(
+        () => Directory.systemTemp.createTemp('timefit-staging-ime-'),
+      ))!;
+      addTearDown(() => root.delete(recursive: true));
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+      messenger.setMockMethodCallHandler(pathProvider, (_) async => root.path);
+      addTearDown(() => messenger.setMockMethodCallHandler(pathProvider, null));
+      var disposed = false;
+      await tester.pumpWidget(
+        TimeFitApp(
+          environment: AppEnvironment.staging,
+          stagingDisposalObserver: (done) =>
+              done.whenComplete(() => disposed = true),
+        ),
+      );
+      Future<void> tap(Finder finder) async {
+        await _pumpUntilFinder(tester, finder);
+        await tester.tap(finder);
+        await _settleFileIo(tester);
+        await tester.pumpAndSettle();
+      }
+
+      Navigator axNavigator() => tester
+          .widgetList<Navigator>(find.byType(Navigator))
+          .singleWhere(
+            (nav) => nav.pages.any((page) => page.name == 'ax-compose'),
+          );
+      List<Key?> pageKeys(Navigator nav) =>
+          nav.pages.map((page) => page.key).toList();
+      Future<void> inset(double amount) async {
+        tester.view.viewInsets = FakeViewPadding(bottom: amount);
+        await tester.pump();
+      }
+
+      try {
+        await tap(find.byTooltip('메뉴 샘플'));
+        await tap(find.byTooltip('새 채팅'));
+        await tester.enterText(find.byType(TextField), '기존 방을 만드는 예시');
+        await tap(find.byTooltip('메시지 보내기'));
+        await _pumpUntilFinder(tester, find.text('로컬 대화'));
+        await tester.enterText(find.byType(TextField), 'IME 동작 검증 초안');
+        await inset(400);
+        final normal = axNavigator();
+        final keys = pageKeys(normal);
+        final route = ModalRoute.of(tester.element(find.byType(ChatScreen)));
+        final button = find.byTooltip('메시지 저장');
+        final bottom = tester.getBottomRight(button).dy;
+        final samePolicyRebuilds = <double>[];
+        for (final tick in [410.0, 425.0, 445.0]) {
+          await inset(tick);
+          if (!identical(axNavigator(), normal)) samePolicyRebuilds.add(tick);
+          expect(pageKeys(axNavigator()), keys);
+          expect(find.text('IME 동작 검증 초안'), findsOneWidget);
+        }
+        expect(tester.getBottomRight(button).dy, lessThan(bottom - 25));
+
+        await inset(470);
+        final compact = axNavigator();
+        expect(
+          compact,
+          isNot(same(normal)),
+          reason: 'crossed compact threshold',
+        );
+        expect(pageKeys(compact), keys);
+        expect(
+          ModalRoute.of(tester.element(find.byType(ChatScreen))),
+          same(route),
+        );
+        for (final tick in [480.0, 495.0, 510.0]) {
+          await inset(tick);
+          if (!identical(axNavigator(), compact)) samePolicyRebuilds.add(tick);
+        }
+        expect(samePolicyRebuilds, isEmpty);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.text('로컬 대화'), findsOneWidget);
+        expect(find.text('IME 동작 검증 초안'), findsOneWidget);
+        await inset(0);
+        await tester.binding.handlePopRoute();
+        await _settleFileIo(tester);
+        await tester.pumpAndSettle();
+        await tap(find.byType(ConversationListRow));
+        expect(find.text('IME 동작 검증 초안'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _pumpUntil(tester, () => disposed);
+      }
+    },
+  );
+
+  testWidgets(
     'staging uses distinct file storage, never enables personal AX, reopens same room',
     (WidgetTester tester) async {
       final root = (await tester.runAsync(
